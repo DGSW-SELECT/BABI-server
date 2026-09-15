@@ -35,3 +35,5 @@ com.select
 ```
 
 새 핵심 기능은 `domain` 아래에 같은 계층으로 추가합니다.
+
+Discord에 Webhook으로 연결되어 확인메시지가 전송됩니다
