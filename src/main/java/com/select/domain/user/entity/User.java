@@ -15,23 +15,35 @@ public class User {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false,unique = true,length = 50)
+    @Column(name = "login_id",nullable = false,unique = true,length = 50)
     private String loginId;
 
-    @Column(nullable = false, length = 255)
+    @Column(name = "password_hash",nullable = false, length = 255)
     private String passwordHash;
 
     @Column(nullable = false,length = 50)
     private String nickname;
 
-    @Column(nullable = false)
-    private LocalDateTime createAt;
+    @Column(name = "created_at",nullable = false)
+    private LocalDateTime createdAt;
 
-    @Column(nullable = false)
-    private LocalDateTime updateAt;
+    @Column(name = "updated_at",nullable = false)
+    private LocalDateTime updatedAt;
 
     protected User() {
 
+    }
+
+    @PrePersist
+    public void onCreated() {
+        LocalDateTime now = LocalDateTime.now();
+        this.createdAt = now;
+        this.updatedAt = now;
+    }
+
+    @PreUpdate
+    public void onUpdated() {
+        this.updatedAt = LocalDateTime.now();
     }
 
     @Builder
