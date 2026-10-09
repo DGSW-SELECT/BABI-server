@@ -2,7 +2,10 @@ package com.select.domain.user.service;
 
 
 import com.select.domain.user.dto.request.SignupRequest;
+import com.select.domain.user.dto.response.SignupResponse;
 import com.select.domain.user.entity.User;
+import com.select.domain.user.exception.DuplicateEmailException;
+import com.select.domain.user.exception.PasswordMismatchException;
 import com.select.domain.user.repository.UserRepository;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -17,16 +20,22 @@ public class UserService {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
     }
-    public void saveUser(SignupRequest request) {
-        if (userRepository.existsByLoginId(request.getEmail())) {
-            throw new IllegalArgumentException("이미 사용 중인 이메일입니다.");
+    public SignupResponse saveUser(SignupRequest request) {
+        if (userRepository.existsByLoginId(request.email())) {
+            throw new DuplicateEmailException();
+        }
+        if (!request.password().equals(request.passwordConfirm())) {
+            throw new PasswordMismatchException();
         }
         User user = User
                 .builder()
-                .loginId(request.getEmail())
-                .nickname(request.getNickname())
-                .passwordHash(passwordEncoder.encode(request.getPassword()))
+                .loginId(request.email())
+                .nickname(request.nickname())
+                .passwordHash(passwordEncoder.encode(request.password()))
                 .build();
-        userRepository.save(user);
+        User savedUser = userRepository.save(user);
+        return new SignupResponse(savedUser.getId(),
+                savedUser.getLoginId(),
+                savedUser.getNickname());
     }
 }

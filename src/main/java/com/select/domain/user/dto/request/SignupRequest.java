@@ -1,23 +1,25 @@
 package com.select.domain.user.dto.request;
 
-import lombok.Getter;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 
-@Getter
-public class SignupRequest {
+public record SignupRequest(
 
+        @Email
+        @Size(max = 50)
+        @NotBlank
+        String email,
 
-    private final String email;
+        @NotBlank
+        String password,
 
-    private final String password;
+        @NotBlank
+        String passwordConfirm,
 
-    private final String passwordConfirm;
+        @NotBlank
+        @Size(max = 50)
+        String nickname
 
-    private final String nickname;
-
-    public SignupRequest(String email,String password,String passwordConfirm,String nickname) {
-        this.email = email;
-        this.password = password;
-        this.passwordConfirm = passwordConfirm;
-        this.nickname = nickname;
-    }
+) {
 }
