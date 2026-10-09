@@ -6,20 +6,13 @@ import jakarta.validation.constraints.Size;
 
 public record SignupRequest(
 
-        @Email
-        @Size(max = 50)
-        @NotBlank
-        String email,
+        @Email @Size(max = 50) @NotBlank String email,
 
-        @NotBlank
-        String password,
+        @NotBlank String password,
 
-        @NotBlank
-        String passwordConfirm,
+        @NotBlank String passwordConfirm,
 
-        @NotBlank
-        @Size(max = 50)
-        String nickname
+        @NotBlank @Size(max = 50) String nickname
 
 ) {
 }

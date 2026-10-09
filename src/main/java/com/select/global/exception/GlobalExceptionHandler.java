@@ -20,12 +20,12 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleDuplicateEmail(
             DuplicateEmailException e
     ) {
-        ErrorDetail detail = new ErrorDetail("email",e.getMessage());
+        ErrorDetail detail = new ErrorDetail("email", e.getMessage());
         ApiError error = new ApiError(
                 "DUPLICATE_EMAIL",
                 List.of(detail)
         );
-        ApiResponse<Void> response = new ApiResponse<>(false,e.getMessage(),null,error);
+        ApiResponse<Void> response = new ApiResponse<>(false, e.getMessage(), null, error);
         return ResponseEntity
                 .status(HttpStatus.CONFLICT)
                 .body(response);
@@ -35,12 +35,12 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handlePasswordMismatch(
             PasswordMismatchException e
     ) {
-        ErrorDetail detail = new ErrorDetail("passwordConfirm",e.getMessage());
+        ErrorDetail detail = new ErrorDetail("passwordConfirm", e.getMessage());
         ApiError error = new ApiError(
                 "PASSWORD_MISMATCH",
                 List.of(detail)
         );
-        ApiResponse<Void> response = new ApiResponse<>(false,e.getMessage(),null,error);
+        ApiResponse<Void> response = new ApiResponse<>(false, e.getMessage(), null, error);
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
                 .body(response);
@@ -63,7 +63,7 @@ public class GlobalExceptionHandler {
                 "VALIDATION_ERROR",
                 details
         );
-        ApiResponse<Void> response = new ApiResponse<>(false,"입력값을 확인해 주세요.",null,error);
+        ApiResponse<Void> response = new ApiResponse<>(false, "입력값을 확인해 주세요.", null, error);
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
                 .body(response);
