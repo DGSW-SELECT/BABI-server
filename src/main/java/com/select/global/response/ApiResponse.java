@@ -9,7 +9,7 @@ public record ApiResponse<T>(
         @JsonInclude(JsonInclude.Include.NON_NULL)
         ApiError error
 ) {
-        public ApiResponse(boolean success,String message,T data) {
-                this(success,message,data,null);
-        }
+    public ApiResponse(boolean success, String message, T data) {
+        this(success, message, data, null);
+    }
 }
