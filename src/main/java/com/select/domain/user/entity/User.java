@@ -11,7 +11,7 @@ import java.time.LocalDateTime;
 @Table(
         name = "users",
         uniqueConstraints = @UniqueConstraint(
-                name = "uq_users_email",
+                name = "email",
                 columnNames = "email"
         )
 )
