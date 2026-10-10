@@ -1,13 +1,6 @@
 package com.select.domain.user.entity;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.PrePersist;
-import jakarta.persistence.PreUpdate;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -15,14 +8,20 @@ import java.time.LocalDateTime;
 
 @Entity
 @Getter
-@Table(name = "users")
+@Table(
+        name = "users",
+        uniqueConstraints = @UniqueConstraint(
+                name = "uq_users_login_id",
+                columnNames = "login_id"
+        )
+)
 public class User {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "login_id", nullable = false, unique = true, length = 50)
+    @Column(name = "login_id", nullable = false, length = 50)
     private String loginId;
 
     @Column(name = "password_hash", nullable = false, length = 255)

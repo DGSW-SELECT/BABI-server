@@ -9,6 +9,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -84,4 +86,44 @@ public class GlobalExceptionHandler {
                 .body(response);
     }
 
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiResponse<Void>> handleInvalidJson(
+            HttpMessageNotReadableException e
+    ) {
+        ApiError error = new ApiError(
+                "INVALID_REQUEST_BODY",
+                List.of()
+        );
+        ApiResponse<Void> response = new ApiResponse<>(
+                false,
+                "요청 본문이 올바르지 않습니다.",
+                null,
+                error
+        );
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(response);
+    }
+
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMethodNotAllowed(
+            HttpRequestMethodNotSupportedException e
+    ) {
+        ApiError error = new ApiError(
+                "METHOD_NOT_ALLOWED",
+                List.of()
+        );
+
+        ApiResponse<Void> response = new ApiResponse<>(
+                false,
+                "지원하지 않는 HTTP 메서드 입니다.",
+                null,
+                error
+        );
+
+        return ResponseEntity
+                .status(HttpStatus.METHOD_NOT_ALLOWED)
+                .headers(e.getHeaders())
+                .body(response);
+    }
 }
