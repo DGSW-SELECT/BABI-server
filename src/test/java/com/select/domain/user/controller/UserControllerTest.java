@@ -60,7 +60,7 @@ class UserControllerTest {
     }
 
     @Test
-    void passwordWith73Utf8BytesReturnsBadRequest() throws Exception {
+    void passwordWith21CharactersReturnsBadRequest() throws Exception {
         String password = "a".repeat(21);
 
         mockMvc.perform(post(SIGNUP_URL)
@@ -99,7 +99,7 @@ class UserControllerTest {
     }
 
     @Test
-    void passwordWith21CharactersReturnsBadRequest() throws Exception {
+    void passwordWithExactly20CharactersIsAccepted() throws Exception {
         String password = "a".repeat(20);
         when(userService.saveUser(any()))
                 .thenReturn(new SignupResponse(1L, "test@example.com", "tester"));
