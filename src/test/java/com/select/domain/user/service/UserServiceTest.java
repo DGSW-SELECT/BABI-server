@@ -34,10 +34,10 @@ class UserServiceTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"uq_users_login_id", "users.uq_users_login_id"})
-    void signUpConvertsKnownLoginIdConstraintViolationToDuplicateEmail(String constraintName) {
+    @ValueSource(strings = {"email", "users.email"})
+    void signUpConvertsKnownEmailConstraintViolationToDuplicateEmail(String constraintName) {
         DataIntegrityViolationException exception = constraintViolation(constraintName);
-        when(userRepository.existsByLoginId(any())).thenReturn(false);
+        when(userRepository.existsByEmail(any())).thenReturn(false);
         when(passwordEncoder.encode(any())).thenReturn("encoded-password");
         when(userRepository.saveAndFlush(any(User.class))).thenThrow(exception);
 
@@ -47,7 +47,7 @@ class UserServiceTest {
     @Test
     void signUpRethrowsOtherDataIntegrityViolation() {
         DataIntegrityViolationException exception = constraintViolation("uq_other_constraint");
-        when(userRepository.existsByLoginId(any())).thenReturn(false);
+        when(userRepository.existsByEmail(any())).thenReturn(false);
         when(passwordEncoder.encode(any())).thenReturn("encoded-password");
         when(userRepository.saveAndFlush(any(User.class))).thenThrow(exception);
 

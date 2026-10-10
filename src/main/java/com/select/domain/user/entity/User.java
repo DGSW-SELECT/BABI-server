@@ -11,8 +11,8 @@ import java.time.LocalDateTime;
 @Table(
         name = "users",
         uniqueConstraints = @UniqueConstraint(
-                name = "uq_users_login_id",
-                columnNames = "login_id"
+                name = "uq_users_email",
+                columnNames = "email"
         )
 )
 public class User {
@@ -21,8 +21,8 @@ public class User {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "login_id", nullable = false, length = 50)
-    private String loginId;
+    @Column(nullable = false, length = 320)
+    private String email;
 
     @Column(name = "password_hash", nullable = false, length = 255)
     private String passwordHash;
@@ -52,8 +52,8 @@ public class User {
     }
 
     @Builder
-    public User(String loginId, String passwordHash, String nickname) {
-        this.loginId = loginId;
+    public User(String email, String passwordHash, String nickname) {
+        this.email = email;
         this.passwordHash = passwordHash;
         this.nickname = nickname;
     }
