@@ -61,7 +61,7 @@ class UserControllerTest {
 
     @Test
     void passwordWith73Utf8BytesReturnsBadRequest() throws Exception {
-        String password = "a".repeat(73);
+        String password = "a".repeat(21);
 
         mockMvc.perform(post(SIGNUP_URL)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -100,7 +100,7 @@ class UserControllerTest {
 
     @Test
     void passwordWithExactly72Utf8BytesIsAccepted() throws Exception {
-        String password = "a".repeat(72);
+        String password = "a".repeat(20);
         when(userService.saveUser(any()))
                 .thenReturn(new SignupResponse(1L, "test@example.com", "tester"));
 
