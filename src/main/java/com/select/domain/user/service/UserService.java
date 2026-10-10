@@ -25,7 +25,7 @@ public class UserService {
 
     @Transactional
     public SignupResponse saveUser(SignupRequest request) {
-        if (userRepository.existsByLoginId(request.email())) {
+        if (userRepository.existsByEmail(request.email())) {
             throw new DuplicateEmailException();
         }
         if (!request.password().equals(request.passwordConfirm())) {
@@ -33,14 +33,14 @@ public class UserService {
         }
         User user = User
                 .builder()
-                .loginId(request.email())
+                .email(request.email())
                 .nickname(request.nickname())
                 .passwordHash(passwordEncoder.encode(request.password()))
                 .build();
         try {
             User savedUser = userRepository.saveAndFlush(user);
             return new SignupResponse(savedUser.getId(),
-                    savedUser.getLoginId(),
+                    savedUser.getEmail(),
                     savedUser.getNickname());
         } catch (DataIntegrityViolationException e) {
             if (isDuplicateEmailViolation(e)) {
@@ -52,20 +52,16 @@ public class UserService {
 
     private boolean isDuplicateEmailViolation(DataIntegrityViolationException e) {
         Throwable cause = e;
-
         while (cause != null) {
             if (cause instanceof ConstraintViolationException violation) {
                 String name = violation.getConstraintName();
-
-                if ("uq_users_login_id".equals(name)
-                        || "users.uq_users_login_id".equals(name)) {
+                if ("email".equals(name)
+                        || "users.email".equals(name)) {
                     return true;
                 }
             }
-
             cause = cause.getCause();
         }
-
         return false;
     }
 }

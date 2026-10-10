@@ -110,6 +110,18 @@ class UserControllerTest {
                 .andExpect(status().isOk());
     }
 
+    @Test
+    void passwordWithKoreanReturnsBadRequest() throws Exception {
+        mockMvc.perform(post(SIGNUP_URL)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(signupJson("안녕1234!")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.error.details[0].field").value("password"));
+
+        verifyNoInteractions(userService);
+    }
+
     private String signupJson(String password) {
         return """
                 {

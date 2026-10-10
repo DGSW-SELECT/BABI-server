@@ -27,13 +27,22 @@ class SignupRequestTest {
 
     @Test
     void passwordWithMultibyteCharactersUsesUtf8ByteLength() {
-        SignupRequest allowed = requestWithPassword("가".repeat(24));
-        SignupRequest rejected = requestWithPassword("가".repeat(25));
+        SignupRequest validLength = new SignupRequest(
+                "test@example.com",
+                "가".repeat(24),
+                "가".repeat(24),
+                "tester"
+        );
 
-        assertTrue(allowed.isPasswordWithin72Bytes());
-        assertTrue(validate(allowed).isEmpty());
-        assertFalse(rejected.isPasswordWithin72Bytes());
-        assertFalse(validate(rejected).isEmpty());
+        SignupRequest invalidLength = new SignupRequest(
+                "test@example.com",
+                "가".repeat(25),
+                "가".repeat(25),
+                "tester"
+        );
+
+        assertTrue(validLength.isPasswordWithin72Bytes());
+        assertFalse(invalidLength.isPasswordWithin72Bytes());
     }
 
     private SignupRequest requestWithPassword(String password) {
