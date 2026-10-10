@@ -5,6 +5,8 @@ import com.select.domain.user.exception.PasswordMismatchException;
 import com.select.global.response.ApiError;
 import com.select.global.response.ApiResponse;
 import com.select.global.response.ErrorDetail;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -15,6 +17,8 @@ import java.util.List;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     @ExceptionHandler(DuplicateEmailException.class)
     public ResponseEntity<ApiResponse<Void>> handleDuplicateEmail(
@@ -66,6 +70,17 @@ public class GlobalExceptionHandler {
         ApiResponse<Void> response = new ApiResponse<>(false, "입력값을 확인해 주세요.", null, error);
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
+                .body(response);
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ApiResponse<Void>> handleException(
+            Exception e
+    ) {
+        log.error("서버 내부 오류가 발생했습니다.", e);
+        ApiResponse<Void> response = new ApiResponse<>(false, "서버에 오류가 발생했습니다.", null, new ApiError("INTERNAL_SERVER_ERROR", List.of()));
+        return ResponseEntity
+                .status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(response);
     }
 

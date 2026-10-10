@@ -17,3 +17,5 @@ out/
 .codegraph
 work/
 outputs/
+
+/.env

@@ -23,6 +23,6 @@ public class UserController {
     @PostMapping("/signup")
     public ApiResponse<SignupResponse> saveUser(@Valid @RequestBody SignupRequest request) {
         SignupResponse response = userService.saveUser(request);
-        return new ApiResponse<SignupResponse>(true, "회원가입이 완료되었습니다.", response);
+        return new ApiResponse<>(true, "회원가입이 완료되었습니다.", response);
     }
 }
