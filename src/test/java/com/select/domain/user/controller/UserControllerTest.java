@@ -99,7 +99,7 @@ class UserControllerTest {
     }
 
     @Test
-    void passwordWithExactly72Utf8BytesIsAccepted() throws Exception {
+    void passwordWith21CharactersReturnsBadRequest() throws Exception {
         String password = "a".repeat(20);
         when(userService.saveUser(any()))
                 .thenReturn(new SignupResponse(1L, "test@example.com", "tester"));
