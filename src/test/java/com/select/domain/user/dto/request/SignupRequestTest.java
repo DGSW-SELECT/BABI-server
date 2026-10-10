@@ -10,48 +10,37 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class SignupRequestTest {
 
     @Test
-    void passwordWithExactly72Utf8BytesShouldPassValidation() {
-        SignupRequest request = requestWithPassword("a".repeat(72));
-
-        assertTrue(request.isPasswordWithin72Bytes());
-        assertTrue(validate(request).isEmpty());
+    void passwordWithExactly8CharactersShouldPassValidation() {
+        assertTrue(validatePassword("a".repeat(8)));
     }
 
     @Test
-    void passwordWith73Utf8BytesShouldFailValidation() {
-        SignupRequest request = requestWithPassword("a".repeat(73));
-
-        assertFalse(request.isPasswordWithin72Bytes());
-        assertFalse(validate(request).isEmpty());
+    void passwordWithExactly20CharactersShouldPassValidation() {
+        assertTrue(validatePassword("a".repeat(20)));
     }
 
     @Test
-    void passwordWithMultibyteCharactersUsesUtf8ByteLength() {
-        SignupRequest validLength = new SignupRequest(
+    void passwordWith7CharactersShouldFailValidation() {
+        assertFalse(validatePassword("a".repeat(7)));
+    }
+
+    @Test
+    void passwordWith21CharactersShouldFailValidation() {
+        assertFalse(validatePassword("a".repeat(21)));
+    }
+
+    private boolean validatePassword(String password) {
+        SignupRequest request = new SignupRequest(
                 "test@example.com",
-                "가".repeat(24),
-                "가".repeat(24),
+                password,
+                password,
                 "tester"
         );
 
-        SignupRequest invalidLength = new SignupRequest(
-                "test@example.com",
-                "가".repeat(25),
-                "가".repeat(25),
-                "tester"
-        );
-
-        assertTrue(validLength.isPasswordWithin72Bytes());
-        assertFalse(invalidLength.isPasswordWithin72Bytes());
-    }
-
-    private SignupRequest requestWithPassword(String password) {
-        return new SignupRequest("test@example.com", password, password, "test");
-    }
-
-    private java.util.Set<jakarta.validation.ConstraintViolation<SignupRequest>> validate(SignupRequest request) {
         try (var factory = Validation.buildDefaultValidatorFactory()) {
-            return factory.getValidator().validate(request);
+            return factory.getValidator().validate(request).isEmpty();
         }
     }
 }
+
+
