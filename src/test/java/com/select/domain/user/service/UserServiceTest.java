@@ -41,7 +41,7 @@ class UserServiceTest {
         when(passwordEncoder.encode(any())).thenReturn("encoded-password");
         when(userRepository.saveAndFlush(any(User.class))).thenThrow(exception);
 
-        assertThrows(DuplicateEmailException.class, () -> userService.saveUser(signupRequest()));
+        assertThrows(DuplicateEmailException.class, () -> userService.signup(signupRequest()));
     }
 
     @Test
@@ -53,7 +53,7 @@ class UserServiceTest {
 
         assertSame(exception, assertThrows(
                 DataIntegrityViolationException.class,
-                () -> userService.saveUser(signupRequest())
+                () -> userService.signup(signupRequest())
         ));
     }
 

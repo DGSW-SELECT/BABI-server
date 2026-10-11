@@ -74,7 +74,7 @@ class UserControllerTest {
 
     @Test
     void duplicateEmailReturnsConflict() throws Exception {
-        doThrow(new DuplicateEmailException()).when(userService).saveUser(any());
+        doThrow(new DuplicateEmailException()).when(userService).signup(any());
 
         mockMvc.perform(post(SIGNUP_URL)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -86,7 +86,7 @@ class UserControllerTest {
     @Test
     void internalErrorReturnsGenericResponseWithoutExceptionMessage() throws Exception {
         doThrow(new IllegalStateException("internal diagnostic detail"))
-                .when(userService).saveUser(any());
+                .when(userService).signup(any());
 
         mockMvc.perform(post(SIGNUP_URL)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -101,7 +101,7 @@ class UserControllerTest {
     @Test
     void passwordWithExactly20CharactersIsAccepted() throws Exception {
         String password = "a".repeat(20);
-        when(userService.saveUser(any()))
+        when(userService.signup(any()))
                 .thenReturn(new SignupResponse(1L, "test@example.com", "tester"));
 
         mockMvc.perform(post(SIGNUP_URL)

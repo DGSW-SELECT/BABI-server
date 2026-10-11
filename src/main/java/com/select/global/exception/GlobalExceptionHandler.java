@@ -7,7 +7,6 @@ import com.select.global.response.ApiResponse;
 import com.select.global.response.ErrorDetail;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
@@ -27,30 +26,20 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleDuplicateEmail(
             DuplicateEmailException e
     ) {
-        ErrorDetail detail = new ErrorDetail("email", e.getMessage());
-        ApiError error = new ApiError(
-                "DUPLICATE_EMAIL",
-                List.of(detail)
+        return createErrorResponse(
+                ErrorCode.DUPLICATE_EMAIL,
+                List.of(new ErrorDetail("email", ErrorCode.DUPLICATE_EMAIL.getMessage()))
         );
-        ApiResponse<Void> response = new ApiResponse<>(false, e.getMessage(), null, error);
-        return ResponseEntity
-                .status(HttpStatus.CONFLICT)
-                .body(response);
     }
 
     @ExceptionHandler(PasswordMismatchException.class)
     public ResponseEntity<ApiResponse<Void>> handlePasswordMismatch(
             PasswordMismatchException e
     ) {
-        ErrorDetail detail = new ErrorDetail("passwordConfirm", e.getMessage());
-        ApiError error = new ApiError(
-                "PASSWORD_MISMATCH",
-                List.of(detail)
+        return createErrorResponse(
+                ErrorCode.PASSWORD_MISMATCH,
+                List.of(new ErrorDetail("passwordConfirm", ErrorCode.PASSWORD_MISMATCH.getMessage()))
         );
-        ApiResponse<Void> response = new ApiResponse<>(false, e.getMessage(), null, error);
-        return ResponseEntity
-                .status(HttpStatus.BAD_REQUEST)
-                .body(response);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -73,14 +62,7 @@ public class GlobalExceptionHandler {
                 ))
         );
 
-        ApiError error = new ApiError(
-                "VALIDATION_ERROR",
-                details
-        );
-        ApiResponse<Void> response = new ApiResponse<>(false, "입력값을 확인해 주세요.", null, error);
-        return ResponseEntity
-                .status(HttpStatus.BAD_REQUEST)
-                .body(response);
+        return createErrorResponse(ErrorCode.VALIDATION_ERROR, details);
     }
 
     @ExceptionHandler(Exception.class)
@@ -88,50 +70,40 @@ public class GlobalExceptionHandler {
             Exception e
     ) {
         log.error("서버 내부 오류가 발생했습니다.", e);
-        ApiResponse<Void> response = new ApiResponse<>(false, "서버에 오류가 발생했습니다.", null, new ApiError("INTERNAL_SERVER_ERROR", List.of()));
-        return ResponseEntity
-                .status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(response);
+        return createErrorResponse(ErrorCode.INTERNAL_SERVER_ERROR, List.of());
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ApiResponse<Void>> handleInvalidJson(
             HttpMessageNotReadableException e
     ) {
-        ApiError error = new ApiError(
-                "INVALID_REQUEST_BODY",
-                List.of()
-        );
-        ApiResponse<Void> response = new ApiResponse<>(
-                false,
-                "요청 본문이 올바르지 않습니다.",
-                null,
-                error
-        );
-        return ResponseEntity
-                .status(HttpStatus.BAD_REQUEST)
-                .body(response);
+        return createErrorResponse(ErrorCode.INVALID_REQUEST_BODY, List.of());
     }
 
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
     public ResponseEntity<ApiResponse<Void>> handleMethodNotAllowed(
             HttpRequestMethodNotSupportedException e
     ) {
-        ApiError error = new ApiError(
-                "METHOD_NOT_ALLOWED",
-                List.of()
-        );
-
-        ApiResponse<Void> response = new ApiResponse<>(
-                false,
-                "지원하지 않는 HTTP 메서드 입니다.",
-                null,
-                error
-        );
-
         return ResponseEntity
-                .status(HttpStatus.METHOD_NOT_ALLOWED)
+                .status(ErrorCode.METHOD_NOT_ALLOWED.getHttpStatus())
                 .headers(e.getHeaders())
-                .body(response);
+                .body(createErrorResponseBody(ErrorCode.METHOD_NOT_ALLOWED, List.of()));
+    }
+
+    private ResponseEntity<ApiResponse<Void>> createErrorResponse(
+            ErrorCode errorCode,
+            List<ErrorDetail> details
+    ) {
+        return ResponseEntity
+                .status(errorCode.getHttpStatus())
+                .body(createErrorResponseBody(errorCode, details));
+    }
+
+    private ApiResponse<Void> createErrorResponseBody(
+            ErrorCode errorCode,
+            List<ErrorDetail> details
+    ) {
+        ApiError error = new ApiError(errorCode.name(), details);
+        return new ApiResponse<>(false, errorCode.getMessage(), null, error);
     }
 }
