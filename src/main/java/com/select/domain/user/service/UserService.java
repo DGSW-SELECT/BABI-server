@@ -24,13 +24,8 @@ public class UserService {
     }
 
     @Transactional
-    public SignupResponse saveUser(SignupRequest request) {
-        if (userRepository.existsByEmail(request.email())) {
-            throw new DuplicateEmailException();
-        }
-        if (!request.password().equals(request.passwordConfirm())) {
-            throw new PasswordMismatchException();
-        }
+    public SignupResponse signup(SignupRequest request) {
+        validateSignup(request);
         User user = User
                 .builder()
                 .email(request.email())
@@ -47,6 +42,15 @@ public class UserService {
                 throw new DuplicateEmailException();
             }
             throw e;
+        }
+    }
+    private void validateSignup(SignupRequest request) {
+        if (userRepository.existsByEmail(request.email())) {
+            throw new DuplicateEmailException();
+        }
+
+        if (!request.password().equals(request.passwordConfirm())) {
+            throw new PasswordMismatchException();
         }
     }
 
