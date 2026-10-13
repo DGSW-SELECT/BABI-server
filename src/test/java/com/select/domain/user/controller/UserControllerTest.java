@@ -1,19 +1,25 @@
 package com.select.domain.user.controller;
 
 import com.select.domain.user.dto.response.SignupResponse;
+import com.select.domain.user.entity.User;
 import com.select.domain.user.exception.DuplicateEmailException;
+import com.select.domain.user.repository.UserRepository;
 import com.select.domain.user.service.UserService;
 import com.select.global.exception.GlobalExceptionHandler;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -107,7 +113,7 @@ class UserControllerTest {
         mockMvc.perform(post(SIGNUP_URL)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(signupJson(password)))
-                .andExpect(status().isOk());
+                .andExpect(status().isCreated());
     }
 
     @Test
@@ -122,14 +128,55 @@ class UserControllerTest {
         verifyNoInteractions(userService);
     }
 
+    @Test
+    void signupWithPaddedUppercaseEmailStoresNormalizedEmail() throws Exception {
+        UserRepository userRepository = mock(UserRepository.class);
+        PasswordEncoder passwordEncoder = mock(PasswordEncoder.class);
+        when(passwordEncoder.encode(any())).thenReturn("encoded-password");
+        when(userRepository.saveAndFlush(any(User.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        MockMvc signupMockMvc = MockMvcBuilders
+                .standaloneSetup(new UserController(new UserService(userRepository, passwordEncoder)))
+                .setControllerAdvice(new GlobalExceptionHandler())
+                .build();
+
+        signupMockMvc.perform(post(SIGNUP_URL)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(signupJson("  USER@EXAMPLE.COM  ", "Test1234!")))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.email").value("user@example.com"));
+
+        ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
+        verify(userRepository).saveAndFlush(userCaptor.capture());
+        assertEquals("user@example.com", userCaptor.getValue().getEmail());
+        verify(userRepository).existsByEmail("user@example.com");
+    }
+
+    @Test
+    void blankEmailReturnsBadRequestWithoutCallingService() throws Exception {
+        mockMvc.perform(post(SIGNUP_URL)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(signupJson("   ", "Test1234!")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"));
+
+        verifyNoInteractions(userService);
+    }
+
     private String signupJson(String password) {
+        return signupJson("test@example.com", password);
+    }
+
+    private String signupJson(String email, String password) {
         return """
                 {
-                  "email": "test@example.com",
+                  "email": "%s",
                   "password": "%s",
                   "passwordConfirm": "%s",
                   "nickname": "tester"
                 }
-                """.formatted(password, password);
+                """.formatted(email, password, password);
     }
 }

@@ -7,18 +7,23 @@ import com.select.global.response.ApiResponse;
 import com.select.global.response.ErrorDetail;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.jspecify.annotations.Nullable;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
-import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
 import java.util.ArrayList;
 import java.util.List;
 
 @RestControllerAdvice
-public class GlobalExceptionHandler {
+public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
@@ -42,52 +47,77 @@ public class GlobalExceptionHandler {
         );
     }
 
-    @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<ApiResponse<Void>> handleValidation(
-            MethodArgumentNotValidException e
+    @Override
+    protected @Nullable ResponseEntity<Object> handleMethodArgumentNotValid(
+            MethodArgumentNotValidException e,
+            HttpHeaders headers,
+            HttpStatusCode status,
+            WebRequest request
     ) {
         List<ErrorDetail> details = new ArrayList<>();
-
         e.getBindingResult().getFieldErrors().forEach(error ->
                 details.add(new ErrorDetail(
                         error.getField(),
                         error.getDefaultMessage()
                 ))
         );
-
         e.getBindingResult().getGlobalErrors().forEach(error ->
                 details.add(new ErrorDetail(
                         error.getObjectName(),
                         error.getDefaultMessage()
                 ))
         );
+        return handleExceptionInternal(
+                e, createErrorResponseBody(ErrorCode.VALIDATION_ERROR, details),
+                headers, status, request
+        );
+    }
 
-        return createErrorResponse(ErrorCode.VALIDATION_ERROR, details);
+    @Override
+    protected @Nullable ResponseEntity<Object> handleHttpMessageNotReadable(
+            HttpMessageNotReadableException e,
+            HttpHeaders headers,
+            HttpStatusCode status,
+            WebRequest request
+    ) {
+        return handleExceptionInternal(
+                e, createErrorResponseBody(ErrorCode.INVALID_REQUEST_BODY, List.of()),
+                headers, status, request
+        );
+    }
+
+    @Override
+    protected ResponseEntity<Object> createResponseEntity(
+            @Nullable Object body,
+            HttpHeaders headers,
+            HttpStatusCode status,
+            WebRequest request
+    ) {
+        Object responseBody = body instanceof ApiResponse<?> ? body : createErrorResponseBody(resolveErrorCode(status), List.of());
+        return super.createResponseEntity(responseBody, headers, status, request);
+    }
+
+    private ErrorCode resolveErrorCode(HttpStatusCode status) {
+        return switch (HttpStatus.resolve(status.value())) {
+            case BAD_REQUEST -> ErrorCode.VALIDATION_ERROR;
+            case UNAUTHORIZED -> ErrorCode.UNAUTHORIZED;
+            case FORBIDDEN -> ErrorCode.FORBIDDEN;
+            case NOT_FOUND -> ErrorCode.NOT_FOUND;
+            case METHOD_NOT_ALLOWED -> ErrorCode.METHOD_NOT_ALLOWED;
+            case UNSUPPORTED_MEDIA_TYPE -> ErrorCode.UNSUPPORTED_MEDIA_TYPE;
+            case null, default -> status.is5xxServerError() ? ErrorCode.INTERNAL_SERVER_ERROR : ErrorCode.REQUEST_ERROR;
+        };
     }
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ApiResponse<Void>> handleException(
+    public ResponseEntity<ApiResponse<Void>> handleUnexpectedException(
             Exception e
     ) {
         log.error("서버 내부 오류가 발생했습니다.", e);
-        return createErrorResponse(ErrorCode.INTERNAL_SERVER_ERROR, List.of());
-    }
-
-    @ExceptionHandler(HttpMessageNotReadableException.class)
-    public ResponseEntity<ApiResponse<Void>> handleInvalidJson(
-            HttpMessageNotReadableException e
-    ) {
-        return createErrorResponse(ErrorCode.INVALID_REQUEST_BODY, List.of());
-    }
-
-    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
-    public ResponseEntity<ApiResponse<Void>> handleMethodNotAllowed(
-            HttpRequestMethodNotSupportedException e
-    ) {
-        return ResponseEntity
-                .status(ErrorCode.METHOD_NOT_ALLOWED.getHttpStatus())
-                .headers(e.getHeaders())
-                .body(createErrorResponseBody(ErrorCode.METHOD_NOT_ALLOWED, List.of()));
+        return createErrorResponse(
+                ErrorCode.INTERNAL_SERVER_ERROR,
+                List.of()
+        );
     }
 
     private ResponseEntity<ApiResponse<Void>> createErrorResponse(
