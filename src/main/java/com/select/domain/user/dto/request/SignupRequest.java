@@ -25,4 +25,9 @@ public record SignupRequest(
         String nickname
 
 ) {
+    public SignupRequest {
+        if (email != null) {
+            email = email.trim();
+        }
+    }
 }

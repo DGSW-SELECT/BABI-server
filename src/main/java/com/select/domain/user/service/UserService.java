@@ -12,6 +12,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Locale;
+
 @Service
 public class UserService {
 
@@ -25,10 +27,11 @@ public class UserService {
 
     @Transactional
     public SignupResponse signup(SignupRequest request) {
-        validateSignup(request);
+        String email = normalizeEmail(request.email());
+        validateSignup(request, email);
         User user = User
                 .builder()
-                .email(request.email())
+                .email(email)
                 .nickname(request.nickname())
                 .passwordHash(passwordEncoder.encode(request.password()))
                 .build();
@@ -44,14 +47,19 @@ public class UserService {
             throw e;
         }
     }
-    private void validateSignup(SignupRequest request) {
-        if (userRepository.existsByEmail(request.email())) {
-            throw new DuplicateEmailException();
-        }
 
+    private void validateSignup(SignupRequest request, String email) {
         if (!request.password().equals(request.passwordConfirm())) {
             throw new PasswordMismatchException();
         }
+
+        if (userRepository.existsByEmail(email)) {
+            throw new DuplicateEmailException();
+        }
+    }
+
+    private String normalizeEmail(String email) {
+        return email.trim().toLowerCase(Locale.ROOT);
     }
 
     private boolean isDuplicateEmailViolation(DataIntegrityViolationException e) {
@@ -59,13 +67,39 @@ public class UserService {
         while (cause != null) {
             if (cause instanceof ConstraintViolationException violation) {
                 String name = violation.getConstraintName();
-                if ("email".equals(name)
-                        || "users.email".equals(name)) {
+                if (matchesEmailConstraint(name)) {
                     return true;
                 }
             }
             cause = cause.getCause();
         }
         return false;
+    }
+
+    private boolean matchesEmailConstraint(String constraintName) {
+        if (constraintName == null) {
+            return false;
+        }
+
+        String name = constraintName.toLowerCase(Locale.ROOT);
+        // H2 returns the qualified constraint name followed by its backing index description.
+        int indexDescription = name.indexOf(" index ");
+        if (indexDescription >= 0) {
+            name = name.substring(0, indexDescription);
+        }
+
+        int qualifier = name.lastIndexOf('.');
+        if (qualifier >= 0 && indexDescription < 0) {
+            String namespace = name.substring(0, qualifier);
+            if (!"users".equals(namespace)
+                    && !namespace.endsWith(".users")
+                    && !"public".equals(namespace)) {
+                return false;
+            }
+        }
+
+        String localName = name.substring(qualifier + 1);
+        return User.EMAIL_UNIQUE_CONSTRAINT.equals(localName)
+                || User.LEGACY_EMAIL_UNIQUE_CONSTRAINT.equals(localName);
     }
 }

@@ -7,18 +7,22 @@ import com.select.global.response.ApiResponse;
 import com.select.global.response.ErrorDetail;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
 import java.util.ArrayList;
 import java.util.List;
 
 @RestControllerAdvice
-public class GlobalExceptionHandler {
+public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
@@ -42,9 +46,12 @@ public class GlobalExceptionHandler {
         );
     }
 
-    @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<ApiResponse<Void>> handleValidation(
-            MethodArgumentNotValidException e
+    @Override
+    protected ResponseEntity<Object> handleMethodArgumentNotValid(
+            MethodArgumentNotValidException e,
+            HttpHeaders headers,
+            HttpStatusCode status,
+            WebRequest request
     ) {
         List<ErrorDetail> details = new ArrayList<>();
 
@@ -62,32 +69,48 @@ public class GlobalExceptionHandler {
                 ))
         );
 
-        return createErrorResponse(ErrorCode.VALIDATION_ERROR, details);
+        return ResponseEntity
+                .status(status)
+                .headers(headers)
+                .body(createErrorResponseBody(ErrorCode.VALIDATION_ERROR, details));
     }
 
-    @ExceptionHandler(Exception.class)
-    public ResponseEntity<ApiResponse<Void>> handleException(
-            Exception e
-    ) {
-        log.error("서버 내부 오류가 발생했습니다.", e);
-        return createErrorResponse(ErrorCode.INTERNAL_SERVER_ERROR, List.of());
-    }
-
-    @ExceptionHandler(HttpMessageNotReadableException.class)
-    public ResponseEntity<ApiResponse<Void>> handleInvalidJson(
-            HttpMessageNotReadableException e
-    ) {
-        return createErrorResponse(ErrorCode.INVALID_REQUEST_BODY, List.of());
-    }
-
-    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
-    public ResponseEntity<ApiResponse<Void>> handleMethodNotAllowed(
-            HttpRequestMethodNotSupportedException e
+    @Override
+    protected ResponseEntity<Object> handleHttpMessageNotReadable(
+            HttpMessageNotReadableException e,
+            HttpHeaders headers,
+            HttpStatusCode status,
+            WebRequest request
     ) {
         return ResponseEntity
-                .status(ErrorCode.METHOD_NOT_ALLOWED.getHttpStatus())
-                .headers(e.getHeaders())
+                .status(status)
+                .headers(headers)
+                .body(createErrorResponseBody(ErrorCode.INVALID_REQUEST_BODY, List.of()));
+    }
+
+    @Override
+    protected ResponseEntity<Object> handleHttpRequestMethodNotSupported(
+            HttpRequestMethodNotSupportedException e,
+            HttpHeaders headers,
+            HttpStatusCode status,
+            WebRequest request
+    ) {
+        return ResponseEntity
+                .status(status)
+                .headers(headers)
                 .body(createErrorResponseBody(ErrorCode.METHOD_NOT_ALLOWED, List.of()));
+    }
+
+    @ExceptionHandler(RuntimeException.class)
+    public ResponseEntity<ApiResponse<Void>> handleUnexpectedException(
+            RuntimeException e
+    ) {
+        log.error("서버 내부 오류가 발생했습니다.", e);
+
+        return createErrorResponse(
+                ErrorCode.INTERNAL_SERVER_ERROR,
+                List.of()
+        );
     }
 
     private ResponseEntity<ApiResponse<Void>> createErrorResponse(

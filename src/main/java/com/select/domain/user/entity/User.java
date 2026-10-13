@@ -11,11 +11,14 @@ import java.time.LocalDateTime;
 @Table(
         name = "users",
         uniqueConstraints = @UniqueConstraint(
-                name = "email",
+                name = User.EMAIL_UNIQUE_CONSTRAINT,
                 columnNames = "email"
         )
 )
 public class User {
+
+    public static final String EMAIL_UNIQUE_CONSTRAINT = "uk_users_email";
+    public static final String LEGACY_EMAIL_UNIQUE_CONSTRAINT = "email";
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
