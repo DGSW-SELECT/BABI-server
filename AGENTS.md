@@ -35,4 +35,4 @@ com.select
 
 ## CI
 - PR 생성/업데이트 시 `.github/workflows/claude-pr-review.yml`이 Claude 자동 리뷰 실행.
-- Repo secret `ANTHROPIC_API_KEY` 필요.
+- Repo secret `CLAUDE_CODE_OAUTH_TOKEN` 필요 (`claude setup-token`으로 발급, Claude 구독 사용).
