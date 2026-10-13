@@ -47,7 +47,7 @@ public class UserService {
             throw e;
         }
     }
-
+    //회원가입이 올바른지 설명
     private void validateSignup(SignupRequest request, String email) {
         if (!request.password().equals(request.passwordConfirm())) {
             throw new PasswordMismatchException();
@@ -58,10 +58,12 @@ public class UserService {
         }
     }
 
+    //정규화한 이메일 반환
     private String normalizeEmail(String email) {
         return email.trim().toLowerCase(Locale.ROOT);
     }
 
+    //데이터베이스에서 나는 오류가 이메일 때문인지 확인
     private boolean isDuplicateEmailViolation(DataIntegrityViolationException e) {
         Throwable cause = e;
         while (cause != null) {
@@ -76,13 +78,13 @@ public class UserService {
         return false;
     }
 
+    //제약조건 오류가 이메일 중복때문에 발생했는지 확인
     private boolean matchesEmailConstraint(String constraintName) {
         if (constraintName == null) {
             return false;
         }
 
         String name = constraintName.toLowerCase(Locale.ROOT);
-        // H2 returns the qualified constraint name followed by its backing index description.
         int indexDescription = name.indexOf(" index ");
         if (indexDescription >= 0) {
             name = name.substring(0, indexDescription);
