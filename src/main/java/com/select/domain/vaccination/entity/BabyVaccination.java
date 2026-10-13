@@ -43,4 +43,16 @@ public class BabyVaccination {
         this.completedDate = null;
         this.completed = false;
     }
+    public static BabyVaccination create(
+            Long babyId,
+            Vaccine vaccine,
+            LocalDate scheduledDate
+    ) {
+        BabyVaccination vaccination = new BabyVaccination();
+        vaccination.babyId = babyId;
+        vaccination.vaccine = vaccine;
+        vaccination.scheduledDate = scheduledDate;
+        vaccination.completed = false;
+        return vaccination;
+    }
 }

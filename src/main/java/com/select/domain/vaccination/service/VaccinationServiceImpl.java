@@ -29,6 +29,7 @@ public class VaccinationServiceImpl implements VaccinationService {
             Long babyId,
             LocalDate from,
             LocalDate to
+
     ) {
         // 1. 입력값 검증 부분
         if (babyId == null || babyId <= 0) {
