@@ -1,11 +1,15 @@
 package com.select.domain.user.service;
 
+import com.select.domain.user.dto.request.LoginRequest;
 import com.select.domain.user.dto.request.SignupRequest;
+import com.select.domain.user.dto.response.LoginResponse;
 import com.select.domain.user.dto.response.SignupResponse;
 import com.select.domain.user.entity.User;
 import com.select.domain.user.exception.DuplicateEmailException;
+import com.select.domain.user.exception.InvalidCredentialsException;
 import com.select.domain.user.exception.PasswordMismatchException;
 import com.select.domain.user.repository.UserRepository;
+import com.select.global.security.jwt.JwtProvider;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -19,10 +23,12 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final JwtProvider jwtProvider;
 
-    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder) {
+    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtProvider jwtProvider) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
+        this.jwtProvider = jwtProvider;
     }
 
     @Transactional
@@ -104,4 +110,17 @@ public class UserService {
         return User.EMAIL_UNIQUE_CONSTRAINT.equals(localName)
                 || User.LEGACY_EMAIL_UNIQUE_CONSTRAINT.equals(localName);
     }
+
+    public LoginResponse login(LoginRequest request) {
+        String email = normalizeEmail(request.email());
+        User user= userRepository.findByEmail(email)
+                .orElseThrow(InvalidCredentialsException::new);
+        if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
+            throw new InvalidCredentialsException();
+        }
+        String accessToken = jwtProvider.createAccessToken(user.getId().toString());
+        return new LoginResponse(accessToken);
+    }
+
+
 }

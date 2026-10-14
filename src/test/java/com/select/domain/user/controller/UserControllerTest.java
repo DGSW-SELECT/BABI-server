@@ -4,6 +4,7 @@ import com.select.domain.user.dto.response.SignupResponse;
 import com.select.domain.user.entity.User;
 import com.select.domain.user.exception.DuplicateEmailException;
 import com.select.domain.user.repository.UserRepository;
+import com.select.global.security.jwt.JwtProvider;
 import com.select.domain.user.service.UserService;
 import com.select.global.exception.GlobalExceptionHandler;
 import org.junit.jupiter.api.BeforeEach;
@@ -30,7 +31,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 class UserControllerTest {
 
-    private static final String SIGNUP_URL = "/babi/api/v1/auth/signup";
+    private static final String SIGNUP_URL = "/auth/signup";
 
     private MockMvc mockMvc;
     private UserService userService;
@@ -137,7 +138,7 @@ class UserControllerTest {
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         MockMvc signupMockMvc = MockMvcBuilders
-                .standaloneSetup(new UserController(new UserService(userRepository, passwordEncoder)))
+                .standaloneSetup(new UserController(new UserService(userRepository, passwordEncoder, mock(JwtProvider.class))))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
 

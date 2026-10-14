@@ -5,6 +5,7 @@ import com.select.domain.user.entity.User;
 import com.select.domain.user.exception.DuplicateEmailException;
 import com.select.domain.user.exception.PasswordMismatchException;
 import com.select.domain.user.repository.UserRepository;
+import com.select.global.security.jwt.JwtProvider;
 import org.hibernate.exception.ConstraintViolationException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -38,7 +39,7 @@ class UserServiceTest {
     void setUp() {
         userRepository = mock(UserRepository.class);
         passwordEncoder = mock(PasswordEncoder.class);
-        userService = new UserService(userRepository, passwordEncoder);
+        userService = new UserService(userRepository, passwordEncoder, mock(JwtProvider.class));
     }
 
     @ParameterizedTest

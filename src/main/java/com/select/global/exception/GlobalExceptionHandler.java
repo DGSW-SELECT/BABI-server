@@ -1,6 +1,7 @@
 package com.select.global.exception;
 
 import com.select.domain.user.exception.DuplicateEmailException;
+import com.select.domain.user.exception.InvalidCredentialsException;
 import com.select.domain.user.exception.PasswordMismatchException;
 import com.select.global.response.ApiError;
 import com.select.global.response.ApiResponse;
@@ -44,6 +45,16 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return createErrorResponse(
                 ErrorCode.PASSWORD_MISMATCH,
                 List.of(new ErrorDetail("passwordConfirm", ErrorCode.PASSWORD_MISMATCH.getMessage()))
+        );
+    }
+
+    @ExceptionHandler(InvalidCredentialsException.class)
+    public ResponseEntity<ApiResponse<Void>> handleInvalidCredentials(
+            InvalidCredentialsException e
+    ) {
+        return createErrorResponse(
+                ErrorCode.INVALID_CREDENTIALS,
+                List.of()
         );
     }
 
