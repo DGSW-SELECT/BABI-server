@@ -8,7 +8,13 @@ import java.time.LocalDateTime;
 
 @Entity
 @Getter
-@Table(name = "daily_reports")
+@Table(
+        name = "daily_reports",
+        uniqueConstraints = @UniqueConstraint(
+                name = "uk_daily_reports_baby_date",
+                columnNames = {"baby_id", "report_date"}
+        )
+)
 public class DailyReport {
 
     @Id
@@ -31,6 +37,16 @@ public class DailyReport {
     private LocalDateTime generatedAt;
 
     protected DailyReport() {
+    }
+
+    public static DailyReport create(Long babyId, LocalDate reportDate, String summary) {
+        DailyReport report = new DailyReport();
+        report.babyId = babyId;
+        report.reportDate = reportDate;
+        report.summary = summary;
+        report.status = "COMPLETED";
+        report.generatedAt = LocalDateTime.now();
+        return report;
     }
 
     public void updateSummary(String summary) {
