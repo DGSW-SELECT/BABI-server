@@ -1,5 +1,6 @@
 package com.select.global.security.jwt;
 
+import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
@@ -13,7 +14,6 @@ import java.time.Instant;
 
 import java.time.temporal.ChronoUnit;
 import java.util.Date;
-import java.util.jar.JarException;
 
 @Component
 public class JwtProvider {
@@ -39,24 +39,16 @@ public class JwtProvider {
                 .compact();
     }
 
-    public boolean validateToken(String token) {
-        try {
-            Jwts.parser()
-                    .verifyWith(secretKey)
-                    .build()
-                    .parseSignedClaims(token);
-            return true;
-        } catch (JwtException | IllegalArgumentException e) {
-            return false;
-        }
-    }
-
     public String getUserId(String token) {
-        return Jwts.parser()
-                    .verifyWith(secretKey)
-                    .build()
-                    .parseSignedClaims(token)
-                    .getPayload()
-                    .getSubject();
+        Claims parseJwt = Jwts.parser()
+                .verifyWith(secretKey)
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
+        if (parseJwt.getSubject() == null || parseJwt.getSubject().isBlank() || parseJwt.getExpiration() == null) {
+            throw new JwtException("유저 아이디를 찾지 못했습니다.");
+        }
+
+        return parseJwt.getSubject();
     }
 }

@@ -1,5 +1,7 @@
 package com.select.global.security.jwt;
 
+import com.select.global.exception.ErrorCode;
+import jakarta.servlet.Filter;
 import jakarta.servlet.ServletContext;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -12,18 +14,34 @@ import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.core.Ordered;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RestController;
+import tools.jackson.databind.ObjectMapper;
 
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @Import(JwtAuthenticationIntegrationTest.JwtTestConfiguration.class)
@@ -32,8 +50,17 @@ class JwtAuthenticationIntegrationTest {
     @LocalServerPort
     private int port;
 
-    @Autowired
+    @MockitoSpyBean
     private JwtProvider jwtProvider;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    @Autowired
+    private JwtAuthenticationFilter jwtAuthenticationFilter;
+
+    @Autowired
+    private SecurityFilterChain securityFilterChain;
 
     @Autowired
     private FilterRegistrationBean<JwtAuthenticationFilter> jwtFilter;
@@ -45,12 +72,15 @@ class JwtAuthenticationIntegrationTest {
             .connectTimeout(Duration.ofSeconds(5)).build();
 
     @Test
-    void jwtFilterIsRegisteredInActualServletContainer() {
-        assertTrue(jwtFilter.isEnabled());
+    void jwtFilterIsRegisteredOnlyOnceInSecurityChain() {
+        assertFalse(jwtFilter.isEnabled());
+        assertSame(jwtAuthenticationFilter, jwtFilter.getFilter());
+        assertEquals(1L, securityFilterChain.getFilters().stream()
+                .filter(JwtAuthenticationFilter.class::isInstance).count());
+        assertTrue(securityFilterChain.getFilters().contains(jwtAuthenticationFilter));
         assertTrue(servletContext.getFilterRegistrations().values().stream()
-                .anyMatch(registration -> registration.getClassName()
-                        .equals(JwtAuthenticationFilter.class.getName())
-                        && registration.getUrlPatternMappings().contains("/*")));
+                .noneMatch(registration -> registration.getClassName()
+                        .equals(JwtAuthenticationFilter.class.getName())));
     }
 
     @Test
@@ -70,7 +100,7 @@ class JwtAuthenticationIntegrationTest {
         var response = client.send(request("/test/auth").GET().build(),
                 HttpResponse.BodyHandlers.ofString());
 
-        assertEquals(401, response.statusCode());
+        assertErrorResponse(response, ErrorCode.UNAUTHORIZED);
     }
 
     @Test
@@ -79,7 +109,7 @@ class JwtAuthenticationIntegrationTest {
                         .header("Authorization", "Bearer not-a-jwt").GET().build(),
                 HttpResponse.BodyHandlers.ofString());
 
-        assertEquals(401, response.statusCode());
+        assertErrorResponse(response, ErrorCode.INVALID_TOKEN);
     }
 
     @ParameterizedTest
@@ -94,8 +124,123 @@ class JwtAuthenticationIntegrationTest {
         assertTrue(response.body().contains("VALIDATION_ERROR"));
     }
 
+    @Test
+    void validRequestParsesJwtOnlyOnce() throws Exception {
+        String token = jwtProvider.createAccessToken("single-pass-user");
+        var response = client.send(request("/test/auth")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token).GET().build(),
+                HttpResponse.BodyHandlers.ofString());
+
+        assertEquals(200, response.statusCode());
+        assertEquals("인증된 사용자 ID: single-pass-user", response.body());
+        verify(jwtProvider, times(1)).getUserId(token);
+    }
+
+    @Test
+    void anonymousRequestReachingSecurityEntryPointReturns401() throws Exception {
+        // Non-CORS OPTIONS bypasses the JWT filter, but still requires authentication in Security.
+        var response = client.send(request("/test/auth")
+                        .method("OPTIONS", HttpRequest.BodyPublishers.noBody()).build(),
+                HttpResponse.BodyHandlers.ofString());
+
+        assertErrorResponse(response, ErrorCode.UNAUTHORIZED);
+    }
+
+    @Test
+    void authenticatedDownstreamAccessDeniedReturns403() throws Exception {
+        var response = client.send(request("/test/filter-denied")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + jwtProvider.createAccessToken("42"))
+                        .GET().build(), HttpResponse.BodyHandlers.ofString());
+
+        assertErrorResponse(response, ErrorCode.FORBIDDEN);
+        assertTrue(response.headers().firstValue(HttpHeaders.WWW_AUTHENTICATE).isEmpty());
+    }
+
+    @Test
+    void authenticatedControllerAccessDeniedReturns403() throws Exception {
+        var response = client.send(request("/test/controller-denied")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + jwtProvider.createAccessToken("42"))
+                        .GET().build(), HttpResponse.BodyHandlers.ofString());
+
+        assertErrorResponse(response, ErrorCode.FORBIDDEN);
+    }
+
+    @Test
+    void signupThenLoginTokenGrantsAccessToProtectedApi() throws Exception {
+        String email = "jwt-" + UUID.randomUUID() + "@example.com";
+        String signupBody = objectMapper.writeValueAsString(Map.of(
+                "email", email, "password", "Test1234!",
+                "passwordConfirm", "Test1234!", "nickname", "jwt-tester"
+        ));
+        var signupResponse = client.send(request("/auth/signup")
+                        .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                        .POST(HttpRequest.BodyPublishers.ofString(signupBody)).build(),
+                HttpResponse.BodyHandlers.ofString());
+        assertEquals(201, signupResponse.statusCode());
+        var signupJson = objectMapper.readTree(signupResponse.body());
+        assertTrue(signupJson.get("success").asBoolean());
+        assertEquals(email, signupJson.get("data").get("email").asString());
+        assertNotNull(signupJson.get("data").get("userId"));
+        String userId = Long.toString(signupJson.get("data").get("userId").asLong());
+
+        String loginBody = objectMapper.writeValueAsString(Map.of(
+                "email", email, "password", "Test1234!"
+        ));
+        var loginResponse = client.send(request("/auth/login")
+                        .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                        .POST(HttpRequest.BodyPublishers.ofString(loginBody)).build(),
+                HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, loginResponse.statusCode());
+        var loginJson = objectMapper.readTree(loginResponse.body());
+        assertTrue(loginJson.get("success").asBoolean());
+        String token = loginJson.get("data").get("accessToken").asString();
+        assertFalse(token.isBlank());
+
+        var protectedResponse = client.send(request("/test/auth")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token).GET().build(),
+                HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, protectedResponse.statusCode());
+        assertEquals("인증된 사용자 ID: " + userId, protectedResponse.body());
+
+        var anonymousResponse = client.send(request("/test/auth").GET().build(),
+                HttpResponse.BodyHandlers.ofString());
+        assertErrorResponse(anonymousResponse, ErrorCode.UNAUTHORIZED);
+    }
+
+    private void assertErrorResponse(HttpResponse<String> response, ErrorCode errorCode) throws Exception {
+        assertEquals(errorCode.getHttpStatus().value(), response.statusCode(), response.body());
+        assertTrue(MediaType.APPLICATION_JSON.isCompatibleWith(MediaType.parseMediaType(
+                response.headers().firstValue(HttpHeaders.CONTENT_TYPE).orElseThrow()
+        )));
+        var body = objectMapper.readTree(response.body());
+        assertFalse(body.get("success").asBoolean());
+        assertEquals(errorCode.name(), body.get("error").get("code").asString());
+        assertEquals(errorCode.getMessage(), body.get("message").asString());
+        assertTrue(body.get("data").isNull());
+        assertTrue(body.get("error").get("details").isArray());
+        assertTrue(body.get("error").get("details").isEmpty());
+        if (errorCode.getHttpStatus().value() == 401) {
+            assertEquals("Bearer", response.headers().firstValue(HttpHeaders.WWW_AUTHENTICATE).orElseThrow());
+        }
+    }
+
     @TestConfiguration(proxyBeanMethods = false)
     static class JwtTestConfiguration {
+
+        @Bean
+        FilterRegistrationBean<Filter> testAccessDeniedFilter() {
+            // Simulate a downstream authorization denial without replacing the production SecurityFilterChain.
+            Filter filter = (request, response, chain) -> {
+                var authentication = SecurityContextHolder.getContext().getAuthentication();
+                assertNotNull(authentication);
+                assertTrue(authentication.isAuthenticated());
+                throw new AccessDeniedException("test-only denied resource");
+            };
+            FilterRegistrationBean<Filter> registration = new FilterRegistrationBean<>(filter);
+            registration.setUrlPatterns(List.of("/test/filter-denied"));
+            registration.setOrder(Ordered.LOWEST_PRECEDENCE);
+            return registration;
+        }
 
         @Bean
         JwtTestController jwtTestController() {
@@ -106,6 +251,11 @@ class JwtAuthenticationIntegrationTest {
     @TestComponent
     @RestController
     static class JwtTestController {
+
+        @GetMapping("/test/controller-denied")
+        public void controllerDenied() {
+            throw new AccessDeniedException("test-only denied controller");
+        }
 
         @GetMapping("/test/auth")
         public String testAuth(@RequestAttribute("userId") String userId) {

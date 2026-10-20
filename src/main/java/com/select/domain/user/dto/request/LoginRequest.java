@@ -2,7 +2,6 @@ package com.select.domain.user.dto.request;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 
 public record LoginRequest(
 
@@ -13,4 +12,9 @@ public record LoginRequest(
         @NotBlank
         String password
 ) {
+        public LoginRequest{
+                if (email != null) {
+                        email = email.trim();
+                }
+        }
 }
