@@ -2,6 +2,7 @@ package com.select.global.security.jwt;
 
 import com.select.global.exception.ErrorCode;
 import com.select.global.security.SecurityErrorResponseWriter;
+import com.select.global.security.SecurityPaths;
 import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -58,8 +59,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getServletPath();
         String method = request.getMethod();
-        return path.equals("/auth/signup")
-                || path.equals("/auth/login") || method.equals("OPTIONS");
+        return path.equals(SecurityPaths.SIGNUP)
+                || path.equals(SecurityPaths.LOGIN) || method.equals("OPTIONS");
     }
 
 

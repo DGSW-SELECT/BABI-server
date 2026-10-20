@@ -1,8 +1,10 @@
 package com.select.domain.user.service;
 
+import com.select.domain.user.dto.request.LoginRequest;
 import com.select.domain.user.dto.request.SignupRequest;
 import com.select.domain.user.entity.User;
 import com.select.domain.user.exception.DuplicateEmailException;
+import com.select.domain.user.exception.InvalidCredentialsException;
 import com.select.domain.user.exception.PasswordMismatchException;
 import com.select.domain.user.repository.UserRepository;
 import com.select.global.security.jwt.JwtProvider;
@@ -11,19 +13,26 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.crypto.bcrypt.BCrypt;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
 import java.sql.SQLException;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -105,6 +114,27 @@ class UserServiceTest {
         )));
 
         verifyNoInteractions(userRepository, passwordEncoder);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"Wrong1234!", "babi-dummy-password"})
+    void loginWithUnknownEmailRunsRealBCryptAndNeverIssuesToken(String password) {
+        when(userRepository.findByEmail("missing@example.com")).thenReturn(Optional.empty());
+        BCryptPasswordEncoder realEncoder = spy(new BCryptPasswordEncoder());
+        JwtProvider jwtProvider = mock(JwtProvider.class);
+        UserService service = new UserService(userRepository, realEncoder, jwtProvider);
+
+        assertThrows(InvalidCredentialsException.class, () -> service.login(
+                new LoginRequest("  MISSING@EXAMPLE.COM  ", password)
+        ));
+
+        ArgumentCaptor<String> hashCaptor = ArgumentCaptor.forClass(String.class);
+        verify(realEncoder).matches(eq(password), hashCaptor.capture());
+        // A positive check proves the captured value is an actual hash, not just BCrypt-shaped text.
+        assertTrue(BCrypt.checkpw("babi-dummy-password", hashCaptor.getValue()));
+        verify(realEncoder, never()).encode(any());
+        verify(userRepository).findByEmail("missing@example.com");
+        verifyNoInteractions(jwtProvider);
     }
 
     private void signUpSuccessfully(SignupRequest request) {

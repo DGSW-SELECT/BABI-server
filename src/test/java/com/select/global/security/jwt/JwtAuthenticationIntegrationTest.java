@@ -1,12 +1,15 @@
 package com.select.global.security.jwt;
 
+import com.select.domain.user.controller.UserController;
 import com.select.global.exception.ErrorCode;
+import com.select.global.security.SecurityPaths;
 import jakarta.servlet.Filter;
 import jakarta.servlet.ServletContext;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestComponent;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -23,6 +26,8 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestAttribute;
+import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 import org.springframework.web.bind.annotation.RestController;
 import tools.jackson.databind.ObjectMapper;
 
@@ -34,12 +39,14 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
@@ -56,8 +63,12 @@ class JwtAuthenticationIntegrationTest {
     @Autowired
     private ObjectMapper objectMapper;
 
-    @Autowired
+    @MockitoSpyBean
     private JwtAuthenticationFilter jwtAuthenticationFilter;
+
+    @Autowired
+    @Qualifier("requestMappingHandlerMapping")
+    private RequestMappingHandlerMapping handlerMapping;
 
     @Autowired
     private SecurityFilterChain securityFilterChain;
@@ -70,6 +81,24 @@ class JwtAuthenticationIntegrationTest {
 
     private final HttpClient client = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(5)).build();
+
+    @Test
+    void securityPathsMatchActualControllerPostMappings() {
+        assertControllerPostMapping("login", SecurityPaths.LOGIN);
+        assertControllerPostMapping("signup", SecurityPaths.SIGNUP);
+    }
+
+    private void assertControllerPostMapping(String methodName, String expectedPath) {
+        var mappings = handlerMapping.getHandlerMethods().entrySet().stream()
+                .filter(entry -> entry.getValue().getBeanType().equals(UserController.class)
+                        && entry.getValue().getMethod().getName().equals(methodName))
+                .map(Map.Entry::getKey)
+                .toList();
+
+        assertEquals(1, mappings.size(), methodName + " 매핑은 하나여야 합니다.");
+        assertEquals(Set.of(expectedPath), mappings.getFirst().getPatternValues());
+        assertEquals(Set.of(RequestMethod.POST), mappings.getFirst().getMethodsCondition().getMethods());
+    }
 
     @Test
     void jwtFilterIsRegisteredOnlyOnceInSecurityChain() {
@@ -134,6 +163,7 @@ class JwtAuthenticationIntegrationTest {
         assertEquals(200, response.statusCode());
         assertEquals("인증된 사용자 ID: single-pass-user", response.body());
         verify(jwtProvider, times(1)).getUserId(token);
+        verify(jwtAuthenticationFilter, times(1)).doFilter(any(), any(), any());
     }
 
     @Test
@@ -205,6 +235,34 @@ class JwtAuthenticationIntegrationTest {
         var anonymousResponse = client.send(request("/test/auth").GET().build(),
                 HttpResponse.BodyHandlers.ofString());
         assertErrorResponse(anonymousResponse, ErrorCode.UNAUTHORIZED);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void unknownEmailAndWrongPasswordKeepSame400Response(boolean registered) throws Exception {
+        String email = "login-failure-" + UUID.randomUUID() + "@example.com";
+        if (registered) {
+            String signupBody = objectMapper.writeValueAsString(Map.of(
+                    "email", email, "password", "Correct1234!",
+                    "passwordConfirm", "Correct1234!", "nickname", "login-tester"
+            ));
+            var signupResponse = client.send(request("/auth/signup")
+                            .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                            .POST(HttpRequest.BodyPublishers.ofString(signupBody)).build(),
+                    HttpResponse.BodyHandlers.ofString());
+            assertEquals(201, signupResponse.statusCode());
+        }
+
+        String loginBody = objectMapper.writeValueAsString(Map.of(
+                "email", email, "password", "Wrong1234!"
+        ));
+        var response = client.send(request("/auth/login")
+                        .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                        .POST(HttpRequest.BodyPublishers.ofString(loginBody)).build(),
+                HttpResponse.BodyHandlers.ofString());
+
+        assertErrorResponse(response, ErrorCode.INVALID_CREDENTIALS);
+        assertEquals(400, response.statusCode());
     }
 
     private void assertErrorResponse(HttpResponse<String> response, ErrorCode errorCode) throws Exception {

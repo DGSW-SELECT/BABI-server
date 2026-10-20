@@ -48,7 +48,7 @@ class JwtAuthenticationFilterTest {
         objectMapper = new ObjectMapper();
         String secret = Base64.getEncoder().encodeToString(Jwts.SIG.HS256.key().build().getEncoded());
         signingKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
-        jwtProvider = new JwtProvider(secret);
+        jwtProvider = new JwtProvider(secret, 30);
         filter = new JwtAuthenticationFilter(jwtProvider, new SecurityErrorResponseWriter(objectMapper));
         request = new MockHttpServletRequest("GET", "/test/auth");
         request.setServletPath("/test/auth");

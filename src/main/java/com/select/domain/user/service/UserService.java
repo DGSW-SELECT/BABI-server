@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Locale;
+import java.util.Optional;
 
 @Service
 public class UserService {
@@ -24,6 +25,9 @@ public class UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtProvider jwtProvider;
+    // 미가입 이메일도 실제 BCrypt 검증 비용을 거치도록 사용하는 cost 10 더미 해시입니다.
+    private static final String DUMMY_PASSWORD_HASH =
+            "$2a$10$G48i72gfQyJ7URWzsalGbeZsaw79R8FDiHbAQBaAoYOLgHqoRBQiG";
 
     public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtProvider jwtProvider) {
         this.userRepository = userRepository;
@@ -113,14 +117,17 @@ public class UserService {
 
     public LoginResponse login(LoginRequest request) {
         String email = normalizeEmail(request.email());
-        User user= userRepository.findByEmail(email)
-                .orElseThrow(InvalidCredentialsException::new);
+        Optional<User> optionalUser = userRepository.findByEmail(email);
+        if (optionalUser.isEmpty()) {
+            passwordEncoder.matches(request.password(), DUMMY_PASSWORD_HASH);
+            throw new InvalidCredentialsException();
+        }
+        User user = optionalUser.get();
         if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
             throw new InvalidCredentialsException();
         }
         String accessToken = jwtProvider.createAccessToken(user.getId().toString());
         return new LoginResponse(accessToken);
     }
-
 
 }

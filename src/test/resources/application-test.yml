@@ -9,3 +9,4 @@ spring:
 # Ephemeral test-only secret; never reads the local or production JWT secret.
 jwt:
   secret: "${random.uuid}${random.uuid}"
+  access-token-expiration-minutes: 30

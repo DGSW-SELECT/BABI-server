@@ -4,10 +4,10 @@ services:
     ports:
       - "127.0.0.1:3307:3306"
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD?required}
       MYSQL_DATABASE: babi
       MYSQL_USER: babi_user
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD?required}
     volumes:
       - babi_mysql_data:/var/lib/mysql
 

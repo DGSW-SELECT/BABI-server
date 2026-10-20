@@ -19,17 +19,25 @@ import java.util.Date;
 public class JwtProvider {
 
     private final SecretKey secretKey;
+    private final long accessTokenExpirationMinutes;
 
-
-    public JwtProvider(@Value("${jwt.secret}") String secret) {
+    public JwtProvider(
+            @Value("${jwt.secret}") String secret,
+            @Value("${jwt.access-token-expiration-minutes}") long accessTokenExpirationMinutes
+    ) {
+        if (accessTokenExpirationMinutes <= 0) {
+            throw new IllegalArgumentException("JWT 만료 시간은 0보다 커야 합니다.");
+        }
         this.secretKey = Keys.hmacShaKeyFor(
                 secret.getBytes(StandardCharsets.UTF_8)
         );
+        this.accessTokenExpirationMinutes = accessTokenExpirationMinutes;
+
     }
 
     public String createAccessToken(String id) {
         Instant now = Instant.now();
-        Instant end = now.plus(30, ChronoUnit.MINUTES);
+        Instant end = now.plus(accessTokenExpirationMinutes, ChronoUnit.MINUTES);
 
         return Jwts.builder()
                 .subject(id)

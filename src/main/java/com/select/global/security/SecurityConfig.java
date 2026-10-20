@@ -33,7 +33,7 @@ public class SecurityConfig {
                 session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
         );
         http.authorizeHttpRequests(auth -> {
-            auth.requestMatchers("/auth/login","/auth/signup").permitAll().anyRequest().authenticated();
+            auth.requestMatchers(SecurityPaths.LOGIN,SecurityPaths.SIGNUP).permitAll().anyRequest().authenticated();
         });
         http.exceptionHandling(exception -> {
             exception.authenticationEntryPoint((request, response, authException) -> {
