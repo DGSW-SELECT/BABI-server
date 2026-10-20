@@ -15,7 +15,6 @@ import java.time.LocalDate;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api")
 public class VaccinationController {
 
     private final VaccinationService vaccinationService;
