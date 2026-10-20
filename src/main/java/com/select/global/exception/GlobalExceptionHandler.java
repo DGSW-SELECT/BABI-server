@@ -18,6 +18,8 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
+import com.select.domain.report.exception.DailyReportAlreadyExistsException;
+import com.select.domain.report.exception.DailyReportNotFoundException;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -27,6 +29,19 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
+    @ExceptionHandler(DailyReportAlreadyExistsException.class)
+    public ResponseEntity<ApiResponse<Void>> handleDailyReportAlreadyExists(
+            DailyReportAlreadyExistsException e
+    ) {
+        return createErrorResponse(ErrorCode.DAILY_REPORT_ALREADY_EXISTS, List.of());
+    }
+
+    @ExceptionHandler(DailyReportNotFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> handleDailyReportNotFound(
+            DailyReportNotFoundException e
+    ) {
+        return createErrorResponse(ErrorCode.DAILY_REPORT_NOT_FOUND, List.of());
+    }
     @ExceptionHandler(DuplicateEmailException.class)
     public ResponseEntity<ApiResponse<Void>> handleDuplicateEmail(
             DuplicateEmailException e
