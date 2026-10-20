@@ -21,7 +21,7 @@ class BabyVaccinationRepositoryTest {
     @Autowired
     private TestEntityManager entityManager;
 
-    private void createVaccination(
+    private BabyVaccination createVaccination(
             Long babyId,
             LocalDate scheduledDate,
             String vaccineName
@@ -35,9 +35,12 @@ class BabyVaccinationRepositoryTest {
 
         entityManager.persist(vaccine);
 
-        BabyVaccination vaccination = BabyVaccination.create(babyId, vaccine, scheduledDate);
+        BabyVaccination vaccination =
+                BabyVaccination.create(babyId, vaccine, scheduledDate);
 
         entityManager.persist(vaccination);
+
+        return vaccination;
     }
 
     @Test
@@ -104,5 +107,85 @@ class BabyVaccinationRepositoryTest {
                         LocalDate.of(2026, 2, 1),
                         LocalDate.of(2026, 4, 1),
                         LocalDate.of(2026, 6, 1));
+    }
+    @Test
+    void EXISTS_BY_BABY_ID_AND_VACCINE_ID() {
+        // given: 아기 1에게 백신 A의 일정이 존재함
+        BabyVaccination vaccination = createVaccination(
+                1L,
+                LocalDate.of(2026, 3, 1),
+                "백신 A"
+        );
+
+        Long vaccineId = vaccination.getVaccine().getId();
+
+        entityManager.flush();
+        entityManager.clear();
+
+        // when
+        boolean result =
+                repository.existsByBabyIdAndVaccine_Id(1L, vaccineId);
+
+        // then
+        assertThat(result).isTrue();
+    }
+
+    @Test
+    void NOT_EXISTS_BY_BABY_ID_AND_VACCINE_ID() {
+        // given
+        BabyVaccination vaccination = createVaccination(
+                1L,
+                LocalDate.of(2026, 3, 1),
+                "백신 A"
+        );
+
+        Long vaccineId = vaccination.getVaccine().getId();
+
+        entityManager.flush();
+        entityManager.clear();
+
+        // when: 존재하지 않는 아기와 백신 ID 조합 확인
+        boolean result =
+                repository.existsByBabyIdAndVaccine_Id(999L, vaccineId);
+
+        // then
+        assertThat(result).isFalse();
+    }
+    @Test
+    void SAVE_VACCINATION_SUCCESS() {
+        // given: 백신 데이터 준비
+        Vaccine vaccine = new Vaccine();
+
+        ReflectionTestUtils.setField(vaccine, "name", "백신 A");
+        ReflectionTestUtils.setField(vaccine, "doseNumber", 1);
+        ReflectionTestUtils.setField(vaccine, "recommendedStartMonth", 0);
+        ReflectionTestUtils.setField(vaccine, "recommendedEndMonth", 1);
+
+        entityManager.persist(vaccine);
+        entityManager.flush();
+
+        BabyVaccination vaccination = BabyVaccination.create(
+                1L,
+                vaccine,
+                LocalDate.of(2026, 11, 1)
+        );
+
+        // when: Repository를 통해 저장
+        BabyVaccination saved = repository.save(vaccination);
+
+        entityManager.flush();
+        Long savedId = saved.getId();
+        entityManager.clear();
+
+        // then: DB에서 다시 조회해 검증
+        BabyVaccination found = repository.findById(savedId)
+                .orElseThrow();
+
+        assertThat(found.getId()).isNotNull();
+        assertThat(found.getBabyId()).isEqualTo(1L);
+        assertThat(found.getScheduledDate())
+                .isEqualTo(LocalDate.of(2026, 11, 1));
+        assertThat(found.getVaccine().getName()).isEqualTo("백신 A");
+        assertThat(found.getCompleted()).isFalse();
     }
 }

@@ -1,6 +1,7 @@
 package com.select.domain.vaccination.service;
 
 import com.select.domain.baby.repository.BabyRepository;
+import com.select.domain.vaccination.dto.request.VaccinationScheduleCreateRequest;
 import com.select.domain.vaccination.dto.response.VaccinationScheduleResponse;
 import com.select.domain.vaccination.entity.BabyVaccination;
 import com.select.domain.vaccination.entity.Vaccine;
@@ -12,6 +13,7 @@ import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -25,6 +27,8 @@ class VaccinationServiceImplTest{
     @BeforeEach
     void setUp() {
         repository = mock(BabyVaccinationRepository.class);
+        vaccineRepository = mock(VaccineRepository.class);
+        babyRepository = mock(BabyRepository.class);
         service = new VaccinationServiceImpl(repository, vaccineRepository, babyRepository);
     }
 
@@ -116,5 +120,132 @@ class VaccinationServiceImplTest{
                 )
         );
         verifyNoInteractions(repository);
+    }
+    @Test
+// 정상 등록
+    void CREATE_VACCINATION_SCHEDULE_SUCCESS() {
+        Long babyId = 1L;
+        Long vaccineId = 3L;
+
+        VaccinationScheduleCreateRequest request =
+                new VaccinationScheduleCreateRequest(
+                        vaccineId,
+                        LocalDate.now().plusDays(1)
+                );
+
+        Vaccine vaccine = mock(Vaccine.class);
+
+        when(babyRepository.existsById(babyId)).thenReturn(true);
+        when(vaccineRepository.findById(vaccineId))
+                .thenReturn(Optional.of(vaccine));
+
+        when(vaccine.getId()).thenReturn(vaccineId);
+        when(vaccine.getName()).thenReturn("B형간염");
+        when(vaccine.getDoseNumber()).thenReturn(1);
+
+        when(repository.existsByBabyIdAndVaccine_Id(babyId, vaccineId))
+                .thenReturn(false);
+
+        when(repository.save(any(BabyVaccination.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        // when
+        var response = service.createVaccinationSchedule(babyId, request);
+
+        // then
+        assertNotNull(response);
+        verify(repository).save(any(BabyVaccination.class));
+    }
+
+    @Test
+// 존재하지 않는 아기
+    void CREATE_VACCINATION_SCHEDULE_BABY_NOT_FOUND() {
+        Long babyId = 999L;
+
+        var request = new VaccinationScheduleCreateRequest(
+                3L, LocalDate.now().plusDays(1)
+        );
+
+        when(babyRepository.existsById(babyId)).thenReturn(false);
+
+        assertThrows(
+                BusinessException.class,
+                () -> service.createVaccinationSchedule(babyId, request)
+        );
+
+        verify(repository, never()).save(any(BabyVaccination.class));
+    }
+
+    @Test
+// 존재하지 않는 백신
+    void CREATE_VACCINATION_SCHEDULE_VACCINE_NOT_FOUND() {
+        Long babyId = 1L;
+        Long vaccineId = 999L;
+
+        var request = new VaccinationScheduleCreateRequest(
+                vaccineId, LocalDate.now().plusDays(1)
+        );
+
+        when(babyRepository.existsById(babyId)).thenReturn(true);
+        when(vaccineRepository.findById(vaccineId))
+                .thenReturn(Optional.empty());
+
+        assertThrows(
+                BusinessException.class,
+                () -> service.createVaccinationSchedule(babyId, request)
+        );
+
+        verify(repository, never()).save(any(BabyVaccination.class));
+    }
+
+    @Test
+    // 오늘 날짜는 허용하지 않음
+    void CREATE_VACCINATION_SCHEDULE_INVALID_DATE() {
+        Long babyId = 1L;
+        Long vaccineId = 3L;
+
+        VaccinationScheduleCreateRequest request =
+                new VaccinationScheduleCreateRequest(
+                        vaccineId,
+                        LocalDate.now()
+                );
+
+        when(babyRepository.existsById(babyId)).thenReturn(true);
+
+        assertThrows(
+                BusinessException.class,
+                () -> service.createVaccinationSchedule(babyId, request)
+        );
+
+        verify(vaccineRepository, never()).findById(any());
+        verify(repository, never()).save(any(BabyVaccination.class));
+    }
+
+    @Test
+// 중복 등록
+    void CREATE_VACCINATION_SCHEDULE_DUPLICATE() {
+        Long babyId = 1L;
+        Long vaccineId = 3L;
+
+        var request = new VaccinationScheduleCreateRequest(
+                vaccineId, LocalDate.now().plusDays(1)
+        );
+
+        Vaccine vaccine = mock(Vaccine.class);
+
+        when(babyRepository.existsById(babyId)).thenReturn(true);
+        when(vaccineRepository.findById(vaccineId))
+                .thenReturn(Optional.of(vaccine));
+        when(vaccine.getId()).thenReturn(vaccineId);
+
+        when(repository.existsByBabyIdAndVaccine_Id(babyId, vaccineId))
+                .thenReturn(true);
+
+        assertThrows(
+                BusinessException.class,
+                () -> service.createVaccinationSchedule(babyId, request)
+        );
+
+        verify(repository, never()).save(any(BabyVaccination.class));
     }
 }
