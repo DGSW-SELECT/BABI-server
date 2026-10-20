@@ -1,10 +1,14 @@
 package com.select.domain.vaccination.service;
 
+import com.select.domain.baby.repository.BabyRepository;
+import com.select.domain.vaccination.dto.request.VaccinationScheduleCreateRequest;
+import com.select.domain.vaccination.dto.response.VaccinationScheduleCreateResponse;
 import com.select.domain.vaccination.dto.response.VaccinationScheduleItemResponse;
 import com.select.domain.vaccination.dto.response.VaccinationScheduleResponse;
 import com.select.domain.vaccination.entity.BabyVaccination;
 import com.select.domain.vaccination.entity.Vaccine;
 import com.select.domain.vaccination.repository.BabyVaccinationRepository;
+import com.select.domain.vaccination.repository.VaccineRepository;
 import com.select.global.exception.BusinessException;
 import com.select.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
@@ -23,6 +27,8 @@ public class VaccinationServiceImpl implements VaccinationService {
     private static final long MAX_RANGE_DAY = 366;
 
     private final BabyVaccinationRepository babyVaccinationRepository;
+    private final VaccineRepository vaccineRepository;
+    private final BabyRepository babyRepository;
 
     @Override
     public VaccinationScheduleResponse getVaccinationSchedules(
@@ -34,12 +40,12 @@ public class VaccinationServiceImpl implements VaccinationService {
         // 1. 입력값 검증 부분
         if (babyId == null || babyId <= 0) {
             throw new BusinessException(
-                    ErrorCode.INVALID_BABY_ID
+                    ErrorCode.VACCINE_INVALID_BABY_ID
             );
         }
-        if(from == null || to == null || from.isAfter(to)){
+        if (from == null || to == null || from.isAfter(to)) {
             throw new BusinessException(
-                    ErrorCode.INVALID_DATE_RANGE
+                    ErrorCode.VACCINE_INVALID_DATE_RANGE
             );
         }
 
@@ -47,7 +53,7 @@ public class VaccinationServiceImpl implements VaccinationService {
 
         if (rangeDays > MAX_RANGE_DAY) {
             throw new BusinessException(
-                    ErrorCode.INVALID_DATE_SET
+                    ErrorCode.VACCINE_INVALID_DATE_SET
             );
         }
 
@@ -86,4 +92,48 @@ public class VaccinationServiceImpl implements VaccinationService {
         );
     }
 
+    @Override
+    @Transactional
+    public VaccinationScheduleCreateResponse createVaccinationSchedule(
+            Long babyId,
+            VaccinationScheduleCreateRequest request
+    ) {
+        // 아기 Id 유효성 검사
+        if (babyId == null || babyId <= 0) {
+            throw new BusinessException(ErrorCode.BABY_NOT_FOUND);
+        }
+
+        Vaccine vaccine = vaccineRepository.findById(request.vaccineId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.VACCINE_NOT_FOUND));
+        LocalDate scheduledDate = request.scheduleDate();
+
+        if (scheduledDate == null || !scheduledDate.isAfter(LocalDate.now())) {
+            throw new BusinessException(ErrorCode.VACCINE_INVALID_SCHEDULE_DATE);
+        }
+
+        if (!babyRepository.existsById(babyId)) {
+            throw new BusinessException(ErrorCode.BABY_NOT_FOUND);
+        }
+
+        if (babyVaccinationRepository.existsByBabyIdAndVaccine_Id(babyId, vaccine.getId())) {
+            throw new BusinessException(ErrorCode.DUPLICATE_VACCINATION);
+        }
+
+        BabyVaccination vaccination =
+                BabyVaccination.create(babyId, vaccine, scheduledDate);
+
+        BabyVaccination saved =
+                babyVaccinationRepository.save(vaccination);
+
+        return new VaccinationScheduleCreateResponse(
+                saved.getId(),
+                babyId,
+                vaccine.getId(),
+                vaccine.getName(),
+                vaccine.getDoseNumber(),
+                saved.getScheduledDate(),
+                saved.getCompletedDate(),
+                saved.getCompleted()
+        );
+    }
 }

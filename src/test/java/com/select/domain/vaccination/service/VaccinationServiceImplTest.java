@@ -1,9 +1,11 @@
 package com.select.domain.vaccination.service;
 
+import com.select.domain.baby.repository.BabyRepository;
 import com.select.domain.vaccination.dto.response.VaccinationScheduleResponse;
 import com.select.domain.vaccination.entity.BabyVaccination;
 import com.select.domain.vaccination.entity.Vaccine;
 import com.select.domain.vaccination.repository.BabyVaccinationRepository;
+import com.select.domain.vaccination.repository.VaccineRepository;
 import com.select.global.exception.BusinessException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -17,11 +19,13 @@ import static org.mockito.Mockito.*;
 class VaccinationServiceImplTest{
     private BabyVaccinationRepository repository;
     private VaccinationServiceImpl service;
+    private VaccineRepository vaccineRepository;
+    private BabyRepository babyRepository;
 
     @BeforeEach
     void setUp() {
         repository = mock(BabyVaccinationRepository.class);
-        service = new VaccinationServiceImpl(repository);
+        service = new VaccinationServiceImpl(repository, vaccineRepository, babyRepository);
     }
 
     @Test

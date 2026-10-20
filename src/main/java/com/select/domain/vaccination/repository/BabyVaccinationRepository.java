@@ -14,4 +14,9 @@ public interface BabyVaccinationRepository extends JpaRepository<BabyVaccination
             LocalDate from,
             LocalDate to
     );
+
+    boolean existsByBabyIdAndVaccine_Id(
+            Long babyId,
+            Long vaccineId
+    );
 }
