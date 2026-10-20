@@ -1,4 +1,4 @@
 package com.select.domain.voice.repository;
 
-public class VoiceInputRepository {
+public interface VoiceInputRepository {
 }
