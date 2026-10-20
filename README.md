@@ -37,6 +37,23 @@ MYSQL_PASSWORD='your-local-password' ./gradlew bootRun --args='--spring.profiles
 
 종료는 `docker compose down`을 사용합니다. 이 명령은 컨테이너만 중지·제거하며 Volume은 삭제하지 않습니다.
 
+테스트는 H2 메모리 DB를 사용합니다. 테스트 종료 후 데이터는 삭제되며 H2는 배포용 JAR에 포함되지 않습니다.
+
+## 배포 DB
+
+배포 환경은 MySQL DB를 준비하고 다음 환경 변수를 설정해야 합니다. 비밀번호를 Git에 저장하지 않습니다.
+
+- `SPRING_DATASOURCE_URL`: `jdbc:mysql://localhost:3306/babi` 형식의 연결 주소
+- `SPRING_DATASOURCE_USERNAME`: DB 계정
+- `SPRING_DATASOURCE_PASSWORD`: DB 비밀번호
+
+## 검증
+
+```bash
+./gradlew test
+./gradlew build
+```
+
 ## 패키지 구조
 
 ```text
