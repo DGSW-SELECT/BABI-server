@@ -195,13 +195,19 @@ class UserControllerTest {
     }
 
     @Test
-    void loginPasswordWith21CharactersReturnsValidationErrorBeforeCallingService() throws Exception {
+    void loginPasswordWith21CharactersPassesValidationAndCallsService() throws Exception {
+        String password = "a".repeat(21);
+        when(userService.login(any())).thenReturn(new LoginResponse("test-access-token"));
+
         mockMvc.perform(post(LOGIN_URL)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(loginJson("test@example.com", "a".repeat(21))))
-                .andExpect(sizeValidationError("password"));
+                        .content(loginJson("test@example.com", password)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.accessToken").value("test-access-token"))
+                .andExpect(jsonPath("$.error").doesNotExist());
 
-        verifyNoInteractions(userService);
+        verify(userService).login(new LoginRequest("test@example.com", password));
     }
 
     @Test
