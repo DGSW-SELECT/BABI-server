@@ -4,6 +4,7 @@ import com.select.domain.user.dto.request.SignupRequest;
 import com.select.domain.user.entity.User;
 import com.select.domain.user.exception.DuplicateEmailException;
 import com.select.domain.user.repository.UserRepository;
+import com.select.global.security.jwt.JwtProvider;
 import org.hibernate.dialect.H2Dialect;
 import org.hibernate.dialect.MySQLDialect;
 import org.hibernate.exception.ConstraintViolationException;
@@ -100,7 +101,7 @@ class UserEmailConstraintTest {
     private void assertDuplicateEmailConversion(DataIntegrityViolationException exception, String email) {
         UserRepository repository = mock(UserRepository.class);
         when(repository.saveAndFlush(any(User.class))).thenThrow(exception);
-        UserService service = new UserService(repository, passwordEncoder);
+        UserService service = new UserService(repository, passwordEncoder, mock(JwtProvider.class));
 
         assertThrows(DuplicateEmailException.class, () -> service.signup(
                 new SignupRequest(email, "Test1234!", "Test1234!", "tester")

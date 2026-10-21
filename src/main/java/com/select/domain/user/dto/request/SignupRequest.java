@@ -17,6 +17,7 @@ public record SignupRequest(
         )
         String password,
 
+        @Size(max = 20)
         @NotBlank
         String passwordConfirm,
 

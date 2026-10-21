@@ -1,11 +1,15 @@
 package com.select.domain.user.controller;
 
+import com.select.domain.user.dto.request.LoginRequest;
+import com.select.domain.user.dto.response.LoginResponse;
 import com.select.domain.user.dto.response.SignupResponse;
 import com.select.domain.user.entity.User;
 import com.select.domain.user.exception.DuplicateEmailException;
 import com.select.domain.user.repository.UserRepository;
+import com.select.global.security.jwt.JwtProvider;
 import com.select.domain.user.service.UserService;
 import com.select.global.exception.GlobalExceptionHandler;
+import com.select.global.exception.ErrorCode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -13,9 +17,15 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultMatcher;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -30,7 +40,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 class UserControllerTest {
 
-    private static final String SIGNUP_URL = "/babi/api/v1/auth/signup";
+    private static final String SIGNUP_URL = "/auth/signup";
+    private static final String LOGIN_URL = "/auth/login";
 
     private MockMvc mockMvc;
     private UserService userService;
@@ -113,7 +124,12 @@ class UserControllerTest {
         mockMvc.perform(post(SIGNUP_URL)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(signupJson(password)))
-                .andExpect(status().isCreated());
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.userId").value(1L))
+                .andExpect(jsonPath("$.data.email").value("test@example.com"));
+
+        verify(userService).signup(any());
     }
 
     @Test
@@ -137,7 +153,7 @@ class UserControllerTest {
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         MockMvc signupMockMvc = MockMvcBuilders
-                .standaloneSetup(new UserController(new UserService(userRepository, passwordEncoder)))
+                .standaloneSetup(new UserController(new UserService(userRepository, passwordEncoder, mock(JwtProvider.class))))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
 
@@ -163,6 +179,91 @@ class UserControllerTest {
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"));
 
         verifyNoInteractions(userService);
+    }
+
+    @Test
+    void loginEmailWith321CharactersReturnsValidationErrorBeforeCallingService() throws Exception {
+        String email = "a".repeat(64) + "@" + "b".repeat(252) + ".com";
+        assertEquals(321, email.length());
+
+        mockMvc.perform(post(LOGIN_URL)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(loginJson(email, "Test1234!")))
+                .andExpect(sizeValidationError("email"));
+
+        verifyNoInteractions(userService);
+    }
+
+    @Test
+    void loginPasswordWith21CharactersPassesValidationAndCallsService() throws Exception {
+        String password = "a".repeat(21);
+        when(userService.login(any())).thenReturn(new LoginResponse("test-access-token"));
+
+        mockMvc.perform(post(LOGIN_URL)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(loginJson("test@example.com", password)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.accessToken").value("test-access-token"))
+                .andExpect(jsonPath("$.error").doesNotExist());
+
+        verify(userService).login(new LoginRequest("test@example.com", password));
+    }
+
+    @Test
+    void signupPasswordConfirmWith21CharactersReturnsValidationErrorBeforeCallingService() throws Exception {
+        String body = """
+                {
+                  "email": "test@example.com",
+                  "password": "Test1234!",
+                  "passwordConfirm": "%s",
+                  "nickname": "tester"
+                }
+                """.formatted("a".repeat(21));
+
+        mockMvc.perform(post(SIGNUP_URL)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(sizeValidationError("passwordConfirm"));
+
+        verifyNoInteractions(userService);
+    }
+
+    @Test
+    void loginPasswordWithExactly20CharactersReturnsExistingTokenResponse() throws Exception {
+        String password = "a".repeat(20);
+        when(userService.login(any())).thenReturn(new LoginResponse("test-access-token"));
+
+        mockMvc.perform(post(LOGIN_URL)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(loginJson("test@example.com", password)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.message").value("로그인이 완료되었습니다."))
+                .andExpect(jsonPath("$.data.accessToken").value("test-access-token"))
+                .andExpect(jsonPath("$.error").doesNotExist());
+
+        verify(userService).login(new LoginRequest("test@example.com", password));
+    }
+
+    private ResultMatcher sizeValidationError(String field) {
+        return result -> {
+            status().isBadRequest().match(result);
+            jsonPath("$.success").value(false).match(result);
+            jsonPath("$.message").value(ErrorCode.VALIDATION_ERROR.getMessage()).match(result);
+            jsonPath("$.data").value(nullValue()).match(result);
+            jsonPath("$.error.code").value("VALIDATION_ERROR").match(result);
+            jsonPath("$.error.details[*].field").value(hasItem(field)).match(result);
+            var exception = assertInstanceOf(MethodArgumentNotValidException.class, result.getResolvedException());
+            assertTrue(exception.getBindingResult().getFieldErrors(field).stream()
+                    .anyMatch(error -> "Size".equals(error.getCode())));
+        };
+    }
+
+    private String loginJson(String email, String password) {
+        return """
+                {"email": "%s", "password": "%s"}
+                """.formatted(email, password);
     }
 
     private String signupJson(String password) {
