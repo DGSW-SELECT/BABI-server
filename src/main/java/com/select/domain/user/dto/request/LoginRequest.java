@@ -11,7 +11,6 @@ public record LoginRequest(
         @Size(max = 320)
         String email,
 
-        @Size(max = 20, message = "비밀번호는 20자 이하여야 합니다.")
         @NotBlank
         String password
 ) {
