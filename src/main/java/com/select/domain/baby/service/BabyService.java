@@ -9,11 +9,13 @@ import com.select.domain.baby.repository.BabyRepository;
 import com.select.domain.baby.request.BabyCreateRequest;
 import com.select.domain.baby.response.BabyCreateResponse;
 import com.select.domain.baby.response.BabyReadResponse;
+import com.select.global.response.ApiResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 
 
 @Service
@@ -56,5 +58,20 @@ public class BabyService {
         }
 
         return new BabyReadResponse(baby.getId(),baby.getName(),baby.getBirthDate());
+    }
+
+    @Transactional(readOnly = true)
+    public List<BabyReadResponse> getBabies(Long userId) {
+        List<BabyMember> members = babyMemberRepository.findByUserId(userId);
+        List<Long> babyIds = members.stream()
+                    .map(BabyMember::getBabyId)
+                    .toList();
+        List<Baby> babies = babyRepository.findAllById(babyIds);
+        return babies.stream()
+                .map(baby -> new BabyReadResponse(
+                baby.getId(),
+                baby.getName(),
+                baby.getBirthDate()
+        )).toList();
     }
 }

@@ -108,6 +108,46 @@ class BabyControllerTest {
     }
 
     @Test
+    void getBabiesReturnsCommonResponseWithAllBabiesForAuthenticatedUser() throws Exception {
+        when(babyService.getBabies(USER_ID)).thenReturn(List.of(
+                new BabyReadResponse(BABY_ID, "아기", BIRTH_DATE),
+                new BabyReadResponse(202L, "둘째", BIRTH_DATE.plusDays(10))
+        ));
+
+        mockMvc.perform(get("/babies"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.message").value("아기 목록 조회에 성공했습니다."))
+                .andExpect(jsonPath("$.data").isArray())
+                .andExpect(jsonPath("$.data.length()").value(2))
+                .andExpect(jsonPath("$.data[0].babyId").value(BABY_ID.intValue()))
+                .andExpect(jsonPath("$.data[0].name").value("아기"))
+                .andExpect(jsonPath("$.data[0].birthDate").value("2025-01-15"))
+                .andExpect(jsonPath("$.data[1].babyId").value(202))
+                .andExpect(jsonPath("$.data[1].name").value("둘째"))
+                .andExpect(jsonPath("$.data[1].birthDate").value("2025-01-25"))
+                .andExpect(jsonPath("$.data[*].id").doesNotExist())
+                .andExpect(jsonPath("$.error").doesNotExist());
+
+        verify(babyService).getBabies(USER_ID);
+    }
+
+    @Test
+    void getBabiesWithoutBabiesReturnsEmptyArrayInCommonResponse() throws Exception {
+        when(babyService.getBabies(USER_ID)).thenReturn(List.of());
+
+        mockMvc.perform(get("/babies"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.message").value("아기 목록 조회에 성공했습니다."))
+                .andExpect(jsonPath("$.data").isArray())
+                .andExpect(jsonPath("$.data").isEmpty())
+                .andExpect(jsonPath("$.error").doesNotExist());
+
+        verify(babyService).getBabies(USER_ID);
+    }
+
+    @Test
     void missingBabyReturnsNotFound() throws Exception {
         when(babyService.getBaby(BABY_ID, USER_ID)).thenThrow(new BabyNotFoundException());
 

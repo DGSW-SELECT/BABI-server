@@ -18,7 +18,9 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -27,6 +29,7 @@ import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 class BabyServiceTest {
@@ -108,13 +111,98 @@ class BabyServiceTest {
         verify(babyMemberRepository).existsByBabyIdAndUserId(BABY_ID, otherUserId);
     }
 
+    @Test
+    void getBabiesWithoutMembershipsReturnsEmptyList() {
+        when(babyMemberRepository.findByUserId(OWNER_USER_ID)).thenReturn(List.of());
+        when(babyRepository.findAllById(List.of())).thenReturn(List.of());
+
+        List<BabyReadResponse> responses = babyService.getBabies(OWNER_USER_ID);
+
+        assertEquals(List.of(), responses);
+        verify(babyMemberRepository).findByUserId(OWNER_USER_ID);
+        verify(babyRepository).findAllById(List.of());
+        verifyNoMoreInteractions(babyMemberRepository, babyRepository);
+    }
+
+    @ParameterizedTest
+    @EnumSource(BabyRole.class)
+    void getBabiesWithOneBabyIncludesEitherGuardianRole(BabyRole role) {
+        BabyMember member = BabyMember.builder()
+                .babyId(BABY_ID).userId(OWNER_USER_ID).role(role).build();
+        when(babyMemberRepository.findByUserId(OWNER_USER_ID)).thenReturn(List.of(member));
+        when(babyRepository.findAllById(List.of(BABY_ID))).thenReturn(List.of(existingBaby()));
+
+        List<BabyReadResponse> responses = babyService.getBabies(OWNER_USER_ID);
+
+        assertEquals(List.of(new BabyReadResponse(BABY_ID, "아기", BIRTH_DATE)), responses);
+        verify(babyMemberRepository).findByUserId(OWNER_USER_ID);
+        verify(babyRepository).findAllById(List.of(BABY_ID));
+        verifyNoMoreInteractions(babyMemberRepository, babyRepository);
+    }
+
+    @Test
+    void getBabiesReturnsAllBabiesAcrossOwnerAndMemberRelationships() {
+        Long secondBabyId = 202L;
+        LocalDate secondBirthDate = BIRTH_DATE.plusDays(10);
+        BabyMember owner = BabyMember.builder()
+                .babyId(BABY_ID).userId(OWNER_USER_ID).role(BabyRole.OWNER).build();
+        BabyMember member = BabyMember.builder()
+                .babyId(secondBabyId).userId(OWNER_USER_ID).role(BabyRole.MEMBER).build();
+        when(babyMemberRepository.findByUserId(OWNER_USER_ID)).thenReturn(List.of(owner, member));
+        when(babyRepository.findAllById(List.of(BABY_ID, secondBabyId))).thenReturn(List.of(
+                babyWithId(secondBabyId, "둘째", secondBirthDate, 99L), existingBaby()
+        ));
+
+        List<BabyReadResponse> responses = babyService.getBabies(OWNER_USER_ID);
+
+        assertEquals(2, responses.size());
+        assertEquals(Set.of(
+                new BabyReadResponse(BABY_ID, "아기", BIRTH_DATE),
+                new BabyReadResponse(secondBabyId, "둘째", secondBirthDate)
+        ), Set.copyOf(responses));
+        verify(babyMemberRepository).findByUserId(OWNER_USER_ID);
+        verify(babyRepository).findAllById(List.of(BABY_ID, secondBabyId));
+        verifyNoMoreInteractions(babyMemberRepository, babyRepository);
+    }
+
+    @Test
+    void getBabiesKeepsDifferentUsersBabyListsSeparate() {
+        Long otherUserId = 99L;
+        Long otherBabyId = 303L;
+        BabyMember ownMembership = BabyMember.builder()
+                .babyId(BABY_ID).userId(OWNER_USER_ID).role(BabyRole.OWNER).build();
+        BabyMember otherMembership = BabyMember.builder()
+                .babyId(otherBabyId).userId(otherUserId).role(BabyRole.OWNER).build();
+        when(babyMemberRepository.findByUserId(OWNER_USER_ID)).thenReturn(List.of(ownMembership));
+        when(babyMemberRepository.findByUserId(otherUserId)).thenReturn(List.of(otherMembership));
+        when(babyRepository.findAllById(List.of(BABY_ID))).thenReturn(List.of(existingBaby()));
+        when(babyRepository.findAllById(List.of(otherBabyId))).thenReturn(List.of(
+                babyWithId(otherBabyId, "다른 아기", BIRTH_DATE, otherUserId)
+        ));
+
+        List<BabyReadResponse> ownBabies = babyService.getBabies(OWNER_USER_ID);
+        List<BabyReadResponse> otherBabies = babyService.getBabies(otherUserId);
+
+        assertEquals(List.of(new BabyReadResponse(BABY_ID, "아기", BIRTH_DATE)), ownBabies);
+        assertEquals(List.of(new BabyReadResponse(otherBabyId, "다른 아기", BIRTH_DATE)), otherBabies);
+        verify(babyMemberRepository).findByUserId(OWNER_USER_ID);
+        verify(babyMemberRepository).findByUserId(otherUserId);
+        verify(babyRepository).findAllById(List.of(BABY_ID));
+        verify(babyRepository).findAllById(List.of(otherBabyId));
+        verifyNoMoreInteractions(babyMemberRepository, babyRepository);
+    }
+
     private Baby existingBaby() {
+        return babyWithId(BABY_ID, "아기", BIRTH_DATE, OWNER_USER_ID);
+    }
+
+    private Baby babyWithId(Long babyId, String name, LocalDate birthDate, Long userId) {
         Baby baby = Baby.builder()
-                .name("아기")
-                .birthDate(BIRTH_DATE)
-                .createdByUserId(OWNER_USER_ID)
+                .name(name)
+                .birthDate(birthDate)
+                .createdByUserId(userId)
                 .build();
-        ReflectionTestUtils.setField(baby, "id", BABY_ID);
+        ReflectionTestUtils.setField(baby, "id", babyId);
         return baby;
     }
 }

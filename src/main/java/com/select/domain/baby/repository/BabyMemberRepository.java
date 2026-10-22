@@ -4,6 +4,8 @@ import com.select.domain.baby.entity.BabyMember;
 import com.select.domain.baby.entity.BabyRole;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.List;
+
 public interface BabyMemberRepository extends JpaRepository<BabyMember, Long> {
 
     boolean existsByBabyIdAndUserIdAndRole(
@@ -14,6 +16,10 @@ public interface BabyMemberRepository extends JpaRepository<BabyMember, Long> {
 
     boolean existsByBabyIdAndUserId(
             Long babyId,
+            Long userId
+    );
+
+    List<BabyMember> findByUserId(
             Long userId
     );
 }
