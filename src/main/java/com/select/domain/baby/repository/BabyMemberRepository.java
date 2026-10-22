@@ -11,4 +11,9 @@ public interface BabyMemberRepository extends JpaRepository<BabyMember, Long> {
             Long userId,
             BabyRole role
     );
+
+    boolean existsByBabyIdAndUserId(
+            Long babyId,
+            Long userId
+    );
 }

@@ -57,6 +57,15 @@ public class JwtProvider {
             throw new JwtException("유저 아이디를 찾지 못했습니다.");
         }
 
+        try {
+            Long id = Long.parseLong(parseJwt.getSubject());
+            if (id <= 0) {
+                throw new JwtException("올바르지 않은 사용자 ID입니다.");
+            }
+        } catch (NumberFormatException e) {
+            throw new JwtException("사용자 ID가 올바른 숫자 형식이 아닙니다.",e);
+        }
+
         return parseJwt.getSubject();
     }
 }
