@@ -2,6 +2,7 @@ package com.select.domain.baby.controller;
 
 import com.select.domain.baby.request.BabyCreateRequest;
 import com.select.domain.baby.response.BabyCreateResponse;
+import com.select.domain.baby.response.BabyMemberResponse;
 import com.select.domain.baby.response.BabyReadResponse;
 import com.select.domain.baby.service.BabyService;
 import com.select.global.response.ApiResponse;
@@ -36,7 +37,14 @@ public class BabyController {
     @GetMapping
     public ApiResponse<List<BabyReadResponse>> getBabies(@AuthenticationPrincipal String principal) {
          Long userId = Long.valueOf(principal);
-          List<BabyReadResponse> responses = babyService.getBabies(userId);
+         List<BabyReadResponse> responses = babyService.getBabies(userId);
          return new ApiResponse<>(true,"아기 목록 조회에 성공했습니다.",responses);
+    }
+
+    @GetMapping("/{babyId}/members")
+    public ApiResponse<List<BabyMemberResponse>> getBabyMembers(@PathVariable Long babyId, @AuthenticationPrincipal String principal) {
+        Long userId = Long.valueOf(principal);
+        List<BabyMemberResponse> responses = babyService.getBabyMembers(babyId,userId);
+        return new ApiResponse<>(true,"아기 보호자 목록 조회에 성공했습니다.",responses);
     }
 }

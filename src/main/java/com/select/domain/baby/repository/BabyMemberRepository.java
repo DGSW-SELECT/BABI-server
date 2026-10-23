@@ -22,4 +22,8 @@ public interface BabyMemberRepository extends JpaRepository<BabyMember, Long> {
     List<BabyMember> findByUserId(
             Long userId
     );
+
+    List<BabyMember> findByBabyId(
+            Long babyId
+    );
 }
