@@ -1,4 +1,4 @@
 package com.select.domain.voice.dto.response;
 
-public class SttTranscriptResponse {
+public record SttTranscriptResponse(String transcript) {
 }
