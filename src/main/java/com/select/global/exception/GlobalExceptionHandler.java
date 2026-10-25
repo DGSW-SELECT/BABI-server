@@ -3,6 +3,10 @@ package com.select.global.exception;
 import com.select.domain.user.exception.DuplicateEmailException;
 import com.select.domain.user.exception.InvalidCredentialsException;
 import com.select.domain.user.exception.PasswordMismatchException;
+import com.select.domain.voice.exception.AudioTooLargeException;
+import com.select.domain.voice.exception.InvalidAudioException;
+import com.select.domain.voice.exception.SttFailedException;
+import com.select.domain.voice.exception.VoiceInputNotFoundException;
 import com.select.global.response.ApiError;
 import com.select.global.response.ApiResponse;
 import com.select.global.response.ErrorDetail;
@@ -19,6 +23,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
 
@@ -67,6 +72,60 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return createErrorResponse(
                 ErrorCode.FORBIDDEN,
                 List.of()
+        );
+    }
+
+    @ExceptionHandler(InvalidAudioException.class)
+    public ResponseEntity<ApiResponse<Void>> handleInvalidAudio(
+            InvalidAudioException e
+    ) {
+        return createErrorResponse(
+                ErrorCode.INVALID_AUDIO,
+                List.of()
+        );
+    }
+
+    @ExceptionHandler(AudioTooLargeException.class)
+    public ResponseEntity<ApiResponse<Void>> handleAudioTooLarge(
+            AudioTooLargeException e
+    ) {
+        return createErrorResponse(
+                ErrorCode.AUDIO_TOO_LARGE,
+                List.of()
+        );
+    }
+
+    @ExceptionHandler(SttFailedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleSttFailed(
+            SttFailedException e
+    ) {
+        log.warn("음성 변환에 실패했습니다: {}", e.getMessage());
+        return createErrorResponse(
+                ErrorCode.STT_FAILED,
+                List.of()
+        );
+    }
+
+    @ExceptionHandler(VoiceInputNotFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> handleVoiceInputNotFound(
+            VoiceInputNotFoundException e
+    ) {
+        return createErrorResponse(
+                ErrorCode.VOICE_INPUT_NOT_FOUND,
+                List.of()
+        );
+    }
+
+    @Override
+    protected @Nullable ResponseEntity<Object> handleMaxUploadSizeExceededException(
+            MaxUploadSizeExceededException e,
+            HttpHeaders headers,
+            HttpStatusCode status,
+            WebRequest request
+    ) {
+        return handleExceptionInternal(
+                e, createErrorResponseBody(ErrorCode.AUDIO_TOO_LARGE, List.of()),
+                headers, status, request
         );
     }
 
