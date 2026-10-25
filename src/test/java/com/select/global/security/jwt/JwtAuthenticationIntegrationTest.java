@@ -155,13 +155,13 @@ class JwtAuthenticationIntegrationTest {
 
     @Test
     void validRequestParsesJwtOnlyOnce() throws Exception {
-        String token = jwtProvider.createAccessToken("single-pass-user");
+        String token = jwtProvider.createAccessToken("43");
         var response = client.send(request("/test/auth")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token).GET().build(),
                 HttpResponse.BodyHandlers.ofString());
 
         assertEquals(200, response.statusCode());
-        assertEquals("인증된 사용자 ID: single-pass-user", response.body());
+        assertEquals("인증된 사용자 ID: 43", response.body());
         verify(jwtProvider, times(1)).getUserId(token);
         verify(jwtAuthenticationFilter, times(1)).doFilter(any(), any(), any());
     }
