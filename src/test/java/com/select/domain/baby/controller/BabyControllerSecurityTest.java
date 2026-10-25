@@ -32,6 +32,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -154,6 +155,20 @@ class BabyControllerSecurityTest {
 
         verify(jwtProvider).getUserId("valid-token");
         verify(babyService).getBabyMembers(101L, 7L);
+    }
+
+    @Test
+    void leaveBabyWithoutJwtReturnsUnauthorizedBeforeCallingService() throws Exception {
+        mockMvc.perform(delete("/babies/101/members/me").servletPath("/babies/101/members/me"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().string(HttpHeaders.WWW_AUTHENTICATE, "Bearer"))
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value("인증이 필요합니다."))
+                .andExpect(jsonPath("$.data").value(nullValue()))
+                .andExpect(jsonPath("$.error.code").value("UNAUTHORIZED"))
+                .andExpect(jsonPath("$.error.details").isEmpty());
+
+        verifyNoInteractions(babyService, jwtProvider);
     }
 
     @TestConfiguration(proxyBeanMethods = false)

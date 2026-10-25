@@ -26,11 +26,14 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -287,6 +290,51 @@ class BabyServiceTest {
         assertEquals("보호자 사용자 정보를 찾을 수 없습니다.", exception.getMessage());
 
         verify(userRepository).findAllById(List.of(OWNER_USER_ID, 8L));
+    }
+
+    @Test
+    void leaveBabyDeletesOnlyRequestingMembersRelationship() {
+        Long memberUserId = 8L;
+        BabyMember member = BabyMember.builder()
+                .babyId(BABY_ID).userId(memberUserId).role(BabyRole.MEMBER).build();
+        when(babyMemberRepository.findByBabyIdAndUserId(BABY_ID, memberUserId))
+                .thenReturn(Optional.of(member));
+
+        assertDoesNotThrow(() -> babyService.leaveBaby(BABY_ID, memberUserId));
+
+        verify(babyMemberRepository).findByBabyIdAndUserId(BABY_ID, memberUserId);
+        verify(babyMemberRepository).delete(same(member));
+        verifyNoMoreInteractions(babyMemberRepository);
+        verifyNoInteractions(babyRepository, userRepository);
+    }
+
+    @Test
+    void leaveBabyRejectsOwnerWithoutDeletingRelationship() {
+        BabyMember owner = BabyMember.builder()
+                .babyId(BABY_ID).userId(OWNER_USER_ID).role(BabyRole.OWNER).build();
+        when(babyMemberRepository.findByBabyIdAndUserId(BABY_ID, OWNER_USER_ID))
+                .thenReturn(Optional.of(owner));
+
+        assertThrows(AccessDeniedException.class, () -> babyService.leaveBaby(BABY_ID, OWNER_USER_ID));
+
+        verify(babyMemberRepository).findByBabyIdAndUserId(BABY_ID, OWNER_USER_ID);
+        verify(babyMemberRepository, never()).delete(any(BabyMember.class));
+        verifyNoMoreInteractions(babyMemberRepository);
+        verifyNoInteractions(babyRepository, userRepository);
+    }
+
+    @Test
+    void leaveBabyRejectsNonMemberWithoutDeletingAnyRelationship() {
+        Long otherUserId = 99L;
+        when(babyMemberRepository.findByBabyIdAndUserId(BABY_ID, otherUserId))
+                .thenReturn(Optional.empty());
+
+        assertThrows(AccessDeniedException.class, () -> babyService.leaveBaby(BABY_ID, otherUserId));
+
+        verify(babyMemberRepository).findByBabyIdAndUserId(BABY_ID, otherUserId);
+        verify(babyMemberRepository, never()).delete(any(BabyMember.class));
+        verifyNoMoreInteractions(babyMemberRepository);
+        verifyNoInteractions(babyRepository, userRepository);
     }
 
     private List<BabyMember> guardianRelationships() {

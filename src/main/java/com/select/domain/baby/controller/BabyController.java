@@ -47,4 +47,11 @@ public class BabyController {
         List<BabyMemberResponse> responses = babyService.getBabyMembers(babyId,userId);
         return new ApiResponse<>(true,"아기 보호자 목록 조회에 성공했습니다.",responses);
     }
+
+    @DeleteMapping("/{babyId}/members/me")
+    public ApiResponse<Void> leaveBaby(@PathVariable Long babyId, @AuthenticationPrincipal String principal) {
+        Long userId = Long.valueOf(principal);
+        babyService.leaveBaby(babyId,userId);
+        return new ApiResponse<Void>(true,"보호자 그룹에서 탈퇴했습니다.",null);
+    }
 }

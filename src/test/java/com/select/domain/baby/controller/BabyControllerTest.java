@@ -32,11 +32,17 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
+import static org.hamcrest.Matchers.nullValue;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -271,4 +277,63 @@ class BabyControllerTest {
 
         verify(babyService).getBaby(BABY_ID, USER_ID);
     }
+    @Test
+    void leaveBabyForAuthenticatedMemberReturnsCommonSuccessResponse() throws Exception {
+        Long memberUserId = 8L;
+        SecurityContextHolder.getContext().setAuthentication(
+                UsernamePasswordAuthenticationToken.authenticated(memberUserId.toString(), null, List.of())
+        );
+        BabyMemberRepository memberRepository = mock(BabyMemberRepository.class);
+        BabyMember member = BabyMember.builder()
+                .babyId(BABY_ID).userId(memberUserId).role(BabyRole.MEMBER).build();
+        when(memberRepository.findByBabyIdAndUserId(BABY_ID, memberUserId)).thenReturn(Optional.of(member));
+
+        leaveBabyMvc(memberRepository).perform(delete("/babies/{babyId}/members/me", BABY_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.message").value("보호자 그룹에서 탈퇴했습니다."))
+                .andExpect(jsonPath("$.data").value(nullValue()))
+                .andExpect(jsonPath("$.error").doesNotExist());
+
+        verify(memberRepository).findByBabyIdAndUserId(BABY_ID, memberUserId);
+        verify(memberRepository).delete(same(member));
+        verifyNoMoreInteractions(memberRepository);
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {7, 99})
+    void leaveBabyForOwnerOrNonMemberReturnsForbidden(Long requestingUserId) throws Exception {
+        SecurityContextHolder.getContext().setAuthentication(
+                UsernamePasswordAuthenticationToken.authenticated(requestingUserId.toString(), null, List.of())
+        );
+        BabyMemberRepository memberRepository = mock(BabyMemberRepository.class);
+        Optional<BabyMember> membership = requestingUserId.equals(USER_ID)
+                ? Optional.of(BabyMember.builder().babyId(BABY_ID).userId(USER_ID).role(BabyRole.OWNER).build())
+                : Optional.empty();
+        when(memberRepository.findByBabyIdAndUserId(BABY_ID, requestingUserId)).thenReturn(membership);
+
+        leaveBabyMvc(memberRepository).perform(delete("/babies/{babyId}/members/me", BABY_ID))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value("접근 권한이 없습니다."))
+                .andExpect(jsonPath("$.data").value(nullValue()))
+                .andExpect(jsonPath("$.error.code").value("FORBIDDEN"))
+                .andExpect(jsonPath("$.error.details").isEmpty())
+                .andExpect(result -> assertInstanceOf(AccessDeniedException.class, result.getResolvedException()));
+
+        verify(memberRepository).findByBabyIdAndUserId(BABY_ID, requestingUserId);
+        verify(memberRepository, never()).delete(any(BabyMember.class));
+        verifyNoMoreInteractions(memberRepository);
+    }
+
+    private MockMvc leaveBabyMvc(BabyMemberRepository memberRepository) {
+        BabyService realService = new BabyService(
+                mock(BabyRepository.class), memberRepository, mock(UserRepository.class)
+        );
+        return MockMvcBuilders.standaloneSetup(new BabyController(realService))
+                .setControllerAdvice(new GlobalExceptionHandler())
+                .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver())
+                .build();
+    }
+
 }

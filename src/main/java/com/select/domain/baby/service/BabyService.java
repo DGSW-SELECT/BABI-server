@@ -19,10 +19,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
-
-import static aQute.bnd.annotation.headers.Category.users;
-
 
 @Service
 @RequiredArgsConstructor
@@ -113,5 +111,15 @@ public class BabyService {
                 })
                 .toList();
         return responses;
+    }
+
+    @Transactional
+    public void leaveBaby(Long babyId, Long userId) {
+            BabyMember member = babyMemberRepository.findByBabyIdAndUserId(babyId, userId)
+                    .orElseThrow(() -> new AccessDeniedException("해당 아기의 보호자가 아닙니다."));
+            if (member.getRole() == BabyRole.OWNER) {
+                throw new AccessDeniedException("관리자는 권한을 위임한 후 탈퇴할 수 있습니다.");
+            }
+            babyMemberRepository.delete(member);
     }
 }
