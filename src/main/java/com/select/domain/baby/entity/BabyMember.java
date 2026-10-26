@@ -38,4 +38,8 @@ public class BabyMember {
         this.userId = userId;
         this.role = role;
     }
+
+    public void changeRole(BabyRole role) {
+        this.role = role;
+    }
 }

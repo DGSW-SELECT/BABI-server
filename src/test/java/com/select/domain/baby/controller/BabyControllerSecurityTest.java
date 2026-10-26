@@ -16,6 +16,7 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockServletContext;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -31,9 +32,11 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -169,6 +172,39 @@ class BabyControllerSecurityTest {
                 .andExpect(jsonPath("$.error.details").isEmpty());
 
         verifyNoInteractions(babyService, jwtProvider);
+    }
+
+    @Test
+    void transferOwnershipWithoutJwtReturnsUnauthorizedBeforeCallingService() throws Exception {
+        mockMvc.perform(patch("/babies/101/members/owner").servletPath("/babies/101/members/owner")
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"newOwnerUserId\":8}"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().string(HttpHeaders.WWW_AUTHENTICATE, "Bearer"))
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value("인증이 필요합니다."))
+                .andExpect(jsonPath("$.data").value(nullValue()))
+                .andExpect(jsonPath("$.error.code").value("UNAUTHORIZED"))
+                .andExpect(jsonPath("$.error.details").isEmpty());
+
+        verifyNoInteractions(babyService, jwtProvider);
+    }
+
+    @Test
+    void transferOwnershipWithValidJwtPassesAuthenticatedUserAndTargetToService() throws Exception {
+        when(jwtProvider.getUserId("valid-token")).thenReturn("7");
+
+        mockMvc.perform(patch("/babies/101/members/owner").servletPath("/babies/101/members/owner")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"newOwnerUserId\":8}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.message").value("보호자 관리권한을 위임하였습니다."))
+                .andExpect(jsonPath("$.data").value(nullValue()))
+                .andExpect(jsonPath("$.error").doesNotExist());
+
+        verify(jwtProvider).getUserId("valid-token");
+        verify(babyService).transferOwnership(101L, 7L, 8L);
+        verifyNoMoreInteractions(jwtProvider, babyService);
     }
 
     @TestConfiguration(proxyBeanMethods = false)

@@ -1,6 +1,7 @@
 package com.select.domain.baby.controller;
 
 import com.select.domain.baby.exception.BabyNotFoundException;
+import com.select.domain.baby.exception.InvalidOwnershipTransferException;
 import com.select.domain.baby.request.BabyCreateRequest;
 import com.select.domain.baby.response.BabyCreateResponse;
 import com.select.domain.baby.response.BabyReadResponse;
@@ -36,6 +37,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.same;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -44,6 +46,7 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -324,6 +327,81 @@ class BabyControllerTest {
         verify(memberRepository).findByBabyIdAndUserId(BABY_ID, requestingUserId);
         verify(memberRepository, never()).delete(any(BabyMember.class));
         verifyNoMoreInteractions(memberRepository);
+    }
+
+    @Test
+    void transferOwnershipReturnsCommonResponseAndPassesAuthenticatedUserAndTarget() throws Exception {
+        mockMvc.perform(patch("/babies/{babyId}/members/owner", BABY_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"newOwnerUserId\":8}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.message").value("보호자 관리권한을 위임하였습니다."))
+                .andExpect(jsonPath("$.data").value(nullValue()))
+                .andExpect(jsonPath("$.error").doesNotExist());
+
+        verify(babyService).transferOwnership(BABY_ID, USER_ID, 8L);
+        verifyNoMoreInteractions(babyService);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"{}", "{\"newOwnerUserId\":null}"})
+    void transferOwnershipRejectsMissingOrNullTargetBeforeCallingService(String body) throws Exception {
+        mockMvc.perform(patch("/babies/{babyId}/members/owner", BABY_ID)
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.data").value(nullValue()))
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.error.details.length()").value(1))
+                .andExpect(jsonPath("$.error.details[0].field").value("newOwnerUserId"));
+
+        verifyNoInteractions(babyService);
+    }
+
+    @Test
+    void transferOwnershipMapsServiceAccessDeniedToForbiddenResponse() throws Exception {
+        doThrow(new AccessDeniedException("관리자가 아닙니다"))
+                .when(babyService).transferOwnership(BABY_ID, USER_ID, 8L);
+
+        mockMvc.perform(patch("/babies/{babyId}/members/owner", BABY_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"newOwnerUserId\":8}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value("접근 권한이 없습니다."))
+                .andExpect(jsonPath("$.data").value(nullValue()))
+                .andExpect(jsonPath("$.error.code").value("FORBIDDEN"))
+                .andExpect(jsonPath("$.error.details").isEmpty())
+                .andExpect(result -> assertInstanceOf(AccessDeniedException.class, result.getResolvedException()));
+
+        verify(babyService).transferOwnership(BABY_ID, USER_ID, 8L);
+        verifyNoMoreInteractions(babyService);
+    }
+
+    @Test
+    void transferOwnershipToSelfReturnsBadRequestBeforeRepositoryAccess() throws Exception {
+        BabyRepository babyRepository = mock(BabyRepository.class);
+        BabyMemberRepository memberRepository = mock(BabyMemberRepository.class);
+        UserRepository userRepository = mock(UserRepository.class);
+        BabyService realService = new BabyService(babyRepository, memberRepository, userRepository);
+        MockMvc realServiceMockMvc = MockMvcBuilders.standaloneSetup(new BabyController(realService))
+                .setControllerAdvice(new GlobalExceptionHandler())
+                .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver())
+                .build();
+
+        realServiceMockMvc.perform(patch("/babies/{babyId}/members/owner", BABY_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"newOwnerUserId\":7}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value("입력값을 확인해 주세요."))
+                .andExpect(jsonPath("$.data").value(nullValue()))
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.error.details").isEmpty())
+                .andExpect(result -> assertInstanceOf(InvalidOwnershipTransferException.class, result.getResolvedException()));
+
+        verifyNoInteractions(babyRepository, memberRepository, userRepository);
     }
 
     private MockMvc leaveBabyMvc(BabyMemberRepository memberRepository) {

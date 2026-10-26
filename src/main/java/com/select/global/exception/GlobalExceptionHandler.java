@@ -1,6 +1,7 @@
 package com.select.global.exception;
 
 import com.select.domain.baby.exception.BabyNotFoundException;
+import com.select.domain.baby.exception.InvalidOwnershipTransferException;
 import com.select.domain.user.exception.DuplicateEmailException;
 import com.select.domain.user.exception.InvalidCredentialsException;
 import com.select.domain.user.exception.PasswordMismatchException;
@@ -92,6 +93,16 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                         e.getName(),
                         "요청한 값의 형식이 올바르지 않습니다.")
                 )
+        );
+    }
+
+    @ExceptionHandler(InvalidOwnershipTransferException.class)
+    public ResponseEntity<ApiResponse<Void>> handleInvalidOwnershipTransfer(
+            InvalidOwnershipTransferException e
+    ) {
+        return createErrorResponse(
+                ErrorCode.VALIDATION_ERROR,
+                List.of()
         );
     }
 

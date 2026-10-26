@@ -4,6 +4,7 @@ import com.select.domain.baby.entity.Baby;
 import com.select.domain.baby.entity.BabyMember;
 import com.select.domain.baby.entity.BabyRole;
 import com.select.domain.baby.exception.BabyNotFoundException;
+import com.select.domain.baby.exception.InvalidOwnershipTransferException;
 import com.select.domain.baby.repository.BabyMemberRepository;
 import com.select.domain.baby.repository.BabyRepository;
 import com.select.domain.baby.request.BabyCreateRequest;
@@ -333,6 +334,104 @@ class BabyServiceTest {
 
         verify(babyMemberRepository).findByBabyIdAndUserId(BABY_ID, otherUserId);
         verify(babyMemberRepository, never()).delete(any(BabyMember.class));
+        verifyNoMoreInteractions(babyMemberRepository);
+        verifyNoInteractions(babyRepository, userRepository);
+    }
+
+    @Test
+    void transferOwnershipChangesOwnerAndMemberRoles() {
+        Long newOwnerUserId = 8L;
+        BabyMember owner = BabyMember.builder()
+                .babyId(BABY_ID).userId(OWNER_USER_ID).role(BabyRole.OWNER).build();
+        BabyMember newOwner = BabyMember.builder()
+                .babyId(BABY_ID).userId(newOwnerUserId).role(BabyRole.MEMBER).build();
+        when(babyMemberRepository.findByBabyIdAndUserId(BABY_ID, OWNER_USER_ID)).thenReturn(Optional.of(owner));
+        when(babyMemberRepository.findByBabyIdAndUserId(BABY_ID, newOwnerUserId)).thenReturn(Optional.of(newOwner));
+
+        assertDoesNotThrow(() -> babyService.transferOwnership(BABY_ID, OWNER_USER_ID, newOwnerUserId));
+
+        assertEquals(BabyRole.MEMBER, owner.getRole());
+        assertEquals(BabyRole.OWNER, newOwner.getRole());
+        assertEquals(OWNER_USER_ID, owner.getUserId());
+        assertEquals(newOwnerUserId, newOwner.getUserId());
+        verify(babyMemberRepository).findByBabyIdAndUserId(BABY_ID, OWNER_USER_ID);
+        verify(babyMemberRepository).findByBabyIdAndUserId(BABY_ID, newOwnerUserId);
+        verifyNoMoreInteractions(babyMemberRepository);
+        verifyNoInteractions(babyRepository, userRepository);
+    }
+
+    @Test
+    void transferOwnershipRejectsRequestingMemberBeforeLookingUpTarget() {
+        Long memberUserId = 8L;
+        BabyMember member = BabyMember.builder()
+                .babyId(BABY_ID).userId(memberUserId).role(BabyRole.MEMBER).build();
+        when(babyMemberRepository.findByBabyIdAndUserId(BABY_ID, memberUserId)).thenReturn(Optional.of(member));
+
+        assertThrows(AccessDeniedException.class,
+                () -> babyService.transferOwnership(BABY_ID, memberUserId, OWNER_USER_ID));
+
+        assertEquals(BabyRole.MEMBER, member.getRole());
+        verify(babyMemberRepository).findByBabyIdAndUserId(BABY_ID, memberUserId);
+        verifyNoMoreInteractions(babyMemberRepository);
+        verifyNoInteractions(babyRepository, userRepository);
+    }
+
+    @Test
+    void transferOwnershipRejectsRequestingNonMemberBeforeLookingUpTarget() {
+        Long otherUserId = 99L;
+        when(babyMemberRepository.findByBabyIdAndUserId(BABY_ID, otherUserId)).thenReturn(Optional.empty());
+
+        assertThrows(AccessDeniedException.class,
+                () -> babyService.transferOwnership(BABY_ID, otherUserId, 8L));
+
+        verify(babyMemberRepository).findByBabyIdAndUserId(BABY_ID, otherUserId);
+        verifyNoMoreInteractions(babyMemberRepository);
+        verifyNoInteractions(babyRepository, userRepository);
+    }
+
+    @Test
+    void transferOwnershipRejectsTargetWithoutMembershipInRequestedBaby() {
+        Long newOwnerUserId = 8L;
+        BabyMember owner = BabyMember.builder()
+                .babyId(BABY_ID).userId(OWNER_USER_ID).role(BabyRole.OWNER).build();
+        when(babyMemberRepository.findByBabyIdAndUserId(BABY_ID, OWNER_USER_ID)).thenReturn(Optional.of(owner));
+        when(babyMemberRepository.findByBabyIdAndUserId(BABY_ID, newOwnerUserId)).thenReturn(Optional.empty());
+
+        assertThrows(AccessDeniedException.class,
+                () -> babyService.transferOwnership(BABY_ID, OWNER_USER_ID, newOwnerUserId));
+
+        assertEquals(BabyRole.OWNER, owner.getRole());
+        verify(babyMemberRepository).findByBabyIdAndUserId(BABY_ID, OWNER_USER_ID);
+        verify(babyMemberRepository).findByBabyIdAndUserId(BABY_ID, newOwnerUserId);
+        verifyNoMoreInteractions(babyMemberRepository);
+        verifyNoInteractions(babyRepository, userRepository);
+    }
+
+    @Test
+    void transferOwnershipRejectsSelfWithoutRepositoryAccess() {
+        assertThrows(InvalidOwnershipTransferException.class,
+                () -> babyService.transferOwnership(BABY_ID, OWNER_USER_ID, OWNER_USER_ID));
+
+        verifyNoInteractions(babyMemberRepository, babyRepository, userRepository);
+    }
+
+    @Test
+    void transferOwnershipRejectsTargetWhoIsAlreadyOwnerWithoutChangingRoles() {
+        Long newOwnerUserId = 8L;
+        BabyMember owner = BabyMember.builder()
+                .babyId(BABY_ID).userId(OWNER_USER_ID).role(BabyRole.OWNER).build();
+        BabyMember anotherOwner = BabyMember.builder()
+                .babyId(BABY_ID).userId(newOwnerUserId).role(BabyRole.OWNER).build();
+        when(babyMemberRepository.findByBabyIdAndUserId(BABY_ID, OWNER_USER_ID)).thenReturn(Optional.of(owner));
+        when(babyMemberRepository.findByBabyIdAndUserId(BABY_ID, newOwnerUserId)).thenReturn(Optional.of(anotherOwner));
+
+        assertThrows(AccessDeniedException.class,
+                () -> babyService.transferOwnership(BABY_ID, OWNER_USER_ID, newOwnerUserId));
+
+        assertEquals(BabyRole.OWNER, owner.getRole());
+        assertEquals(BabyRole.OWNER, anotherOwner.getRole());
+        verify(babyMemberRepository).findByBabyIdAndUserId(BABY_ID, OWNER_USER_ID);
+        verify(babyMemberRepository).findByBabyIdAndUserId(BABY_ID, newOwnerUserId);
         verifyNoMoreInteractions(babyMemberRepository);
         verifyNoInteractions(babyRepository, userRepository);
     }

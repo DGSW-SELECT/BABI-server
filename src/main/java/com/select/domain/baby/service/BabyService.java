@@ -4,6 +4,7 @@ import com.select.domain.baby.entity.Baby;
 import com.select.domain.baby.entity.BabyMember;
 import com.select.domain.baby.entity.BabyRole;
 import com.select.domain.baby.exception.BabyNotFoundException;
+import com.select.domain.baby.exception.InvalidOwnershipTransferException;
 import com.select.domain.baby.repository.BabyMemberRepository;
 import com.select.domain.baby.repository.BabyRepository;
 import com.select.domain.baby.request.BabyCreateRequest;
@@ -17,6 +18,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import javax.swing.text.html.Option;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -121,5 +123,24 @@ public class BabyService {
                 throw new AccessDeniedException("관리자는 권한을 위임한 후 탈퇴할 수 있습니다.");
             }
             babyMemberRepository.delete(member);
+    }
+
+    @Transactional
+    public void transferOwnership(Long babyId, Long userId, Long newOwnerUserId) {
+        if (userId.equals(newOwnerUserId)) {
+            throw new InvalidOwnershipTransferException();
+        }
+        BabyMember owner = babyMemberRepository.findByBabyIdAndUserId(babyId,userId)
+                .orElseThrow(() -> new AccessDeniedException("해당 아기의 보호자가 아닙니다."));
+        if (owner.getRole() != BabyRole.OWNER) {
+            throw new AccessDeniedException("관리자가 아닙니다");
+        }
+        BabyMember newOwner = babyMemberRepository.findByBabyIdAndUserId(babyId,newOwnerUserId)
+                .orElseThrow(() -> new AccessDeniedException("해당 아기의 보호자가 아닙니다."));
+        if (newOwner.getRole() != BabyRole.MEMBER) {
+            throw new AccessDeniedException("관리자에게 권한을 위임할수 없습니다.");
+        }
+        owner.changeRole(BabyRole.MEMBER);
+        newOwner.changeRole(BabyRole.OWNER);
     }
 }
