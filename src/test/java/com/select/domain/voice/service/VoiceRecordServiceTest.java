@@ -1,7 +1,7 @@
 package com.select.domain.voice.service;
 
 import com.select.domain.voice.client.SttClient;
-import com.select.domain.voice.client.dto.SttResponse;
+import com.select.domain.voice.client.dto.response.SttResponse;
 import com.select.domain.voice.dto.request.VoiceRecordRequest;
 import com.select.domain.voice.dto.response.SttTranscriptResponse;
 import com.select.domain.voice.dto.response.VoiceInputResponse;

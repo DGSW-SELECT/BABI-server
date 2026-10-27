@@ -1,6 +1,6 @@
 package com.select.domain.voice.client;
 
-import com.select.domain.voice.client.dto.SttResponse;
+import com.select.domain.voice.client.dto.response.SttResponse;
 import com.select.domain.voice.exception.SttFailedException;
 import com.select.global.config.SttProperties;
 import org.junit.jupiter.api.BeforeEach;

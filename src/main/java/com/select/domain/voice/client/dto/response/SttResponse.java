@@ -1,4 +1,4 @@
-package com.select.domain.voice.client.dto;
+package com.select.domain.voice.client.dto.response;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 

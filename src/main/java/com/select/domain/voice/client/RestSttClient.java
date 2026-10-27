@@ -1,6 +1,6 @@
 package com.select.domain.voice.client;
 
-import com.select.domain.voice.client.dto.SttResponse;
+import com.select.domain.voice.client.dto.response.SttResponse;
 import com.select.domain.voice.exception.InvalidAudioException;
 import com.select.domain.voice.exception.SttFailedException;
 import com.select.domain.voice.support.AudioFileSupport;
