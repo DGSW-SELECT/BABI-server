@@ -53,8 +53,7 @@ public class VaccinationController {
     @PatchMapping(
             "/babies/{babyId}/vaccination-schedules/{vaccinationScheduleId}"
     )
-    public ResponseEntity<VaccinationScheduleUpdateResponse>
-    updateVaccinationSchedule(
+    public ResponseEntity<VaccinationScheduleUpdateResponse> updateVaccinationSchedule(
             @PathVariable Long babyId,
             @PathVariable Long vaccinationScheduleId,
             @Valid @RequestBody VaccinationScheduleUpdateRequest request
@@ -65,7 +64,6 @@ public class VaccinationController {
                         vaccinationScheduleId,
                         request
                 );
-
         return ResponseEntity.ok(response);
     }
 }
