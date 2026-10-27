@@ -33,6 +33,7 @@ public class SecurityConfig {
                 session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
         );
         http.authorizeHttpRequests(auth -> {
+            auth.requestMatchers(request -> SecurityPaths.isDocumentationPath(request.getServletPath())).permitAll();
             auth.requestMatchers(
                     SecurityPaths.LOGIN,
                     SecurityPaths.SIGNUP,

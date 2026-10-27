@@ -62,6 +62,18 @@ Gradle로 실행할 경우 프로젝트 루트에서 다음 명령을 실행합�
 
 **주의:** `docker compose down -v`는 `babi_mysql_data` 데이터 Volume도 삭제하므로 저장된 DB 데이터가 손실될 수 있습니다. 기존 데이터를 유지해야 한다면 `-v` 옵션을 사용하지 않습니다.
 
+## Swagger API 문서
+
+서버 실행 후 다음 주소에서 현재 브랜치의 Controller와 DTO를 기반으로 생성한 API 문서를 확인할 수 있습니다.
+
+- Swagger UI: http://localhost:8080/swagger-ui.html
+- OpenAPI JSON: http://localhost:8080/v3/api-docs
+- OpenAPI YAML: http://localhost:8080/v3/api-docs.yaml
+
+문서와 UI 리소스는 JWT 없이 접근할 수 있습니다. 로그인·회원가입·이메일 인증 API도 기존대로 인증 없이 호출합니다. 보호된 API를 호출하려면 로그인 응답의 `accessToken`을 Swagger UI의 **Authorize** 버튼에 입력합니다. `Bearer ` 접두어 없이 JWT 값만 입력하면 됩니다. 이메일 인증의 `verificationToken`은 회원가입 요청 본문에 넣는 별도 토큰입니다.
+
+Swagger의 **Try it out**은 실제 API 요청을 실행합니다. 이메일 발송·회원가입 등을 시도할 때는 사용 중인 서버와 연결 환경을 확인합니다.
+
 ## 패키지 구조
 
 ```text
