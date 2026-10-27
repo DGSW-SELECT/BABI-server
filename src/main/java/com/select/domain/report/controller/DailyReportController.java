@@ -8,6 +8,7 @@ import com.select.global.response.ApiResponse;
 import jakarta.validation.Valid;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
@@ -25,26 +26,29 @@ public class DailyReportController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<DailyReportResponse> create(
+            @AuthenticationPrincipal String userId,
             @PathVariable Long babyId,
             @Valid @RequestBody CreateDailyReportRequest request
     ) {
         return new ApiResponse<>(
                 true,
                 "리포트를 생성했습니다.",
-                dailyReportService.create(babyId, request)
+                dailyReportService.create(Long.valueOf(userId), babyId, request)
         );
     }
 
     @GetMapping("/{date}")
     public ApiResponse<DailyReportResponse> get(
+            @AuthenticationPrincipal String userId,
             @PathVariable Long babyId,
             @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date
     ) {
-        return new ApiResponse<>(true, "리포트를 조회했습니다.", dailyReportService.get(babyId, date));
+        return new ApiResponse<>(true, "리포트를 조회했습니다.", dailyReportService.get(Long.valueOf(userId), babyId, date));
     }
 
     @PatchMapping("/{date}")
     public ApiResponse<DailyReportResponse> update(
+            @AuthenticationPrincipal String userId,
             @PathVariable Long babyId,
             @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
             @Valid @RequestBody UpdateDailyReportRequest request
@@ -52,16 +56,17 @@ public class DailyReportController {
         return new ApiResponse<>(
                 true,
                 "리포트를 수정했습니다.",
-                dailyReportService.update(babyId, date, request)
+                dailyReportService.update(Long.valueOf(userId), babyId, date, request)
         );
     }
 
     @DeleteMapping("/{date}")
     public ApiResponse<Void> delete(
+            @AuthenticationPrincipal String userId,
             @PathVariable Long babyId,
             @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date
     ) {
-        dailyReportService.delete(babyId, date);
+        dailyReportService.delete(Long.valueOf(userId), babyId, date);
         return new ApiResponse<>(true, "리포트를 삭제했습니다.", null);
     }
 }

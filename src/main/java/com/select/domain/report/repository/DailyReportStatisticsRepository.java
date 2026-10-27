@@ -37,13 +37,13 @@ public class DailyReportStatisticsRepository {
                 SELECT sleep_start_at, sleep_end_at
                 FROM sleep_records
                 WHERE baby_id = ?
-                  AND sleep_start_at >= ?
                   AND sleep_start_at < ?
+                  AND sleep_end_at > ?
                   AND sleep_end_at IS NOT NULL
                 """, (rs, rowNum) -> Duration.between(
-                rs.getTimestamp("sleep_start_at").toLocalDateTime(),
-                rs.getTimestamp("sleep_end_at").toLocalDateTime()
-        ).toMinutes(), babyId, Timestamp.valueOf(start), Timestamp.valueOf(end));
+                max(rs.getTimestamp("sleep_start_at").toLocalDateTime(), start),
+                min(rs.getTimestamp("sleep_end_at").toLocalDateTime(), end)
+        ).toMinutes(), babyId, Timestamp.valueOf(end), Timestamp.valueOf(start));
 
         double sleepAverage = sleepMinutes.stream()
                 .filter(minutes -> minutes > 0)
@@ -59,5 +59,13 @@ public class DailyReportStatisticsRepository {
                 """, Double.class, babyId, Timestamp.valueOf(start), Timestamp.valueOf(end));
 
         return new SevenDayAverage(feedingAverage, sleepAverage, temperatureAverage);
+    }
+
+    private LocalDateTime max(LocalDateTime left, LocalDateTime right) {
+        return left.isAfter(right) ? left : right;
+    }
+
+    private LocalDateTime min(LocalDateTime left, LocalDateTime right) {
+        return left.isBefore(right) ? left : right;
     }
 }

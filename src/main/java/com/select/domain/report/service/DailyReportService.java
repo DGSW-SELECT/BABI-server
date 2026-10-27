@@ -6,10 +6,12 @@ import com.select.domain.report.dto.response.DailyReportResponse;
 import com.select.domain.report.entity.DailyReport;
 import com.select.domain.report.exception.DailyReportAlreadyExistsException;
 import com.select.domain.report.exception.DailyReportNotFoundException;
+import com.select.domain.report.repository.BabyAccessRepository;
 import com.select.domain.report.repository.DailyReportRepository;
 import com.select.domain.report.repository.DailyReportStatisticsRepository;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,18 +23,22 @@ public class DailyReportService {
     private static final String UNIQUE_CONSTRAINT = "uk_daily_reports_baby_date";
 
     private final DailyReportRepository dailyReportRepository;
+    private final BabyAccessRepository babyAccessRepository;
     private final DailyReportStatisticsRepository statisticsRepository;
 
     public DailyReportService(
             DailyReportRepository dailyReportRepository,
+            BabyAccessRepository babyAccessRepository,
             DailyReportStatisticsRepository statisticsRepository
     ) {
         this.dailyReportRepository = dailyReportRepository;
+        this.babyAccessRepository = babyAccessRepository;
         this.statisticsRepository = statisticsRepository;
     }
 
     @Transactional
-    public DailyReportResponse create(Long babyId, CreateDailyReportRequest request) {
+    public DailyReportResponse create(Long userId, Long babyId, CreateDailyReportRequest request) {
+        verifyBabyAccess(userId, babyId);
         if (dailyReportRepository.existsByBabyIdAndReportDate(babyId, request.reportDate())) {
             throw new DailyReportAlreadyExistsException();
         }
@@ -51,24 +57,34 @@ public class DailyReportService {
     }
 
     @Transactional(readOnly = true)
-    public DailyReportResponse get(Long babyId, java.time.LocalDate reportDate) {
+    public DailyReportResponse get(Long userId, Long babyId, java.time.LocalDate reportDate) {
+        verifyBabyAccess(userId, babyId);
         return toResponse(findReport(babyId, reportDate));
     }
 
     @Transactional
     public DailyReportResponse update(
+            Long userId,
             Long babyId,
             java.time.LocalDate reportDate,
             UpdateDailyReportRequest request
     ) {
+        verifyBabyAccess(userId, babyId);
         DailyReport report = findReport(babyId, reportDate);
         report.updateSummary(request.summary());
         return toResponse(report);
     }
 
     @Transactional
-    public void delete(Long babyId, java.time.LocalDate reportDate) {
+    public void delete(Long userId, Long babyId, java.time.LocalDate reportDate) {
+        verifyBabyAccess(userId, babyId);
         dailyReportRepository.delete(findReport(babyId, reportDate));
+    }
+
+    private void verifyBabyAccess(Long userId, Long babyId) {
+        if (!babyAccessRepository.hasAccess(userId, babyId)) {
+            throw new AccessDeniedException("아기에 대한 접근 권한이 없습니다.");
+        }
     }
 
     private DailyReport findReport(Long babyId, java.time.LocalDate reportDate) {

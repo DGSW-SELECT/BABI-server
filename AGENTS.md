@@ -8,7 +8,7 @@
 - `src/test/java/com/select`: JUnit 5 and Mockito tests.
 
 ## Commands
-- Run locally: `./gradlew bootRun --args='--spring.profiles.active=local'`.
+- Run locally: `MYSQL_PASSWORD=... JWT_SECRET=... ./gradlew bootRun --args='--spring.profiles.active=local'` (`JWT_SECRET` must be at least 32 bytes).
 - Build: `./gradlew build`.
 - Test: `./gradlew test`.
 - Targeted test: `./gradlew test --tests 'fully.qualified.TestClass'`.
@@ -17,6 +17,8 @@
 - Read relevant code before edits. Reuse existing layers and conventions.
 - Keep changes scoped; no unrelated refactors or changes to others' work.
 - Preserve existing Java formatting, constructor injection, validation, and API response conventions.
+- Reuse the existing JWT authentication (`/auth/login`). Report CRUD must verify the authenticated user's baby access before reading or writing reports.
+- `src/main/resources/schema.sql` initializes required tables before JPA. It creates missing tables only; existing table changes require a separate migration.
 - Reproduce bugs and run relevant tests and actual startup/API checks.
 - Keep secrets out of tracked files; use environment variables for external database credentials.
 - H2 is development/test-only and in-memory; local data disappears when the server stops. Exclude H2 from deployment JARs.
