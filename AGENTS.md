@@ -32,7 +32,3 @@ com.select
   - `style` 코드 스타일 / `test` 테스트 / `chore` 설정·유지보수
   - `perf` 성능 / `ci` CI/CD / `build` 빌드 시스템
   - 예: `feat: add login feature`, `fix: resolve timetable loading error`
-
-## CI
-- PR 생성/업데이트 시 `.github/workflows/claude-pr-review.yml`이 Claude 자동 리뷰 실행.
-- Repo secret `CLAUDE_CODE_OAUTH_TOKEN` 필요 (`claude setup-token`으로 발급, Claude 구독 사용).
