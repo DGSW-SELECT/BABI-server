@@ -2,6 +2,7 @@ package com.select.domain.vaccination.service;
 
 import com.select.domain.vaccination.dto.request.VaccinationScheduleCreateRequest;
 import com.select.domain.vaccination.dto.request.VaccinationScheduleUpdateRequest;
+import com.select.domain.vaccination.dto.response.VaccinationHistoryResponse;
 import com.select.domain.vaccination.dto.response.VaccinationScheduleCreateResponse;
 import com.select.domain.vaccination.dto.response.VaccinationScheduleResponse;
 import com.select.domain.vaccination.dto.response.VaccinationScheduleUpdateResponse;
@@ -24,4 +25,5 @@ public interface VaccinationService {
             Long vaccinationScheduleId,
             VaccinationScheduleUpdateRequest request
     );
+    VaccinationHistoryResponse getVaccinationHistory(Long babyId);
 }

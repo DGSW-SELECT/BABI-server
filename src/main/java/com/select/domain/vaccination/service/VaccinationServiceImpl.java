@@ -1,12 +1,11 @@
 package com.select.domain.vaccination.service;
 
+import com.select.domain.baby.entity.Baby;
 import com.select.domain.baby.repository.BabyRepository;
+import com.select.domain.vaccination.controller.VaccinationController;
 import com.select.domain.vaccination.dto.request.VaccinationScheduleCreateRequest;
 import com.select.domain.vaccination.dto.request.VaccinationScheduleUpdateRequest;
-import com.select.domain.vaccination.dto.response.VaccinationScheduleCreateResponse;
-import com.select.domain.vaccination.dto.response.VaccinationScheduleItemResponse;
-import com.select.domain.vaccination.dto.response.VaccinationScheduleResponse;
-import com.select.domain.vaccination.dto.response.VaccinationScheduleUpdateResponse;
+import com.select.domain.vaccination.dto.response.*;
 import com.select.domain.vaccination.entity.BabyVaccination;
 import com.select.domain.vaccination.entity.Vaccine;
 import com.select.domain.vaccination.repository.BabyVaccinationRepository;
@@ -174,5 +173,26 @@ public class VaccinationServiceImpl implements VaccinationService {
                 vaccination.getCompletedDate(),
                 Boolean.TRUE.equals(vaccination.getCompleted())
         );
+    }
+    @Override
+    public VaccinationHistoryResponse getVaccinationHistory(Long babyId) {
+        if(!babyRepository.existsById(babyId)) {
+            throw new BusinessException(ErrorCode.BABY_NOT_FOUND);
+        }
+        List<BabyVaccination> vaccinations =
+                babyVaccinationRepository.findAllByBabyIdAndCompletedTrue(babyId);
+
+        List<VaccinationHistoryResponse.Item> items =
+                vaccinations.stream()
+                        .map(vaccination ->
+                                new VaccinationHistoryResponse.Item(
+                                        vaccination.getId(),
+                                        vaccination.getVaccine().getName(),
+                                        vaccination.getVaccine().getDoseNumber(),
+                                        vaccination.getCompletedDate()
+                                )
+                        ).toList();
+
+        return new VaccinationHistoryResponse(babyId, items);
     }
 }

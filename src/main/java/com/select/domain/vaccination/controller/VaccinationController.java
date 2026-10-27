@@ -2,6 +2,7 @@ package com.select.domain.vaccination.controller;
 
 import com.select.domain.vaccination.dto.request.VaccinationScheduleCreateRequest;
 import com.select.domain.vaccination.dto.request.VaccinationScheduleUpdateRequest;
+import com.select.domain.vaccination.dto.response.VaccinationHistoryResponse;
 import com.select.domain.vaccination.dto.response.VaccinationScheduleCreateResponse;
 import com.select.domain.vaccination.dto.response.VaccinationScheduleResponse;
 import com.select.domain.vaccination.dto.response.VaccinationScheduleUpdateResponse;
@@ -65,5 +66,11 @@ public class VaccinationController {
                         request
                 );
         return ResponseEntity.ok(response);
+    }
+    @GetMapping("/babies/{babyId}/vaccination-history")
+    public VaccinationHistoryResponse getVaccinationHistory(
+            @PathVariable Long babyId
+    ) {
+        return vaccinationService.getVaccinationHistory(babyId);
     }
 }

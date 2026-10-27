@@ -19,4 +19,6 @@ public interface BabyVaccinationRepository extends JpaRepository<BabyVaccination
             Long babyId,
             Long vaccineId
     );
+
+    List<BabyVaccination> findAllByBabyIdAndCompletedTrue(Long babyId);
 }
