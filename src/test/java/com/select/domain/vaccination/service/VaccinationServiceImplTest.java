@@ -2,7 +2,9 @@ package com.select.domain.vaccination.service;
 
 import com.select.domain.baby.repository.BabyRepository;
 import com.select.domain.vaccination.dto.request.VaccinationScheduleCreateRequest;
+import com.select.domain.vaccination.dto.request.VaccinationScheduleUpdateRequest;
 import com.select.domain.vaccination.dto.response.VaccinationScheduleResponse;
+import com.select.domain.vaccination.dto.response.VaccinationScheduleUpdateResponse;
 import com.select.domain.vaccination.entity.BabyVaccination;
 import com.select.domain.vaccination.entity.Vaccine;
 import com.select.domain.vaccination.repository.BabyVaccinationRepository;
@@ -247,5 +249,126 @@ class VaccinationServiceImplTest{
         );
 
         verify(repository, never()).save(any(BabyVaccination.class));
+    }
+    @Test
+        // 접종 완료 처리: 완료 여부가 true이고 완료일이 지정됨
+    void UPDATE_VACCINATION_SCHEDULE_COMPLETE_SUCCESS() {
+        Long babyId = 1L;
+        Long scheduleId = 10L;
+
+        Vaccine vaccine = mock(Vaccine.class);
+        when(vaccine.getId()).thenReturn(3L);
+
+        BabyVaccination vaccination = BabyVaccination.create(
+                babyId,
+                vaccine,
+                LocalDate.now().plusDays(7)
+        );
+
+        when(babyRepository.existsById(babyId)).thenReturn(true);
+        when(repository.findById(scheduleId))
+                .thenReturn(Optional.of(vaccination));
+
+        var request = new VaccinationScheduleUpdateRequest(true);
+
+        // when
+        VaccinationScheduleUpdateResponse response =
+                service.updateVaccinationSchedule(
+                        babyId, scheduleId, request
+                );
+
+        // then
+        assertTrue(response.completed());
+        assertEquals(LocalDate.now(), response.completedDate());
+        assertTrue(vaccination.getCompleted());
+    }
+
+    @Test
+        // 접종 완료 취소: 완료 여부가 false이고 완료일이 제거됨
+    void UPDATE_VACCINATION_SCHEDULE_CANCEL_COMPLETE_SUCCESS() {
+        Long babyId = 1L;
+        Long scheduleId = 10L;
+
+        Vaccine vaccine = mock(Vaccine.class);
+        when(vaccine.getId()).thenReturn(3L);
+
+        BabyVaccination vaccination = BabyVaccination.create(
+                babyId,
+                vaccine,
+                LocalDate.now().plusDays(7)
+        );
+        vaccination.complete(LocalDate.now());
+
+        when(babyRepository.existsById(babyId)).thenReturn(true);
+        when(repository.findById(scheduleId))
+                .thenReturn(Optional.of(vaccination));
+
+        var request = new VaccinationScheduleUpdateRequest(false);
+
+        // when
+        VaccinationScheduleUpdateResponse response =
+                service.updateVaccinationSchedule(
+                        babyId, scheduleId, request
+                );
+
+        // then
+        assertFalse(response.completed());
+        assertNull(response.completedDate());
+        assertFalse(vaccination.getCompleted());
+    }
+
+    @Test
+        // 접종 일정이 존재하지 않으면 예외 발생
+    void UPDATE_VACCINATION_SCHEDULE_NOT_FOUND() {
+        Long babyId = 1L;
+        Long scheduleId = 999L;
+
+        when(babyRepository.existsById(babyId)).thenReturn(true);
+        when(repository.findById(scheduleId))
+                .thenReturn(Optional.empty());
+
+        var request = new VaccinationScheduleUpdateRequest(true);
+
+        assertThrows(
+                BusinessException.class,
+                () -> service.updateVaccinationSchedule(
+                        babyId, scheduleId, request
+                )
+        );
+
+        verify(repository, never()).save(any(BabyVaccination.class));
+    }
+
+    @Test
+        // 다른 아기의 접종 일정은 수정할 수 없음
+    void UPDATE_VACCINATION_SCHEDULE_WRONG_BABY() {
+        Long requestedBabyId = 1L;
+        Long scheduleId = 10L;
+
+        Vaccine vaccine = mock(Vaccine.class);
+        when(vaccine.getId()).thenReturn(3L);
+
+        BabyVaccination vaccination = BabyVaccination.create(
+                2L,
+                vaccine,
+                LocalDate.now().plusDays(7)
+        );
+
+        when(babyRepository.existsById(requestedBabyId))
+                .thenReturn(true);
+        when(repository.findById(scheduleId))
+                .thenReturn(Optional.of(vaccination));
+
+        var request = new VaccinationScheduleUpdateRequest(true);
+
+        assertThrows(
+                BusinessException.class,
+                () -> service.updateVaccinationSchedule(
+                        requestedBabyId, scheduleId, request
+                )
+        );
+
+        assertFalse(vaccination.getCompleted());
+        assertNull(vaccination.getCompletedDate());
     }
 }

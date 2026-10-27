@@ -138,6 +138,8 @@ public class VaccinationServiceImpl implements VaccinationService {
                 saved.getCompleted()
         );
     }
+    @Override
+    @Transactional
     public VaccinationScheduleUpdateResponse updateVaccinationSchedule(
             Long babyId,
             Long vaccinationScheduleId,
@@ -150,12 +152,12 @@ public class VaccinationServiceImpl implements VaccinationService {
         BabyVaccination vaccination = babyVaccinationRepository
                 .findById(vaccinationScheduleId)
                 .orElseThrow(
-                        () -> new BusinessException(ErrorCode.VACCINE_INVALID_SCHEDULE_DATE)
+                        () -> new BusinessException(ErrorCode.VACCINATION_SCHEDULE_NOT_FOUND)
                 );
 
         if (!vaccination.getBabyId().equals(babyId)) {
             throw new BusinessException(
-                    ErrorCode.VACCINE_INVALID_SCHEDULE_DATE
+                    ErrorCode.VACCINATION_SCHEDULE_NOT_FOUND
             );
         }
 

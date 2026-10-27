@@ -1,8 +1,10 @@
 package com.select.domain.vaccination.controller;
 
 import com.select.domain.vaccination.dto.request.VaccinationScheduleCreateRequest;
+import com.select.domain.vaccination.dto.request.VaccinationScheduleUpdateRequest;
 import com.select.domain.vaccination.dto.response.VaccinationScheduleCreateResponse;
 import com.select.domain.vaccination.dto.response.VaccinationScheduleResponse;
+import com.select.domain.vaccination.dto.response.VaccinationScheduleUpdateResponse;
 import com.select.domain.vaccination.service.VaccinationService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -47,5 +49,23 @@ public class VaccinationController {
                 vaccinationService.createVaccinationSchedule(babyId, request);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+    @PatchMapping(
+            "/babies/{babyId}/vaccination-schedules/{vaccinationScheduleId}"
+    )
+    public ResponseEntity<VaccinationScheduleUpdateResponse>
+    updateVaccinationSchedule(
+            @PathVariable Long babyId,
+            @PathVariable Long vaccinationScheduleId,
+            @Valid @RequestBody VaccinationScheduleUpdateRequest request
+    ) {
+        VaccinationScheduleUpdateResponse response =
+                vaccinationService.updateVaccinationSchedule(
+                        babyId,
+                        vaccinationScheduleId,
+                        request
+                );
+
+        return ResponseEntity.ok(response);
     }
 }

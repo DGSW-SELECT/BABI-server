@@ -38,6 +38,11 @@ public enum ErrorCode {
             "Vaccination_006",
             "이미 있는 백신 예약입니다."
     ),
+    VACCINATION_SCHEDULE_NOT_FOUND(
+            HttpStatus.NOT_FOUND,
+            "Vaccination_007",
+            "접종 일정을 찾을 수 없습니다."
+    ),
     BABY_NOT_FOUND(
             HttpStatus.NOT_FOUND,
             "Baby_001",
