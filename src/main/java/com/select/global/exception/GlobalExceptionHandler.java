@@ -7,6 +7,9 @@ import com.select.domain.baby.exception.InvalidOwnershipTransferException;
 import com.select.domain.user.exception.DuplicateEmailException;
 import com.select.domain.user.exception.InvalidCredentialsException;
 import com.select.domain.user.exception.PasswordMismatchException;
+import com.select.domain.handover.exception.HandoverBriefingNotFoundException;
+import com.select.domain.handover.exception.NoDailyCareRecordException;
+import com.select.domain.handover.exception.HandoverBriefingGenerationException;
 import com.select.global.response.ApiError;
 import com.select.global.response.ApiResponse;
 import com.select.global.response.ErrorDetail;
@@ -91,6 +94,13 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         );
     }
 
+    @ExceptionHandler(NoDailyCareRecordException.class)
+    public ResponseEntity<ApiResponse<Void>> handleNoDailyCareRecord(
+            NoDailyCareRecordException e
+    ) {
+        return createErrorResponse(ErrorCode.NO_DAILY_CARE_RECORD, List.of());
+    }
+
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ApiResponse<Void>> handleAccessDenied(
             AccessDeniedException e
@@ -101,6 +111,13 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         );
     }
 
+    @ExceptionHandler(HandoverBriefingNotFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> handleHandoverBriefingNotFound(
+            HandoverBriefingNotFoundException e
+    ) {
+        return createErrorResponse(ErrorCode.HANDOVER_BRIEFING_NOT_FOUND, List.of());
+    }
+
     @ExceptionHandler(BabyNotFoundException.class)
     public ResponseEntity<ApiResponse<Void>> handleBabyNotFound(
             BabyNotFoundException e
@@ -109,6 +126,13 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 ErrorCode.NOT_FOUND,
                 List.of()
         );
+    }
+
+    @ExceptionHandler(HandoverBriefingGenerationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleHandoverBriefingGenerationFailure(
+            HandoverBriefingGenerationException e
+    ) {
+        return createErrorResponse(ErrorCode.HANDOVER_BRIEFING_GENERATION_FAILED, List.of());
     }
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
