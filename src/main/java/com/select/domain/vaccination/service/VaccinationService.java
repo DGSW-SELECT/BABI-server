@@ -26,4 +26,5 @@ public interface VaccinationService {
             VaccinationScheduleUpdateRequest request
     );
     VaccinationHistoryResponse getVaccinationHistory(Long babyId);
+    void deleteVaccinationSchedule(Long BabyId, Long vaccinationScheduleId);
 }

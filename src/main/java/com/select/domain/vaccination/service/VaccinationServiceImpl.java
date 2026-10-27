@@ -195,4 +195,30 @@ public class VaccinationServiceImpl implements VaccinationService {
 
         return new VaccinationHistoryResponse(babyId, items);
     }
+    @Override
+    @Transactional
+    public void deleteVaccinationSchedule(
+            Long babyId,
+            Long vaccinationScheduleId
+    ) {
+        if (!babyRepository.existsById(babyId)) {
+            throw new BusinessException(ErrorCode.BABY_NOT_FOUND);
+        }
+
+        BabyVaccination vaccination = babyVaccinationRepository
+                .findById(vaccinationScheduleId)
+                .orElseThrow(() ->
+                        new BusinessException(
+                                ErrorCode.VACCINATION_SCHEDULE_NOT_FOUND
+                        )
+                );
+
+        if (!vaccination.getBabyId().equals(babyId)) {
+            throw new BusinessException(
+                    ErrorCode.VACCINATION_SCHEDULE_NOT_FOUND
+            );
+        }
+
+        babyVaccinationRepository.delete(vaccination);
+    }
 }

@@ -73,4 +73,16 @@ public class VaccinationController {
     ) {
         return vaccinationService.getVaccinationHistory(babyId);
     }
+    @DeleteMapping(
+            "/babies/{babyId}/vaccination-schedules/{vaccinationScheduleId}"
+    )
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteVaccinationSchedule(
+            @PathVariable Long babyId,
+            @PathVariable Long vaccinationScheduleId
+    ) {
+        vaccinationService.deleteVaccinationSchedule(
+                babyId, vaccinationScheduleId
+        );
+    }
 }

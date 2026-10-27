@@ -43,6 +43,11 @@ public enum ErrorCode {
             "Vaccination_007",
             "접종 일정을 찾을 수 없습니다."
     ),
+    VACCINATION_ALREADY_COMPLETED(
+            HttpStatus.CONFLICT,
+            "Vaccination_008",
+            "이미 완료된 일정은 삭제할 수 없습니다."
+    ),
     BABY_NOT_FOUND(
             HttpStatus.NOT_FOUND,
             "Baby_001",
