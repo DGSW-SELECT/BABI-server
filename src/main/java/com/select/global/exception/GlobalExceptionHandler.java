@@ -2,6 +2,9 @@ package com.select.global.exception;
 
 import com.select.domain.user.exception.DuplicateEmailException;
 import com.select.domain.user.exception.PasswordMismatchException;
+import com.select.domain.handover.exception.HandoverBriefingNotFoundException;
+import com.select.domain.handover.exception.NoDailyCareRecordException;
+import com.select.domain.handover.exception.HandoverBriefingGenerationException;
 import com.select.global.response.ApiError;
 import com.select.global.response.ApiResponse;
 import com.select.global.response.ErrorDetail;
@@ -39,6 +42,36 @@ public class GlobalExceptionHandler {
         return createErrorResponse(
                 ErrorCode.PASSWORD_MISMATCH,
                 List.of(new ErrorDetail("passwordConfirm", ErrorCode.PASSWORD_MISMATCH.getMessage()))
+        );
+    }
+
+    @ExceptionHandler(NoDailyCareRecordException.class)
+    public ResponseEntity<ApiResponse<Void>> handleNoDailyCareRecord(
+            NoDailyCareRecordException e
+    ) {
+        return createErrorResponse(
+                ErrorCode.NO_DAILY_CARE_RECORD,
+                List.of()
+        );
+    }
+
+    @ExceptionHandler(HandoverBriefingNotFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> handleHandoverBriefingNotFound(
+            HandoverBriefingNotFoundException e
+    ) {
+        return createErrorResponse(
+                ErrorCode.HANDOVER_BRIEFING_NOT_FOUND,
+                List.of()
+        );
+    }
+
+    @ExceptionHandler(HandoverBriefingGenerationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleHandoverBriefingGenerationFailure(
+            HandoverBriefingGenerationException e
+    ) {
+        return createErrorResponse(
+                ErrorCode.HANDOVER_BRIEFING_GENERATION_FAILED,
+                List.of()
         );
     }
 
