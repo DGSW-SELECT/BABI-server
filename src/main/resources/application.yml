@@ -1,5 +1,8 @@
 spring:
   application:
     name: babi-server
+  sql:
+    init:
+      mode: always
 jwt:
   access-token-expiration-minutes: ${JWT_ACCESS_TOKEN_EXPIRATION_MINUTES:30}

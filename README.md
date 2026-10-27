@@ -41,9 +41,43 @@ MYSQL_PASSWORD='your-local-password' JWT_SECRET='your-random-jwt-secret-at-least
 
 위 명령의 비밀번호와 비밀키 예시는 실제 값이 아닌 자리표시자이며, 실행 전에 `.env`에 설정한 값으로 변경해야 합니다.
 
+애플리케이션 시작 시 `src/main/resources/schema.sql`을 적용해 리포트·통계·아기 접근 권한에 필요한 테이블을 생성합니다. 빈 DB에서도 별도 로컬 SQL 파일 없이 실행할 수 있습니다. `CREATE TABLE IF NOT EXISTS`를 사용하므로 기존 데이터는 유지되며, 기존 테이블의 컬럼·제약 변경은 별도 migration이 필요합니다.
+
 종료는 `docker compose down`을 사용합니다. 이 명령은 컨테이너와 네트워크를 제거하며, 일반적으로 `babi_mysql_data` Volume의 DB 데이터는 유지됩니다.
 
 **주의:** `docker compose down -v`는 `babi_mysql_data` 데이터 Volume도 삭제하므로 저장된 DB 데이터가 손실될 수 있습니다. 기존 데이터를 유지해야 한다면 `-v` 옵션을 사용하지 않습니다.
+
+테스트는 H2 메모리 DB를 사용합니다. 테스트 종료 후 데이터는 삭제되며 H2는 배포용 JAR에 포함되지 않습니다.
+
+## 배포 DB
+
+배포 환경은 MySQL DB를 준비하고 다음 환경 변수를 설정해야 합니다. 비밀번호를 Git에 저장하지 않습니다.
+
+- `SPRING_DATASOURCE_URL`: `jdbc:mysql://localhost:3306/babi` 형식의 연결 주소
+- `SPRING_DATASOURCE_USERNAME`: DB 계정
+- `SPRING_DATASOURCE_PASSWORD`: DB 비밀번호
+- `JWT_SECRET`: JWT 서명 키 (32바이트 이상)
+
+## 일일 리포트 API
+
+`POST /auth/login`에서 받은 `accessToken`을 `Authorization: Bearer <token>`으로 전달합니다.
+모든 리포트 API는 아기가 속한 가족 그룹의 소유자 또는 해당 아기의 `baby_permissions`에 등록된 가족 구성원만 사용할 수 있습니다. 가족 구성원이라는 이유만으로 접근이 허용되지는 않습니다.
+
+| Method | Endpoint | 동작 |
+|---|---|---|
+| POST | `/babi/api/babies/{babyId}/daily-reports` | 생성 (`reportDate`, `summary`) |
+| GET | `/babi/api/babies/{babyId}/daily-reports/{date}` | 조회 |
+| PATCH | `/babi/api/babies/{babyId}/daily-reports/{date}` | 요약 수정 (`summary`) |
+| DELETE | `/babi/api/babies/{babyId}/daily-reports/{date}` | 삭제 |
+
+7일 통계는 리포트 날짜 6일 전 00:00부터 다음 날 00:00 직전까지 계산합니다. 경계를 넘는 수면은 구간과 겹치는 시간만 포함합니다.
+
+## 검증
+
+```bash
+./gradlew test
+./gradlew build
+```
 
 ## 패키지 구조
 
