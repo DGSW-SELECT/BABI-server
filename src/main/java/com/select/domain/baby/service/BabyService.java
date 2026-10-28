@@ -8,6 +8,7 @@ import com.select.domain.baby.exception.InvalidOwnershipTransferException;
 import com.select.domain.baby.repository.BabyMemberRepository;
 import com.select.domain.baby.repository.BabyRepository;
 import com.select.domain.baby.request.BabyCreateRequest;
+import com.select.domain.baby.request.BabyUpdateRequest;
 import com.select.domain.baby.response.BabyCreateResponse;
 import com.select.domain.baby.response.BabyMemberResponse;
 import com.select.domain.baby.response.BabyReadResponse;
@@ -65,6 +66,17 @@ public class BabyService {
         }
 
         return new BabyReadResponse(baby.getId(),baby.getName(),baby.getBirthDate());
+    }
+
+    @Transactional
+    public BabyReadResponse updateBaby(Long babyId, Long userId, BabyUpdateRequest request) {
+        Baby baby = babyRepository.findByIdForUpdate(babyId)
+                .orElseThrow(BabyNotFoundException::new);
+        if (!babyMemberRepository.existsByBabyIdAndUserIdAndRole(babyId, userId, BabyRole.OWNER)) {
+            throw new AccessDeniedException("아기 관리 권한이 없습니다.");
+        }
+        baby.updateDetails(request.name(), request.birthDate());
+        return new BabyReadResponse(baby.getId(), baby.getName(), baby.getBirthDate());
     }
 
     @Transactional(readOnly = true)

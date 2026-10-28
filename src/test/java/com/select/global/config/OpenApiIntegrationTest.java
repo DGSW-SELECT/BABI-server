@@ -60,6 +60,21 @@ class OpenApiIntegrationTest {
     }
 
     @Test
+    void babyPatchDocumentsOptionalTypedFieldsAndKeepsDeleteUnavailable() throws Exception {
+        var response = get("/v3/api-docs");
+        assertEquals(200, response.statusCode(), response.body());
+        var document = objectMapper.readTree(response.body());
+        var path = document.path("paths").path("/babies/{babyId}");
+        assertTrue(path.has("patch"));
+        assertFalse(path.has("delete"));
+        var schema = document.path("components").path("schemas").path("BabyUpdateRequest");
+        assertEquals("string", schema.path("properties").path("name").path("type").asString());
+        assertEquals(50, schema.path("properties").path("name").path("maxLength").asInt());
+        assertEquals("date", schema.path("properties").path("birthDate").path("format").asString());
+        assertEquals(0, schema.path("required").size());
+    }
+
+    @Test
     void swaggerUiAssetsConfigurationAndYamlAreAccessibleWithoutJwt() throws Exception {
         var redirect = get("/swagger-ui.html");
         assertEquals(302, redirect.statusCode());

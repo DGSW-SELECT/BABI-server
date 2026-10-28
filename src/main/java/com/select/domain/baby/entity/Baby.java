@@ -42,4 +42,13 @@ public class Baby {
     public void setCreatedAt() {
         createdAt = LocalDateTime.now();
     }
+
+    public void updateDetails(String name, LocalDate birthDate) {
+        if (name != null) {
+            this.name = name;
+        }
+        if (birthDate != null) {
+            this.birthDate = birthDate;
+        }
+    }
 }

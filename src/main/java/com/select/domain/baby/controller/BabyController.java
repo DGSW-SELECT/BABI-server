@@ -1,6 +1,7 @@
 package com.select.domain.baby.controller;
 
 import com.select.domain.baby.request.BabyCreateRequest;
+import com.select.domain.baby.request.BabyUpdateRequest;
 import com.select.domain.baby.request.TransferOwnershipRequest;
 import com.select.domain.baby.response.BabyCreateResponse;
 import com.select.domain.baby.response.BabyMemberResponse;
@@ -33,6 +34,13 @@ public class BabyController {
         Long userId = Long.valueOf(principal);
         BabyReadResponse response= babyService.getBaby(babyId,userId);
         return new ApiResponse<>(true,"아기 조회에 성공했습니다.",response);
+    }
+
+    @PatchMapping("/{babyId}")
+    public ApiResponse<BabyReadResponse> updateBaby(@PathVariable Long babyId, @Valid @RequestBody BabyUpdateRequest request, @AuthenticationPrincipal String principal) {
+        Long userId = Long.valueOf(principal);
+        BabyReadResponse response = babyService.updateBaby(babyId, userId, request);
+        return new ApiResponse<>(true, "아기 정보 수정에 성공했습니다.", response);
     }
 
     @GetMapping

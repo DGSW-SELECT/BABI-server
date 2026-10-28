@@ -6,6 +6,7 @@ import com.select.domain.baby.entity.BabyRole;
 import com.select.domain.baby.repository.BabyMemberRepository;
 import com.select.domain.baby.repository.BabyRepository;
 import com.select.domain.baby.request.BabyCreateRequest;
+import com.select.domain.baby.request.BabyUpdateRequest;
 import com.select.domain.user.entity.User;
 import com.select.domain.user.repository.UserRepository;
 import com.select.global.security.jwt.JwtProvider;
@@ -13,6 +14,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
@@ -35,6 +38,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -94,7 +98,7 @@ class BabyIntegrationTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"POST,", "GET,", "GET,/id", "GET,/id/members", "DELETE,/id/members/me", "PATCH,/id/members/owner"})
+    @CsvSource({"POST,", "GET,", "GET,/id", "PATCH,/id", "GET,/id/members", "DELETE,/id/members/me", "PATCH,/id/members/owner"})
     void allBabyEndpointsRequireJwt(String method, String suffix) throws Exception {
         String path = "/babies" + (suffix == null ? "" : suffix.replace("/id", "/" + babyId));
         assertError(request(method, path, null, "{\"name\":\"아기\",\"birthDate\":\"2025-01-15\",\"newOwnerUserId\":" + memberId + "}"),
@@ -144,6 +148,121 @@ class BabyIntegrationTest {
         assertSerializedRejection(() -> service.transferOwnership(babyId, ownerId, memberId),
                 () -> service.leaveBaby(babyId, memberId));
         assertEquals(List.of(memberId), ownerIds());
+    }
+
+    @Test
+    void ownerCanUpdateBothFieldsAndReadsReflectChanges() throws Exception {
+        var original = babies.findById(babyId).orElseThrow();
+        var response = request("PATCH", "/babies/" + babyId, ownerId,
+                "{\"name\":\"새 이름\",\"birthDate\":\"2025-02-02\",\"userId\":" + outsiderId + "}");
+        assertEquals(200, response.statusCode(), response.body());
+        var body = mapper.readTree(response.body());
+        assertTrue(body.path("success").asBoolean());
+        assertEquals("아기 정보 수정에 성공했습니다.", body.path("message").asString());
+        assertEquals(babyId.longValue(), body.path("data").path("babyId").asLong());
+        assertEquals("새 이름", body.path("data").path("name").asString());
+        assertEquals("2025-02-02", body.path("data").path("birthDate").asString());
+        assertFalse(body.has("error"));
+        var saved = babies.findById(babyId).orElseThrow();
+        assertEquals(original.getCreatedByUserId(), saved.getCreatedByUserId());
+        assertEquals(original.getCreatedAt(), saved.getCreatedAt());
+        assertEquals(2, members.findByBabyId(babyId).size());
+        var detail = mapper.readTree(request("GET", "/babies/" + babyId, memberId, null).body());
+        assertEquals("새 이름", detail.path("data").path("name").asString());
+        assertEquals("2025-02-02", detail.path("data").path("birthDate").asString());
+        var list = mapper.readTree(request("GET", "/babies", ownerId, null).body());
+        assertEquals("새 이름", list.path("data").get(0).path("name").asString());
+    }
+
+    @ParameterizedTest
+    @CsvSource(delimiter = '|', value = {
+            "{\"name\":\"이름만 변경\"}|이름만 변경|2025-01-15",
+            "{\"birthDate\":\"2025-03-01\"}|아기|2025-03-01",
+            "{}|아기|2025-01-15"
+    })
+    void patchPreservesOmittedFields(String json, String name, String birthDate) throws Exception {
+        var response = request("PATCH", "/babies/" + babyId, ownerId, json);
+        assertEquals(200, response.statusCode(), response.body());
+        var saved = babies.findById(babyId).orElseThrow();
+        assertEquals(name, saved.getName());
+        assertEquals(LocalDate.parse(birthDate), saved.getBirthDate());
+    }
+
+    @Test
+    void patchAcceptsMaximumNameLengthAndTodaysBirthDate() throws Exception {
+        String name = "가".repeat(50);
+        LocalDate today = LocalDate.now();
+        var response = request("PATCH", "/babies/" + babyId, ownerId,
+                "{\"name\":\"" + name + "\",\"birthDate\":\"" + today + "\"}");
+        assertEquals(200, response.statusCode(), response.body());
+        var saved = babies.findById(babyId).orElseThrow();
+        assertEquals(name, saved.getName());
+        assertEquals(today, saved.getBirthDate());
+    }
+
+    @ParameterizedTest
+    @MethodSource("invalidUpdates")
+    void invalidPatchReturns400WithoutChangingEitherField(String json) throws Exception {
+        var response = request("PATCH", "/babies/" + babyId, ownerId, json);
+        assertEquals(400, response.statusCode(), response.body());
+        var body = mapper.readTree(response.body());
+        assertFalse(body.path("success").asBoolean());
+        assertTrue(body.path("data").isNull());
+        assertTrue(List.of("VALIDATION_ERROR", "INVALID_REQUEST_BODY")
+                .contains(body.path("error").path("code").asString()));
+        var saved = babies.findById(babyId).orElseThrow();
+        assertEquals("아기", saved.getName());
+        assertEquals(LocalDate.of(2025, 1, 15), saved.getBirthDate());
+    }
+
+    static Stream<String> invalidUpdates() {
+        return Stream.of(
+                "{\"name\":\"\",\"birthDate\":\"2025-02-02\"}",
+                "{\"name\":\"   \"}",
+                "{\"name\":\"　\"}",
+                "{\"name\":\"" + "가".repeat(51) + "\"}",
+                "{\"name\":\"변경되면 안 됨\",\"birthDate\":\"" + LocalDate.now().plusDays(1) + "\"}",
+                "{\"birthDate\":\"invalid-date\"}",
+                "{\"birthDate\":\"2025-02-30\"}",
+                "{\"name\":null}",
+                "{\"birthDate\":null}",
+                "{\"name\":42}",
+                "{\"birthDate\":42}",
+                "[]",
+                "null",
+                "{"
+        );
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void memberAndOutsiderCannotUpdateBaby(boolean member) throws Exception {
+        assertError(request("PATCH", "/babies/" + babyId, member ? memberId : outsiderId,
+                "{\"name\":\"권한 없는 수정\",\"birthDate\":\"2025-02-02\"}"), 403, "FORBIDDEN");
+        var saved = babies.findById(babyId).orElseThrow();
+        assertEquals("아기", saved.getName());
+        assertEquals(LocalDate.of(2025, 1, 15), saved.getBirthDate());
+    }
+
+    @Test
+    void patchMissingBabyReturns404() throws Exception {
+        assertError(request("PATCH", "/babies/" + Long.MAX_VALUE, ownerId,
+                "{\"name\":\"새 이름\"}"), 404, "NOT_FOUND");
+    }
+
+    @Test
+    void updateUsesCurrentOwnerAfterTransfer() throws Exception {
+        service.transferOwnership(babyId, ownerId, memberId);
+        assertError(request("PATCH", "/babies/" + babyId, ownerId, "{\"name\":\"이전 관리자\"}"), 403, "FORBIDDEN");
+        assertEquals(200, request("PATCH", "/babies/" + babyId, memberId, "{\"name\":\"새 관리자\"}").statusCode());
+        assertEquals("새 관리자", babies.findById(babyId).orElseThrow().getName());
+    }
+
+    @Test
+    void updateWaitsForConcurrentTransferBeforeCheckingOwner() throws Exception {
+        assertSerializedRejection(() -> service.transferOwnership(babyId, ownerId, memberId),
+                () -> service.updateBaby(babyId, ownerId, new BabyUpdateRequest("이전 관리자", null)));
+        assertEquals("아기", babies.findById(babyId).orElseThrow().getName());
     }
 
     private void assertSerializedRejection(Runnable firstAction, Runnable secondAction) throws Exception {
