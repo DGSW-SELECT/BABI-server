@@ -306,7 +306,11 @@ class BabyServiceTest {
         verify(babyMemberRepository).findByBabyIdAndUserId(BABY_ID, memberUserId);
         verify(babyMemberRepository).delete(same(member));
         verifyNoMoreInteractions(babyMemberRepository);
-        verifyNoInteractions(babyRepository, userRepository);
+        var order = inOrder(babyRepository, babyMemberRepository);
+        order.verify(babyRepository).findByIdForUpdate(BABY_ID);
+        order.verify(babyMemberRepository).findByBabyIdAndUserId(BABY_ID, memberUserId);
+        verifyNoMoreInteractions(babyRepository);
+        verifyNoInteractions(userRepository);
     }
 
     @Test
@@ -321,7 +325,11 @@ class BabyServiceTest {
         verify(babyMemberRepository).findByBabyIdAndUserId(BABY_ID, OWNER_USER_ID);
         verify(babyMemberRepository, never()).delete(any(BabyMember.class));
         verifyNoMoreInteractions(babyMemberRepository);
-        verifyNoInteractions(babyRepository, userRepository);
+        var order = inOrder(babyRepository, babyMemberRepository);
+        order.verify(babyRepository).findByIdForUpdate(BABY_ID);
+        order.verify(babyMemberRepository).findByBabyIdAndUserId(BABY_ID, OWNER_USER_ID);
+        verifyNoMoreInteractions(babyRepository);
+        verifyNoInteractions(userRepository);
     }
 
     @Test
@@ -335,7 +343,11 @@ class BabyServiceTest {
         verify(babyMemberRepository).findByBabyIdAndUserId(BABY_ID, otherUserId);
         verify(babyMemberRepository, never()).delete(any(BabyMember.class));
         verifyNoMoreInteractions(babyMemberRepository);
-        verifyNoInteractions(babyRepository, userRepository);
+        var order = inOrder(babyRepository, babyMemberRepository);
+        order.verify(babyRepository).findByIdForUpdate(BABY_ID);
+        order.verify(babyMemberRepository).findByBabyIdAndUserId(BABY_ID, otherUserId);
+        verifyNoMoreInteractions(babyRepository);
+        verifyNoInteractions(userRepository);
     }
 
     @Test
@@ -357,7 +369,11 @@ class BabyServiceTest {
         verify(babyMemberRepository).findByBabyIdAndUserId(BABY_ID, OWNER_USER_ID);
         verify(babyMemberRepository).findByBabyIdAndUserId(BABY_ID, newOwnerUserId);
         verifyNoMoreInteractions(babyMemberRepository);
-        verifyNoInteractions(babyRepository, userRepository);
+        var order = inOrder(babyRepository, babyMemberRepository);
+        order.verify(babyRepository).findByIdForUpdate(BABY_ID);
+        order.verify(babyMemberRepository).findByBabyIdAndUserId(BABY_ID, OWNER_USER_ID);
+        verifyNoMoreInteractions(babyRepository);
+        verifyNoInteractions(userRepository);
     }
 
     @Test
@@ -373,7 +389,11 @@ class BabyServiceTest {
         assertEquals(BabyRole.MEMBER, member.getRole());
         verify(babyMemberRepository).findByBabyIdAndUserId(BABY_ID, memberUserId);
         verifyNoMoreInteractions(babyMemberRepository);
-        verifyNoInteractions(babyRepository, userRepository);
+        var order = inOrder(babyRepository, babyMemberRepository);
+        order.verify(babyRepository).findByIdForUpdate(BABY_ID);
+        order.verify(babyMemberRepository).findByBabyIdAndUserId(BABY_ID, memberUserId);
+        verifyNoMoreInteractions(babyRepository);
+        verifyNoInteractions(userRepository);
     }
 
     @Test
@@ -386,7 +406,11 @@ class BabyServiceTest {
 
         verify(babyMemberRepository).findByBabyIdAndUserId(BABY_ID, otherUserId);
         verifyNoMoreInteractions(babyMemberRepository);
-        verifyNoInteractions(babyRepository, userRepository);
+        var order = inOrder(babyRepository, babyMemberRepository);
+        order.verify(babyRepository).findByIdForUpdate(BABY_ID);
+        order.verify(babyMemberRepository).findByBabyIdAndUserId(BABY_ID, otherUserId);
+        verifyNoMoreInteractions(babyRepository);
+        verifyNoInteractions(userRepository);
     }
 
     @Test
@@ -404,7 +428,11 @@ class BabyServiceTest {
         verify(babyMemberRepository).findByBabyIdAndUserId(BABY_ID, OWNER_USER_ID);
         verify(babyMemberRepository).findByBabyIdAndUserId(BABY_ID, newOwnerUserId);
         verifyNoMoreInteractions(babyMemberRepository);
-        verifyNoInteractions(babyRepository, userRepository);
+        var order = inOrder(babyRepository, babyMemberRepository);
+        order.verify(babyRepository).findByIdForUpdate(BABY_ID);
+        order.verify(babyMemberRepository).findByBabyIdAndUserId(BABY_ID, OWNER_USER_ID);
+        verifyNoMoreInteractions(babyRepository);
+        verifyNoInteractions(userRepository);
     }
 
     @Test
@@ -433,7 +461,11 @@ class BabyServiceTest {
         verify(babyMemberRepository).findByBabyIdAndUserId(BABY_ID, OWNER_USER_ID);
         verify(babyMemberRepository).findByBabyIdAndUserId(BABY_ID, newOwnerUserId);
         verifyNoMoreInteractions(babyMemberRepository);
-        verifyNoInteractions(babyRepository, userRepository);
+        var order = inOrder(babyRepository, babyMemberRepository);
+        order.verify(babyRepository).findByIdForUpdate(BABY_ID);
+        order.verify(babyMemberRepository).findByBabyIdAndUserId(BABY_ID, OWNER_USER_ID);
+        verifyNoMoreInteractions(babyRepository);
+        verifyNoInteractions(userRepository);
     }
 
     private List<BabyMember> guardianRelationships() {

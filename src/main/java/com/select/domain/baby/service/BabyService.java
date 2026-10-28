@@ -117,6 +117,9 @@ public class BabyService {
 
     @Transactional
     public void leaveBaby(Long babyId, Long userId) {
+            // Serialize membership changes with ownership transfers before checking roles.
+            // Missing memberships retain the existing FORBIDDEN response, including missing babies.
+            babyRepository.findByIdForUpdate(babyId);
             BabyMember member = babyMemberRepository.findByBabyIdAndUserId(babyId, userId)
                     .orElseThrow(() -> new AccessDeniedException("해당 아기의 보호자가 아닙니다."));
             if (member.getRole() == BabyRole.OWNER) {
@@ -130,6 +133,7 @@ public class BabyService {
         if (userId.equals(newOwnerUserId)) {
             throw new InvalidOwnershipTransferException();
         }
+        babyRepository.findByIdForUpdate(babyId);
         BabyMember owner = babyMemberRepository.findByBabyIdAndUserId(babyId,userId)
                 .orElseThrow(() -> new AccessDeniedException("해당 아기의 보호자가 아닙니다."));
         if (owner.getRole() != BabyRole.OWNER) {
