@@ -2,10 +2,12 @@ package com.select.domain.handover.service;
 
 import com.select.domain.handover.dto.response.HandoverBriefingResponse;
 import com.select.domain.handover.entity.HandoverBriefing;
+import com.select.domain.handover.entity.HandoverMemo;
 import com.select.domain.handover.exception.HandoverBriefingNotFoundException;
 import com.select.domain.handover.exception.HandoverBriefingGenerationException;
 import com.select.domain.handover.exception.NoDailyCareRecordException;
 import com.select.domain.handover.repository.HandoverBriefingRepository;
+import com.select.domain.handover.repository.HandoverMemoRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -28,6 +30,7 @@ class HandoverBriefingServiceTest {
     private HandoverBriefingRepository handoverBriefingRepository;
     private DailyCareRecordProvider dailyCareRecordProvider;
     private HandoverBriefingGenerator handoverBriefingGenerator;
+    private HandoverMemoRepository handoverMemoRepository;
     private HandoverBriefingService handoverBriefingService;
 
     @BeforeEach
@@ -35,10 +38,12 @@ class HandoverBriefingServiceTest {
         handoverBriefingRepository = mock(HandoverBriefingRepository.class);
         dailyCareRecordProvider = mock(DailyCareRecordProvider.class);
         handoverBriefingGenerator = mock(HandoverBriefingGenerator.class);
+        handoverMemoRepository = mock(HandoverMemoRepository.class);
         handoverBriefingService = new HandoverBriefingService(
                 handoverBriefingRepository,
                 dailyCareRecordProvider,
-                handoverBriefingGenerator
+                handoverBriefingGenerator,
+                handoverMemoRepository
         );
     }
 
@@ -55,7 +60,26 @@ class HandoverBriefingServiceTest {
         );
 
         when(dailyCareRecordProvider.findToday(2L, today)).thenReturn(records);
-        when(handoverBriefingGenerator.generate(2L, today, records))
+        when(handoverMemoRepository
+                .findByGroupIdAndBabyIdAndCreatedAtGreaterThanEqualAndCreatedAtLessThanOrderByCreatedAtAsc(
+                        1L,
+                        2L,
+                        today.atStartOfDay(),
+                        today.plusDays(1).atStartOfDay()
+                ))
+                .thenReturn(List.of(new HandoverMemo(
+                        1L,
+                        2L,
+                        3L,
+                        "보호자 메모",
+                        LocalDateTime.of(2026, 10, 27, 12, 0)
+                )));
+        when(handoverBriefingGenerator.generate(
+                2L,
+                today,
+                records,
+                List.of("보호자 메모")
+        ))
                 .thenReturn("오늘 수유와 낮잠을 정리했습니다.");
         when(handoverBriefingRepository.save(any(HandoverBriefing.class)))
                 .thenReturn(savedBriefing);
@@ -84,7 +108,15 @@ class HandoverBriefingServiceTest {
         LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
         List<String> records = List.of("수유 120ml");
         when(dailyCareRecordProvider.findToday(2L, today)).thenReturn(records);
-        when(handoverBriefingGenerator.generate(2L, today, records))
+        when(handoverMemoRepository
+                .findByGroupIdAndBabyIdAndCreatedAtGreaterThanEqualAndCreatedAtLessThanOrderByCreatedAtAsc(
+                        1L,
+                        2L,
+                        today.atStartOfDay(),
+                        today.plusDays(1).atStartOfDay()
+                ))
+                .thenReturn(List.of());
+        when(handoverBriefingGenerator.generate(2L, today, records, List.of()))
                 .thenThrow(new IllegalStateException("AI provider failed"));
 
         assertThrows(

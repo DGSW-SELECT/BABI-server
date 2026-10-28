@@ -9,7 +9,16 @@ import java.util.List;
 public class FakeHandoverBriefingGenerator implements HandoverBriefingGenerator {
 
     @Override
-    public String generate(Long babyId, LocalDate date, List<String> careRecords) {
-        return "학습용 가짜 AI 브리핑입니다. 오늘의 기록 " + careRecords.size() + "건을 정리했습니다.";
+    public String generate(
+            Long babyId,
+            LocalDate date,
+            List<String> careRecords,
+            List<String> handoverMemos
+    ) {
+        return "학습용 가짜 AI 브리핑입니다. 오늘의 기록 "
+                + careRecords.size()
+                + "건과 보호자 메모 "
+                + handoverMemos.size()
+                + "건을 정리했습니다.";
     }
 }

@@ -6,6 +6,7 @@ import com.select.domain.handover.exception.HandoverBriefingNotFoundException;
 import com.select.domain.handover.exception.HandoverBriefingGenerationException;
 import com.select.domain.handover.exception.NoDailyCareRecordException;
 import com.select.domain.handover.repository.HandoverBriefingRepository;
+import com.select.domain.handover.repository.HandoverMemoRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -13,6 +14,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @Transactional
@@ -23,15 +25,18 @@ public class HandoverBriefingService {
     private final HandoverBriefingRepository handoverBriefingRepository;
     private final DailyCareRecordProvider dailyCareRecordProvider;
     private final HandoverBriefingGenerator handoverBriefingGenerator;
+    private final HandoverMemoRepository handoverMemoRepository;
 
     public HandoverBriefingService(
             HandoverBriefingRepository handoverBriefingRepository,
             DailyCareRecordProvider dailyCareRecordProvider,
-            HandoverBriefingGenerator handoverBriefingGenerator
+            HandoverBriefingGenerator handoverBriefingGenerator,
+            HandoverMemoRepository handoverMemoRepository
     ) {
         this.handoverBriefingRepository = handoverBriefingRepository;
         this.dailyCareRecordProvider = dailyCareRecordProvider;
         this.handoverBriefingGenerator = handoverBriefingGenerator;
+        this.handoverMemoRepository = handoverMemoRepository;
     }
 
     public HandoverBriefingResponse createBriefing(
@@ -45,9 +50,25 @@ public class HandoverBriefingService {
             throw new NoDailyCareRecordException();
         }
 
+        List<String> handoverMemos = handoverMemoRepository
+                .findByGroupIdAndBabyIdAndCreatedAtGreaterThanEqualAndCreatedAtLessThanOrderByCreatedAtAsc(
+                        groupId,
+                        babyId,
+                        today.atStartOfDay(),
+                        today.plusDays(1).atStartOfDay()
+                )
+                .stream()
+                .map(memo -> memo.getContent())
+                .collect(Collectors.toList());
+
         String summary;
         try {
-            summary = handoverBriefingGenerator.generate(babyId, today, careRecords);
+            summary = handoverBriefingGenerator.generate(
+                    babyId,
+                    today,
+                    careRecords,
+                    handoverMemos
+            );
         } catch (RuntimeException e) {
             throw new HandoverBriefingGenerationException();
         }

@@ -5,5 +5,10 @@ import java.util.List;
 
 public interface HandoverBriefingGenerator {
 
-    String generate(Long babyId, LocalDate date, List<String> careRecords);
+    String generate(
+            Long babyId,
+            LocalDate date,
+            List<String> careRecords,
+            List<String> handoverMemos
+    );
 }

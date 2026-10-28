@@ -5,6 +5,7 @@ import com.select.domain.user.exception.PasswordMismatchException;
 import com.select.domain.handover.exception.HandoverBriefingNotFoundException;
 import com.select.domain.handover.exception.NoDailyCareRecordException;
 import com.select.domain.handover.exception.HandoverBriefingGenerationException;
+import com.select.domain.handover.exception.AuthenticatedUserRequiredException;
 import com.select.global.response.ApiError;
 import com.select.global.response.ApiResponse;
 import com.select.global.response.ErrorDetail;
@@ -71,6 +72,16 @@ public class GlobalExceptionHandler {
     ) {
         return createErrorResponse(
                 ErrorCode.HANDOVER_BRIEFING_GENERATION_FAILED,
+                List.of()
+        );
+    }
+
+    @ExceptionHandler(AuthenticatedUserRequiredException.class)
+    public ResponseEntity<ApiResponse<Void>> handleAuthenticatedUserRequired(
+            AuthenticatedUserRequiredException e
+    ) {
+        return createErrorResponse(
+                ErrorCode.UNAUTHORIZED,
                 List.of()
         );
     }
