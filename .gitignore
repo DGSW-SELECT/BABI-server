@@ -19,3 +19,4 @@ work/
 outputs/
 
 /.env
+babi-backup-before-schema-restore.sql

@@ -1,5 +1,7 @@
 package com.select.domain.user.dto.request;
 
+import com.select.global.util.EmailNormalizer;
+
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -15,8 +17,6 @@ public record LoginRequest(
         String password
 ) {
         public LoginRequest{
-                if (email != null) {
-                        email = email.trim();
-                }
+                email = EmailNormalizer.normalize(email);
         }
 }
