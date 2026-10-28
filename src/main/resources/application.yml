@@ -3,3 +3,6 @@ spring:
     name: babi-server
 jwt:
   access-token-expiration-minutes: ${JWT_ACCESS_TOKEN_EXPIRATION_MINUTES:30}
+
+springdoc:
+  packages-to-scan: com.select.domain
