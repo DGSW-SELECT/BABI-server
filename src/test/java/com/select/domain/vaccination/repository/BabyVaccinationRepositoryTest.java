@@ -188,4 +188,19 @@ class BabyVaccinationRepositoryTest {
         assertThat(found.getVaccine().getName()).isEqualTo("백신 A");
         assertThat(found.getCompleted()).isFalse();
     }
+    @Test
+    void DELETE_VACCINATION_SUCCESS() {
+        // given
+        BabyVaccination vaccination = createVaccination(1L,LocalDate.of(2026,10,20),"백신 짱");
+        BabyVaccination saved = repository.save(vaccination);
+
+        Long id = saved.getId();
+
+        // when
+        repository.delete(saved);
+        repository.flush();
+
+        // then
+        assertThat(repository.findById(id)).isEmpty();
+    }
 }
