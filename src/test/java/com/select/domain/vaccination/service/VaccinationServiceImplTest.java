@@ -2,7 +2,7 @@ package com.select.domain.vaccination.service;
 
 import com.select.domain.baby.repository.BabyRepository;
 import com.select.domain.vaccination.dto.request.VaccinationScheduleCreateRequest;
-import com.select.domain.vaccination.dto.request.VaccinationScheduleUpdateRequest;
+import com.select.domain.vaccination.dto.request.VaccinationScheduleSuccessRequest;
 import com.select.domain.vaccination.dto.response.VaccinationScheduleResponse;
 import com.select.domain.vaccination.dto.response.VaccinationScheduleUpdateResponse;
 import com.select.domain.vaccination.entity.BabyVaccination;
@@ -269,11 +269,11 @@ class VaccinationServiceImplTest{
         when(repository.findById(scheduleId))
                 .thenReturn(Optional.of(vaccination));
 
-        var request = new VaccinationScheduleUpdateRequest(true);
+        var request = new VaccinationScheduleSuccessRequest(true);
 
         // when
         VaccinationScheduleUpdateResponse response =
-                service.updateVaccinationSchedule(
+                service.successVaccinationSchedule(
                         babyId, scheduleId, request
                 );
 
@@ -303,11 +303,11 @@ class VaccinationServiceImplTest{
         when(repository.findById(scheduleId))
                 .thenReturn(Optional.of(vaccination));
 
-        var request = new VaccinationScheduleUpdateRequest(false);
+        var request = new VaccinationScheduleSuccessRequest(false);
 
         // when
         VaccinationScheduleUpdateResponse response =
-                service.updateVaccinationSchedule(
+                service.successVaccinationSchedule(
                         babyId, scheduleId, request
                 );
 
@@ -327,11 +327,11 @@ class VaccinationServiceImplTest{
         when(repository.findById(scheduleId))
                 .thenReturn(Optional.empty());
 
-        var request = new VaccinationScheduleUpdateRequest(true);
+        var request = new VaccinationScheduleSuccessRequest(true);
 
         assertThrows(
                 BusinessException.class,
-                () -> service.updateVaccinationSchedule(
+                () -> service.successVaccinationSchedule(
                         babyId, scheduleId, request
                 )
         );
@@ -359,11 +359,11 @@ class VaccinationServiceImplTest{
         when(repository.findById(scheduleId))
                 .thenReturn(Optional.of(vaccination));
 
-        var request = new VaccinationScheduleUpdateRequest(true);
+        var request = new VaccinationScheduleSuccessRequest(true);
 
         assertThrows(
                 BusinessException.class,
-                () -> service.updateVaccinationSchedule(
+                () -> service.successVaccinationSchedule(
                         requestedBabyId, scheduleId, request
                 )
         );

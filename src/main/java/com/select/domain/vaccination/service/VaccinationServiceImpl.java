@@ -1,9 +1,8 @@
 package com.select.domain.vaccination.service;
 
-import com.select.domain.baby.entity.Baby;
 import com.select.domain.baby.repository.BabyRepository;
-import com.select.domain.vaccination.controller.VaccinationController;
 import com.select.domain.vaccination.dto.request.VaccinationScheduleCreateRequest;
+import com.select.domain.vaccination.dto.request.VaccinationScheduleSuccessRequest;
 import com.select.domain.vaccination.dto.request.VaccinationScheduleUpdateRequest;
 import com.select.domain.vaccination.dto.response.*;
 import com.select.domain.vaccination.entity.BabyVaccination;
@@ -139,10 +138,10 @@ public class VaccinationServiceImpl implements VaccinationService {
     }
     @Override
     @Transactional
-    public VaccinationScheduleUpdateResponse updateVaccinationSchedule(
+    public VaccinationScheduleUpdateResponse successVaccinationSchedule(
             Long babyId,
             Long vaccinationScheduleId,
-            VaccinationScheduleUpdateRequest request
+            VaccinationScheduleSuccessRequest request
     ){
         if (!babyRepository.existsById(babyId)) {
             throw new BusinessException(ErrorCode.BABY_NOT_FOUND);
@@ -195,6 +194,50 @@ public class VaccinationServiceImpl implements VaccinationService {
 
         return new VaccinationHistoryResponse(babyId, items);
     }
+    @Override
+    @Transactional
+    public VaccinationScheduleUpdateResponse updateVaccinationSchedule(
+            Long babyId,
+            Long vaccinationScheduleId,
+            VaccinationScheduleUpdateRequest request
+    ) {
+        // 아기 존재 여부 확인
+        if (!babyRepository.existsById(babyId)) {
+            throw new BusinessException(ErrorCode.BABY_NOT_FOUND);
+        }
+
+        // 접종 일정 조회
+        BabyVaccination vaccination = babyVaccinationRepository
+                .findById(vaccinationScheduleId)
+                .orElseThrow(() ->
+                        new BusinessException(ErrorCode.VACCINATION_SCHEDULE_NOT_FOUND)
+                );
+
+        // 해당 아기의 예방접종인지 확인
+        if(!vaccination.getBabyId().equals(babyId)) {
+            throw new BusinessException(ErrorCode.VACCINATION_SCHEDULE_NOT_FOUND);
+        }
+
+        // 변경할 백신 조회
+        Vaccine vaccine = vaccineRepository.findById(request.getVaccineId())
+                .orElseThrow(() ->
+                        new BusinessException(ErrorCode.VACCINE_NOT_FOUND)
+                );
+
+        // 엔티티 수정
+        vaccination.updateSchedule(vaccine, request.getScheduledDate());
+
+        return new VaccinationScheduleUpdateResponse(
+                vaccination.getId(),
+                vaccination.getBabyId(),
+                vaccination.getVaccine().getId(),
+                vaccination.getScheduledDate(),
+                vaccination.getCompletedDate(),
+                vaccination.getCompleted()
+        );
+    }
+
+
     @Override
     @Transactional
     public void deleteVaccinationSchedule(

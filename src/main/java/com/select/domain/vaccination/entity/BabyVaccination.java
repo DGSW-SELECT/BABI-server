@@ -1,5 +1,7 @@
 package com.select.domain.vaccination.entity;
 
+import com.select.global.exception.BusinessException;
+import com.select.global.exception.ErrorCode;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -54,5 +56,13 @@ public class BabyVaccination {
         vaccination.scheduledDate = scheduledDate;
         vaccination.completed = false;
         return vaccination;
+    }
+    public void updateSchedule(Vaccine vaccine, LocalDate scheduledDate) {
+        if (completed) {
+            throw new BusinessException(ErrorCode.VACCINATION_ALREADY_COMPLETED);
+        }
+
+        this.vaccine = vaccine;
+        this.scheduledDate = scheduledDate;
     }
 }

@@ -1,6 +1,7 @@
 package com.select.domain.vaccination.controller;
 
 import com.select.domain.vaccination.dto.request.VaccinationScheduleCreateRequest;
+import com.select.domain.vaccination.dto.request.VaccinationScheduleSuccessRequest;
 import com.select.domain.vaccination.dto.request.VaccinationScheduleUpdateRequest;
 import com.select.domain.vaccination.dto.response.VaccinationHistoryResponse;
 import com.select.domain.vaccination.dto.response.VaccinationScheduleCreateResponse;
@@ -57,10 +58,10 @@ public class VaccinationController {
     public ResponseEntity<VaccinationScheduleUpdateResponse> updateVaccinationSchedule(
             @PathVariable Long babyId,
             @PathVariable Long vaccinationScheduleId,
-            @Valid @RequestBody VaccinationScheduleUpdateRequest request
+            @Valid @RequestBody VaccinationScheduleSuccessRequest request
     ) {
         VaccinationScheduleUpdateResponse response =
-                vaccinationService.updateVaccinationSchedule(
+                vaccinationService.successVaccinationSchedule(
                         babyId,
                         vaccinationScheduleId,
                         request
@@ -73,9 +74,7 @@ public class VaccinationController {
     ) {
         return vaccinationService.getVaccinationHistory(babyId);
     }
-    @DeleteMapping(
-            "/babies/{babyId}/vaccination-schedules/{vaccinationScheduleId}"
-    )
+    @DeleteMapping("/babies/{babyId}/vaccination-schedules/{vaccinationScheduleId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteVaccinationSchedule(
             @PathVariable Long babyId,
@@ -84,5 +83,19 @@ public class VaccinationController {
         vaccinationService.deleteVaccinationSchedule(
                 babyId, vaccinationScheduleId
         );
+    }
+    @PatchMapping("/babies/{babyId}/vaccination-schedules/{vaccinationScheduleId}")
+    public ResponseEntity<VaccinationScheduleUpdateResponse> updateVaccinationSchedule(
+            @PathVariable Long babyId,
+            @PathVariable Long vaccinationScheduleId,
+            @Valid @RequestBody VaccinationScheduleUpdateRequest request
+    ) {
+        VaccinationScheduleUpdateResponse response =
+                vaccinationService.updateVaccinationSchedule(
+                        babyId,
+                        vaccinationScheduleId,
+                        request
+                );
+        return ResponseEntity.ok(response);
     }
 }

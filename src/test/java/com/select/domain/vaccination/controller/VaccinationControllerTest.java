@@ -1,7 +1,7 @@
 package com.select.domain.vaccination.controller;
 
 import com.select.domain.vaccination.dto.request.VaccinationScheduleCreateRequest;
-import com.select.domain.vaccination.dto.request.VaccinationScheduleUpdateRequest;
+import com.select.domain.vaccination.dto.request.VaccinationScheduleSuccessRequest;
 import com.select.domain.vaccination.dto.response.VaccinationScheduleCreateResponse;
 import com.select.domain.vaccination.dto.response.VaccinationScheduleResponse;
 import com.select.domain.vaccination.dto.response.VaccinationScheduleUpdateResponse;
@@ -186,10 +186,10 @@ class VaccinationControllerTest {
         LocalDate scheduleDate = LocalDate.of(2026, 11, 10);
         LocalDate completedDate = LocalDate.now();
 
-        when(vaccinationService.updateVaccinationSchedule(
+        when(vaccinationService.successVaccinationSchedule(
                 eq(babyId),
                 eq(scheduleId),
-                any(VaccinationScheduleUpdateRequest.class)
+                any(VaccinationScheduleSuccessRequest.class)
         )).thenReturn(
                 new VaccinationScheduleUpdateResponse(
                         scheduleId,
@@ -223,10 +223,10 @@ class VaccinationControllerTest {
                         .value(completedDate.toString()))
                 .andExpect(jsonPath("$.completed").value(true));
 
-        verify(vaccinationService).updateVaccinationSchedule(
+        verify(vaccinationService).successVaccinationSchedule(
                 eq(babyId),
                 eq(scheduleId),
-                any(VaccinationScheduleUpdateRequest.class)
+                any(VaccinationScheduleSuccessRequest.class)
         );
     }
 }
