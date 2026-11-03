@@ -56,7 +56,7 @@ def main():
         print(f"Isolated MySQL 8.4 ready: 127.0.0.1:{port}/{DB}; tmpfs data; no shared volume.", flush=True)
         env = {k: v for k, v in os.environ.items() if not (
             k.startswith("SPRING_") or k.startswith("BABI_ISOLATED_MYSQL_") or
-            k in {"JAVA_TOOL_OPTIONS", "JDK_JAVA_OPTIONS", "BABI_REDIS_TEST_PORT", "MYSQL_PASSWORD", "MYSQL_ROOT_PASSWORD", "JWT_SECRET", "EMAIL_VERIFICATION_SECRET", "MAIL_USERNAME", "MAIL_PASSWORD"})}
+            k in {"JAVA_TOOL_OPTIONS", "_JAVA_OPTIONS", "JDK_JAVA_OPTIONS", "JAVA_OPTS", "GRADLE_OPTS", "BABI_REDIS_TEST_PORT", "MYSQL_PASSWORD", "MYSQL_ROOT_PASSWORD", "JWT_SECRET", "EMAIL_VERIFICATION_SECRET", "MAIL_USERNAME", "MAIL_PASSWORD"})}
         env.update(BABI_ISOLATED_MYSQL_TEST="enabled", BABI_ISOLATED_MYSQL_PORT=str(port),
                    BABI_ISOLATED_MYSQL_PASSWORD=password, BABI_ISOLATED_MYSQL_MARKER=marker)
         call("./gradlew", "--no-daemon", "test", "--rerun-tasks", "--tests",
