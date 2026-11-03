@@ -68,7 +68,7 @@ public class BabyVaccination {
         return vaccination;
     }
     public void updateSchedule(Vaccine vaccine, LocalDate scheduledDate, String institution, String memo) {
-        if (Boolean.TRUE.equals(completed) {
+        if (Boolean.TRUE.equals(completed)) {
             throw new BusinessException(ErrorCode.VACCINATION_ALREADY_COMPLETED);
         }
         
