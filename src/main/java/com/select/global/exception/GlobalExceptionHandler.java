@@ -4,9 +4,12 @@ import com.select.domain.auth.exception.EmailVerificationException;
 import com.select.domain.user.exception.DuplicateEmailException;
 import com.select.domain.user.exception.InvalidCredentialsException;
 import com.select.domain.user.exception.PasswordMismatchException;
+import com.select.domain.voice.exception.AudioStorageException;
 import com.select.domain.voice.exception.AudioTooLargeException;
 import com.select.domain.voice.exception.InvalidAudioException;
 import com.select.domain.voice.exception.SttFailedException;
+import com.select.domain.voice.exception.SttJobNotFoundException;
+import com.select.domain.voice.exception.SttJobNotRetryableException;
 import com.select.domain.voice.exception.VoiceInputNotFoundException;
 import com.select.global.response.ApiError;
 import com.select.global.response.ApiResponse;
@@ -118,6 +121,37 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     ) {
         return createErrorResponse(
                 ErrorCode.VOICE_INPUT_NOT_FOUND,
+                List.of()
+        );
+    }
+
+    @ExceptionHandler(SttJobNotFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> handleSttJobNotFound(
+            SttJobNotFoundException e
+    ) {
+        return createErrorResponse(
+                ErrorCode.STT_JOB_NOT_FOUND,
+                List.of()
+        );
+    }
+
+    @ExceptionHandler(SttJobNotRetryableException.class)
+    public ResponseEntity<ApiResponse<Void>> handleSttJobNotRetryable(
+            SttJobNotRetryableException e
+    ) {
+        return createErrorResponse(
+                ErrorCode.STT_JOB_NOT_RETRYABLE,
+                List.of()
+        );
+    }
+
+    @ExceptionHandler(AudioStorageException.class)
+    public ResponseEntity<ApiResponse<Void>> handleAudioStorage(
+            AudioStorageException e
+    ) {
+        log.error("음성 파일 저장소 처리에 실패했습니다: {}", e.getMessage(), e);
+        return createErrorResponse(
+                ErrorCode.AUDIO_STORAGE_FAILED,
                 List.of()
         );
     }

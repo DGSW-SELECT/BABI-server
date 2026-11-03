@@ -16,6 +16,12 @@ jwt:
   secret: "${random.uuid}${random.uuid}"
   access-token-expiration-minutes: 30
 
-# Tests must not call the real STT API.
+# Tests must not call the real STT API or run the background worker.
 stt:
+  provider: fake
   api-key: test-key
+  fake-transcript: 분유 120ml 먹였어요
+  jobs:
+    storage-dir: ${java.io.tmpdir}/babi-test-stt
+    worker:
+      enabled: false

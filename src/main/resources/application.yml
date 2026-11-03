@@ -8,11 +8,23 @@ spring:
 jwt:
   access-token-expiration-minutes: ${JWT_ACCESS_TOKEN_EXPIRATION_MINUTES:30}
 stt:
+  provider: ${STT_PROVIDER:auto}
   base-url: ${STT_BASE_URL:https://api.openai.com/v1}
   api-key: ${OPENAI_API_KEY:}
   model: ${STT_MODEL:whisper-1}
   language: ${STT_LANGUAGE:ko}
   timeout: ${STT_TIMEOUT:60s}
+  fake-transcript: ${STT_FAKE_TRANSCRIPT:분유 120ml 먹였어요}
+  jobs:
+    storage-dir: ${STT_STORAGE_DIR:./storage/stt}
+    max-attempts: ${STT_MAX_ATTEMPTS:3}
+    retry-delay: ${STT_RETRY_DELAY:30s}
+    stale-timeout: ${STT_STALE_TIMEOUT:10m}
+    worker:
+      enabled: ${STT_WORKER_ENABLED:true}
+      batch-size: ${STT_WORKER_BATCH_SIZE:5}
+      poll-interval: ${STT_WORKER_POLL_INTERVAL:5s}
+      initial-delay: ${STT_WORKER_INITIAL_DELAY:10s}
 
 springdoc:
   packages-to-scan: com.select.domain

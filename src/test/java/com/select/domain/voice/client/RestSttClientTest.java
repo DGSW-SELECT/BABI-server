@@ -38,7 +38,8 @@ class RestSttClientTest {
         RestClient.Builder builder = RestClient.builder();
         server = MockRestServiceServer.bindTo(builder).build();
         SttProperties properties = new SttProperties(
-                "https://api.openai.com/v1/", "test-key", "whisper-1", "ko", Duration.ofSeconds(30)
+                "https://api.openai.com/v1/", "test-key", "whisper-1", "ko", Duration.ofSeconds(30),
+                null, null
         );
         sttClient = new RestSttClient(builder.build(), properties);
     }

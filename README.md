@@ -22,7 +22,7 @@ cp .env.example .env
 
 `JWT_SECRET`은 JWT 서명 및 검증에 사용하는 필수 환경 변수입니다. `.env`의 `JWT_SECRET`을 각자의 무작위 비밀키로 변경합니다. HS256 서명에 사용하는 비밀키는 최소 32바이트 이상이어야 하며, 실제 비밀키는 Git에 커밋하지 않습니다.
 
-`OPENAI_API_KEY`는 음성 입력 STT에 사용하는 필수 환경 변수입니다. 실제 키는 Git에 커밋하지 않습니다.
+`OPENAI_API_KEY`는 실제 STT 제공자를 사용할 때 필요한 환경 변수입니다. `STT_PROVIDER=auto`(기본값)에서 키가 없으면 개발용 `FakeSttClient`가 동작하므로 서버는 정상 기동됩니다. 실제 음성 변환을 사용하려면 키를 설정하고 `STT_PROVIDER=openai`를 지정합니다. 실제 키는 Git에 커밋하지 않습니다.
 
 `local` 프로필에서는 이메일 인증을 호출하지 않더라도 `.env`의 다음 필수 환경 변수를 설정해야 합니다. 예시 파일의 값은 자리표시자이므로 실제 로컬 설정으로 바꿔야 합니다.
 
@@ -45,7 +45,7 @@ docker compose ps
 
 MySQL은 `127.0.0.1:3307`으로만 노출되며, MySQL 데이터 디렉터리(`/var/lib/mysql`)는 `babi_mysql_data` Docker Volume에 저장됩니다.
 
-3. IntelliJ에서 `local` 프로필로 애플리케이션을 실행합니다. 실행 구성의 환경 변수에 `MYSQL_PASSWORD`, `JWT_SECRET`, `OPENAI_API_KEY`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `EMAIL_VERIFICATION_SECRET`을 `.env`의 값과 동일하게 설정해야 합니다. `.env` 파일을 만드는 것만으로 IntelliJ 실행 구성에 적용되지는 않습니다. `JWT_ACCESS_TOKEN_EXPIRATION_MINUTES`를 변경했다면 해당 값도 전달합니다.
+3. IntelliJ에서 `local` 프로필로 애플리케이션을 실행합니다. 실행 구성의 환경 변수에 `MYSQL_PASSWORD`, `JWT_SECRET`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `EMAIL_VERIFICATION_SECRET`을 `.env`의 값과 동일하게 설정해야 합니다. 실제 STT를 사용할 때만 `OPENAI_API_KEY`와 `STT_PROVIDER=openai`를 추가합니다. `.env` 파일을 만드는 것만으로 IntelliJ 실행 구성에 적용되지는 않습니다. `JWT_ACCESS_TOKEN_EXPIRATION_MINUTES`를 변경했다면 해당 값도 전달합니다.
 
 Gradle로 실행할 경우 프로젝트 루트에서 다음 명령을 실행합니다. Bash 또는 Zsh 기준이며, 괄호 안의 별도 셸에서 `.env`의 변수를 export한 뒤 Spring Boot를 실행합니다.
 
@@ -57,7 +57,6 @@ Gradle로 실행할 경우 프로젝트 루트에서 다음 명령을 실행합�
   ./gradlew bootRun --args='--spring.profiles.active=local'
 )
 ```
-```
 
 `set -a`는 `.env`에서 읽은 변수를 자식 Gradle·Spring Boot 프로세스에 전달합니다. 별도 셸이 종료되면 이 설정은 현재 터미널에 남지 않습니다.
 
@@ -67,16 +66,77 @@ Gradle로 실행할 경우 프로젝트 루트에서 다음 명령을 실행합�
 
 ## 음성 기록 API
 
-음성 입력은 STT 변환과 최종 저장을 분리합니다. STT 단계에서는 DB에 저장하지 않습니다.
+음성 입력은 동기 STT, 비동기 STT 작업, 최종 저장으로 나뉩니다.
 
 | Method | Path | 설명 |
 |---|---|---|
-| `POST` | `/api/v1/babies/{babyId}/voice-records/stt` | `multipart/form-data`의 `audio` 파일을 STT 변환해 transcript만 반환 |
+| `POST` | `/api/v1/babies/{babyId}/voice-records/stt` | `multipart/form-data`의 `audio` 파일을 즉시 STT 변환해 transcript만 반환 |
+| `POST` | `/api/v1/babies/{babyId}/voice-records/stt-jobs` | 음성 파일을 저장하고 비동기 STT 작업 등록 (`202 Accepted`) |
+| `GET` | `/api/v1/babies/{babyId}/voice-records/stt-jobs/{jobId}` | 비동기 STT 작업 상태·결과 조회 |
+| `POST` | `/api/v1/babies/{babyId}/voice-records/stt-jobs/{jobId}/retry` | 최종 실패(`FAILED`)한 작업 재시도 |
 | `POST` | `/api/v1/babies/{babyId}/voice-records` | 사용자가 확인한 transcript를 `voice_inputs`에 저장하고 육아기록을 자동 분석·저장 |
 | `GET` | `/api/v1/babies/{babyId}/voice-records/{voiceInputId}` | 저장된 음성 기록과 자동 저장된 육아기록 단건 조회 |
 
 - 모든 음성 기록 API는 `Authorization: Bearer {accessToken}` 헤더가 필요합니다.
 - 음성 파일은 25MB 이하이며 `mp3`, `mp4`, `m4a`, `mpeg`, `mpga`, `wav`, `webm`, `ogg`, `flac`, `aac`를 지원합니다.
+
+### 비동기 STT 작업
+
+비동기 작업은 `stt_jobs` 테이블과 백그라운드 워커로 처리합니다.
+
+```text
+PENDING -> PROCESSING -> COMPLETED
+                     \-> PENDING (재시도 대기) -> PROCESSING ...
+                     \-> FAILED (최대 시도 횟수 초과)
+```
+
+1. `POST .../stt-jobs?familyMemberId=7`에 `audio` 파일을 보내면 파일을 저장하고 `PENDING` 작업을 만듭니다.
+2. 워커가 작업을 원자적으로 선점해 `PROCESSING`으로 바꾸고 STT를 호출합니다.
+3. 성공하면 `voice_inputs`와 `parenting_records`를 저장하고 작업을 `COMPLETED`로 바꿉니다. 응답의 `voiceInputId`로 저장된 기록을 조회할 수 있습니다.
+4. 실패하면 `stt.jobs.retry-delay` 후 재시도하고, `stt.jobs.max-attempts`를 넘으면 `FAILED`로 남깁니다. `FAILED` 작업은 재시도 API로 다시 등록할 수 있습니다.
+5. 서버 중단으로 `PROCESSING`에 오래 머문 작업은 `stt.jobs.stale-timeout` 이후 자동 복구됩니다.
+
+작업 등록 응답 예시:
+
+```json
+{
+  "success": true,
+  "message": "음성 변환 작업이 등록되었습니다.",
+  "data": {
+    "jobId": 20,
+    "babyId": 1,
+    "familyMemberId": 7,
+    "status": "PENDING",
+    "transcript": null,
+    "voiceInputId": null,
+    "attemptCount": 0,
+    "maxAttempts": 3,
+    "errorMessage": null,
+    "createdAt": "2026-11-03T16:44:00",
+    "completedAt": null,
+    "parentingRecords": []
+  }
+}
+```
+
+완료 조회 응답의 `data`에는 `status: "COMPLETED"`, `transcript`, `voiceInputId`, `parentingRecords`가 채워집니다.
+
+비동기 STT 주요 설정:
+
+| 설정 | 기본값 | 설명 |
+|---|---|---|
+| `stt.provider` | `auto` | `auto`: 키가 있으면 실제 API, 없으면 fake / `openai`: 실제 API 강제 / `fake`: 모델 없이 흐름 검증 |
+| `stt.fake-transcript` | `분유 120ml 먹였어요` | fake 제공자가 반환할 문장 |
+| `stt.jobs.storage-dir` | `./storage/stt` | 음성 파일 저장 디렉터리 (`storage/`는 Git 제외) |
+| `stt.jobs.max-attempts` | `3` | 최대 처리 시도 횟수 |
+| `stt.jobs.retry-delay` | `30s` | 실패 후 재시도 대기 시간 |
+| `stt.jobs.stale-timeout` | `10m` | 멈춘 `PROCESSING` 작업 복구 기준 |
+| `stt.jobs.worker.enabled` | `true` | 백그라운드 워커 실행 여부 |
+| `stt.jobs.worker.poll-interval` | `5s` | 작업 폴링 주기 |
+| `stt.jobs.worker.initial-delay` | `10s` | 서버 기동 후 첫 폴링 지연 |
+| `stt.jobs.worker.batch-size` | `5` | 한 번에 가져올 작업 수 |
+
+- 실제 모델이 확정되면 `RestSttClient` 또는 새 `SttClient` 구현을 추가하고 `SttClientConfig`에서 선택하면 됩니다. 작업 상태·재시도·저장 흐름은 모델과 무관하게 그대로 사용합니다.
 - 저장 요청 예시:
 
 ```json
@@ -178,6 +238,7 @@ com.select
         ├── exception
         ├── repository
         ├── service
+        ├── storage
         └── support
 ```
 

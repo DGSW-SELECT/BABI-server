@@ -19,4 +19,5 @@ work/
 outputs/
 
 /.env
+/storage/
 babi-backup-before-schema-restore.sql
