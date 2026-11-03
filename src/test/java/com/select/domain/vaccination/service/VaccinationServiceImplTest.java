@@ -265,7 +265,9 @@ class VaccinationServiceImplTest{
         BabyVaccination vaccination = BabyVaccination.create(
                 babyId,
                 vaccine,
-                LocalDate.now().plusDays(7)
+                LocalDate.now().plusDays(7),
+                null,
+                null
         );
 
         when(babyRepository.existsById(babyId)).thenReturn(true);
@@ -298,7 +300,9 @@ class VaccinationServiceImplTest{
         BabyVaccination vaccination = BabyVaccination.create(
                 babyId,
                 vaccine,
-                LocalDate.now().plusDays(7)
+                LocalDate.now().plusDays(7),
+                null,
+                null
         );
         vaccination.complete(LocalDate.now());
 
@@ -355,6 +359,8 @@ class VaccinationServiceImplTest{
                 2L,
                 vaccine,
                 LocalDate.now().plusDays(7)
+                null,
+                null
         );
 
         when(babyRepository.existsById(requestedBabyId))
