@@ -1,5 +1,8 @@
 package com.select.domain.voice.controller;
 
+import com.select.domain.parenting.dto.response.ParentingRecordResponse;
+import com.select.domain.parenting.entity.FeedingType;
+import com.select.domain.parenting.entity.ParentingRecordType;
 import com.select.domain.voice.dto.request.VoiceRecordRequest;
 import com.select.domain.voice.dto.response.SttTranscriptResponse;
 import com.select.domain.voice.dto.response.VoiceInputResponse;
@@ -18,6 +21,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
+import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -100,9 +104,15 @@ class VoiceRecordControllerTest {
 
     @Test
     void saveReturnsCreatedVoiceInput() throws Exception {
+        LocalDateTime createdAt = LocalDateTime.of(2026, 10, 25, 12, 0);
+        ParentingRecordResponse parentingRecord = new ParentingRecordResponse(
+                100L, 1L, 7L, 10L, ParentingRecordType.FEEDING,
+                LocalDateTime.of(2026, 10, 25, 12, 0), 100, null,
+                FeedingType.FORMULA, null, "분유 먹였어", createdAt
+        );
         VoiceInputResponse response = new VoiceInputResponse(
                 10L, 1L, 7L, "분유 먹였어", SttStatus.COMPLETED,
-                LocalDateTime.of(2026, 10, 25, 12, 0)
+                createdAt, List.of(parentingRecord)
         );
         when(voiceRecordService.save(eq(1L), any(VoiceRecordRequest.class)))
                 .thenReturn(response);
@@ -122,7 +132,11 @@ class VoiceRecordControllerTest {
                 .andExpect(jsonPath("$.data.familyMemberId").value(7L))
                 .andExpect(jsonPath("$.data.transcript").value("분유 먹였어"))
                 .andExpect(jsonPath("$.data.sttStatus").value("COMPLETED"))
-                .andExpect(jsonPath("$.data.createdAt").exists());
+                .andExpect(jsonPath("$.data.createdAt").exists())
+                .andExpect(jsonPath("$.data.parentingRecords[0].parentingRecordId").value(100L))
+                .andExpect(jsonPath("$.data.parentingRecords[0].recordType").value("FEEDING"))
+                .andExpect(jsonPath("$.data.parentingRecords[0].amountMl").value(100))
+                .andExpect(jsonPath("$.data.parentingRecords[0].feedingType").value("FORMULA"));
 
         verify(voiceRecordService).save(eq(1L), any(VoiceRecordRequest.class));
     }
@@ -164,7 +178,7 @@ class VoiceRecordControllerTest {
     void getReturnsVoiceInput() throws Exception {
         VoiceInputResponse response = new VoiceInputResponse(
                 10L, 1L, 7L, "분유 먹였어", SttStatus.COMPLETED,
-                LocalDateTime.of(2026, 10, 25, 12, 0)
+                LocalDateTime.of(2026, 10, 25, 12, 0), List.of()
         );
         when(voiceRecordService.get(1L, 10L)).thenReturn(response);
 
@@ -172,7 +186,8 @@ class VoiceRecordControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.voiceInputId").value(10L))
-                .andExpect(jsonPath("$.data.transcript").value("분유 먹였어"));
+                .andExpect(jsonPath("$.data.transcript").value("분유 먹였어"))
+                .andExpect(jsonPath("$.data.parentingRecords").isEmpty());
 
         verify(voiceRecordService).get(1L, 10L);
     }

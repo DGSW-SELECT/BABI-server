@@ -1,5 +1,9 @@
 package com.select.domain.voice.service;
 
+import com.select.domain.parenting.dto.response.ParentingRecordResponse;
+import com.select.domain.parenting.entity.FeedingType;
+import com.select.domain.parenting.entity.ParentingRecordType;
+import com.select.domain.parenting.service.ParentingRecordService;
 import com.select.domain.voice.client.SttClient;
 import com.select.domain.voice.client.dto.response.SttResponse;
 import com.select.domain.voice.dto.request.VoiceRecordRequest;
@@ -25,6 +29,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -43,6 +48,9 @@ class VoiceRecordServiceTest {
 
     @Mock
     private SttClient sttClient;
+
+    @Mock
+    private ParentingRecordService parentingRecordService;
 
     @InjectMocks
     private VoiceRecordService voiceRecordService;
@@ -123,6 +131,14 @@ class VoiceRecordServiceTest {
         ReflectionTestUtils.setField(saved, "createdAt", createdAt);
         when(voiceInputRepository.save(any(VoiceInput.class))).thenReturn(saved);
 
+        ParentingRecordResponse parentingRecord = new ParentingRecordResponse(
+                100L, 1L, 7L, 10L, ParentingRecordType.FEEDING,
+                LocalDateTime.of(2026, 10, 25, 12, 0), 100, null,
+                FeedingType.FORMULA, null, "분유 먹였어", createdAt
+        );
+        when(parentingRecordService.analyzeAndSave(1L, 7L, 10L, "분유 먹였어", createdAt))
+                .thenReturn(List.of(parentingRecord));
+
         VoiceInputResponse response = voiceRecordService.save(
                 1L, new VoiceRecordRequest("  분유 먹였어  ", 7L)
         );
@@ -143,6 +159,8 @@ class VoiceRecordServiceTest {
         assertThat(response.transcript()).isEqualTo("분유 먹였어");
         assertThat(response.sttStatus()).isEqualTo(SttStatus.COMPLETED);
         assertThat(response.createdAt()).isEqualTo(createdAt);
+        assertThat(response.parentingRecords()).containsExactly(parentingRecord);
+        verify(parentingRecordService).analyzeAndSave(1L, 7L, 10L, "분유 먹였어", createdAt);
     }
 
     @Test
@@ -158,10 +176,17 @@ class VoiceRecordServiceTest {
         ReflectionTestUtils.setField(saved, "createdAt", createdAt);
         when(voiceInputRepository.findByIdAndBabyId(10L, 1L)).thenReturn(Optional.of(saved));
 
+        ParentingRecordResponse parentingRecord = new ParentingRecordResponse(
+                100L, 1L, 7L, 10L, ParentingRecordType.SLEEP,
+                createdAt, null, 90, null, null, "분유 먹였어", createdAt
+        );
+        when(parentingRecordService.findByVoiceInput(1L, 10L)).thenReturn(List.of(parentingRecord));
+
         VoiceInputResponse response = voiceRecordService.get(1L, 10L);
 
         assertThat(response.voiceInputId()).isEqualTo(10L);
         assertThat(response.transcript()).isEqualTo("분유 먹였어");
+        assertThat(response.parentingRecords()).containsExactly(parentingRecord);
     }
 
     @Test
@@ -170,5 +195,7 @@ class VoiceRecordServiceTest {
 
         assertThatThrownBy(() -> voiceRecordService.get(1L, 10L))
                 .isInstanceOf(VoiceInputNotFoundException.class);
+
+        verifyNoInteractions(parentingRecordService);
     }
 }
