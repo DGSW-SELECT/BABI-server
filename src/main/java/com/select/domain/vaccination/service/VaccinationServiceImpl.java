@@ -122,7 +122,7 @@ public class VaccinationServiceImpl implements VaccinationService {
         }
         // 엔티티 생성 및 저장
         BabyVaccination vaccination =
-                BabyVaccination.create(babyId, vaccine, scheduledDate);
+                BabyVaccination.create(babyId, vaccine, scheduledDate,request.institution(), request.memo());
 
         BabyVaccination saved =
                 babyVaccinationRepository.save(vaccination);
@@ -231,7 +231,7 @@ public class VaccinationServiceImpl implements VaccinationService {
                 );
 
         // 엔티티 수정
-        vaccination.updateSchedule(vaccine, request.scheduledDate());
+        vaccination.updateSchedule(vaccine, request.scheduledDate(), request.institution(), request.memo());
 
         return new VaccinationScheduleUpdateResponse(
                 vaccination.getId(),
