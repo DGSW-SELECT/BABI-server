@@ -4,12 +4,16 @@ import com.select.domain.parenting.dto.response.ParentingRecordResponse;
 import com.select.domain.parenting.entity.FeedingType;
 import com.select.domain.parenting.entity.ParentingRecordType;
 import com.select.domain.voice.dto.request.VoiceRecordRequest;
+import com.select.domain.voice.dto.response.SttJobResponse;
 import com.select.domain.voice.dto.response.SttTranscriptResponse;
 import com.select.domain.voice.dto.response.VoiceInputResponse;
 import com.select.domain.voice.entity.SttStatus;
 import com.select.domain.voice.exception.InvalidAudioException;
 import com.select.domain.voice.exception.SttFailedException;
+import com.select.domain.voice.exception.SttJobNotFoundException;
+import com.select.domain.voice.exception.SttJobNotRetryableException;
 import com.select.domain.voice.exception.VoiceInputNotFoundException;
+import com.select.domain.voice.service.SttJobService;
 import com.select.domain.voice.service.VoiceRecordService;
 import com.select.global.exception.GlobalExceptionHandler;
 import org.junit.jupiter.api.BeforeEach;
@@ -41,12 +45,14 @@ class VoiceRecordControllerTest {
 
     private MockMvc mockMvc;
     private VoiceRecordService voiceRecordService;
+    private SttJobService sttJobService;
 
     @BeforeEach
     void setUp() {
         voiceRecordService = mock(VoiceRecordService.class);
+        sttJobService = mock(SttJobService.class);
         mockMvc = MockMvcBuilders
-                .standaloneSetup(new VoiceRecordController(voiceRecordService))
+                .standaloneSetup(new VoiceRecordController(voiceRecordService, sttJobService))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
     }
@@ -199,5 +205,118 @@ class VoiceRecordControllerTest {
         mockMvc.perform(get(BASE_URL + "/10"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error.code").value("VOICE_INPUT_NOT_FOUND"));
+    }
+
+    @Test
+    void submitSttJobReturnsAccepted() throws Exception {
+        MockMultipartFile audio = new MockMultipartFile(
+                "audio", "voice.mp3", "audio/mpeg", "audio".getBytes(StandardCharsets.UTF_8)
+        );
+        when(sttJobService.submit(eq(1L), eq(7L), any(MultipartFile.class)))
+                .thenReturn(sttJobResponse(SttStatus.PENDING, null, null));
+
+        mockMvc.perform(multipart(BASE_URL + "/stt-jobs")
+                        .file(audio)
+                        .param("familyMemberId", "7"))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.jobId").value(20L))
+                .andExpect(jsonPath("$.data.status").value("PENDING"))
+                .andExpect(jsonPath("$.data.maxAttempts").value(3));
+
+        verify(sttJobService).submit(eq(1L), eq(7L), any(MultipartFile.class));
+    }
+
+    @Test
+    void submitSttJobWithoutFamilyMemberIdReturnsBadRequest() throws Exception {
+        MockMultipartFile audio = new MockMultipartFile(
+                "audio", "voice.mp3", "audio/mpeg", "audio".getBytes(StandardCharsets.UTF_8)
+        );
+
+        mockMvc.perform(multipart(BASE_URL + "/stt-jobs").file(audio))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"));
+
+        verifyNoInteractions(sttJobService);
+    }
+
+    @Test
+    void submitSttJobWithNonPositiveFamilyMemberIdReturnsBadRequest() throws Exception {
+        MockMultipartFile audio = new MockMultipartFile(
+                "audio", "voice.mp3", "audio/mpeg", "audio".getBytes(StandardCharsets.UTF_8)
+        );
+
+        mockMvc.perform(multipart(BASE_URL + "/stt-jobs")
+                        .file(audio)
+                        .param("familyMemberId", "0"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"));
+
+        verifyNoInteractions(sttJobService);
+    }
+
+    @Test
+    void getSttJobReturnsCompletedJobAndParentingRecords() throws Exception {
+        ParentingRecordResponse parentingRecord = new ParentingRecordResponse(
+                100L, 1L, 7L, 10L, ParentingRecordType.FEEDING,
+                LocalDateTime.of(2026, 10, 25, 12, 0), 120, null,
+                FeedingType.FORMULA, null, "분유 120ml 먹였어요", LocalDateTime.of(2026, 10, 25, 12, 0)
+        );
+        SttJobResponse response = new SttJobResponse(
+                20L, 1L, 7L, SttStatus.COMPLETED, "분유 120ml 먹였어요", 10L,
+                1, 3, null, LocalDateTime.of(2026, 10, 25, 12, 0),
+                LocalDateTime.of(2026, 10, 25, 12, 1), List.of(parentingRecord)
+        );
+        when(sttJobService.get(1L, 20L)).thenReturn(response);
+
+        mockMvc.perform(get(BASE_URL + "/stt-jobs/20"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("COMPLETED"))
+                .andExpect(jsonPath("$.data.transcript").value("분유 120ml 먹였어요"))
+                .andExpect(jsonPath("$.data.voiceInputId").value(10L))
+                .andExpect(jsonPath("$.data.parentingRecords[0].parentingRecordId").value(100L));
+
+        verify(sttJobService).get(1L, 20L);
+    }
+
+    @Test
+    void getMissingSttJobReturnsNotFound() throws Exception {
+        when(sttJobService.get(1L, 20L)).thenThrow(new SttJobNotFoundException());
+
+        mockMvc.perform(get(BASE_URL + "/stt-jobs/20"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error.code").value("STT_JOB_NOT_FOUND"));
+    }
+
+    @Test
+    void retrySttJobReturnsPendingJob() throws Exception {
+        when(sttJobService.retry(1L, 20L)).thenReturn(sttJobResponse(SttStatus.PENDING, null, null));
+
+        mockMvc.perform(post(BASE_URL + "/stt-jobs/20/retry"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("PENDING"));
+
+        verify(sttJobService).retry(1L, 20L);
+    }
+
+    @Test
+    void retryNonFailedSttJobReturnsConflict() throws Exception {
+        when(sttJobService.retry(1L, 20L))
+                .thenThrow(new SttJobNotRetryableException("실패한 작업만 재시도할 수 있습니다."));
+
+        mockMvc.perform(post(BASE_URL + "/stt-jobs/20/retry"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("STT_JOB_NOT_RETRYABLE"));
+    }
+
+    private static SttJobResponse sttJobResponse(
+            SttStatus status,
+            String transcript,
+            Long voiceInputId
+    ) {
+        return new SttJobResponse(
+                20L, 1L, 7L, status, transcript, voiceInputId,
+                0, 3, null, LocalDateTime.of(2026, 10, 25, 12, 0), null, List.of()
+        );
     }
 }
