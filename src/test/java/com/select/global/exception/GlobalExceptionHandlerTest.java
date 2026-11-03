@@ -84,7 +84,7 @@ class GlobalExceptionHandlerTest {
     record TestRequest(
             @NotBlank(message = "이름은 필수입니다.")
             String name
-    ) {
+    ) {}
 
     @Test
     void handleExceptionReturns500() {
