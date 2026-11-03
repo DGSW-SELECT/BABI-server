@@ -11,7 +11,10 @@ public record VaccinationScheduleCreateRequest(
         Long vaccineId,
 
         @NotNull(message = "접종 예정일은 필수입니다.")
-        LocalDate scheduleDate
+        LocalDate scheduleDate,
+
+        String institution,
+        String memo
 ) {
 
 }

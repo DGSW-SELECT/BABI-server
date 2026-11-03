@@ -8,6 +8,8 @@ public record VaccinationScheduleUpdateResponse(
         Long vaccineId,
         LocalDate scheduledDate,
         LocalDate completedDate,
+        String institution,
+        String memo,
         Boolean completed
 ){
 }

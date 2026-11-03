@@ -108,6 +108,9 @@ class VaccinationControllerTest {
                         1,
                         scheduleDate,
                         null,
+                        "",
+                        "",
+
                         false
                 )
         );
@@ -197,6 +200,8 @@ class VaccinationControllerTest {
                         3L,
                         scheduleDate,
                         completedDate,
+                        "",
+                        "",
                         true
                 )
         );

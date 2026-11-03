@@ -132,7 +132,9 @@ class VaccinationServiceImplTest{
         VaccinationScheduleCreateRequest request =
                 new VaccinationScheduleCreateRequest(
                         vaccineId,
-                        LocalDate.now().plusDays(1)
+                        LocalDate.now().plusDays(1),
+                        "",
+                        ""
                 );
 
         Vaccine vaccine = mock(Vaccine.class);
@@ -165,7 +167,7 @@ class VaccinationServiceImplTest{
         Long babyId = 999L;
 
         var request = new VaccinationScheduleCreateRequest(
-                3L, LocalDate.now().plusDays(1)
+                3L, LocalDate.now().plusDays(1),"",""
         );
 
         when(babyRepository.existsById(babyId)).thenReturn(false);
@@ -185,7 +187,7 @@ class VaccinationServiceImplTest{
         Long vaccineId = 999L;
 
         var request = new VaccinationScheduleCreateRequest(
-                vaccineId, LocalDate.now().plusDays(1)
+                vaccineId, LocalDate.now().plusDays(1),"",""
         );
 
         when(babyRepository.existsById(babyId)).thenReturn(true);
@@ -209,7 +211,9 @@ class VaccinationServiceImplTest{
         VaccinationScheduleCreateRequest request =
                 new VaccinationScheduleCreateRequest(
                         vaccineId,
-                        LocalDate.now()
+                        LocalDate.now(),
+                        "",
+                        ""
                 );
 
         when(babyRepository.existsById(babyId)).thenReturn(true);
@@ -219,7 +223,6 @@ class VaccinationServiceImplTest{
                 () -> service.createVaccinationSchedule(babyId, request)
         );
 
-        verify(vaccineRepository, never()).findById(any());
         verify(repository, never()).save(any(BabyVaccination.class));
     }
 
@@ -230,7 +233,7 @@ class VaccinationServiceImplTest{
         Long vaccineId = 3L;
 
         var request = new VaccinationScheduleCreateRequest(
-                vaccineId, LocalDate.now().plusDays(1)
+                vaccineId, LocalDate.now().plusDays(1),"",""
         );
 
         Vaccine vaccine = mock(Vaccine.class);

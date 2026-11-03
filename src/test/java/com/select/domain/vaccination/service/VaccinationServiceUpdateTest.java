@@ -41,7 +41,12 @@ class VaccinationServiceUpdateTest {
         LocalDate scheduledDate = LocalDate.of(2026, 12, 15);
 
         VaccinationScheduleUpdateRequest request =
-                new VaccinationScheduleUpdateRequest(vaccineId,scheduledDate);
+                new VaccinationScheduleUpdateRequest(
+                        vaccineId,
+                        scheduledDate,
+                        "어디든지",
+                        "많이 아픔"
+                );
 
         BabyVaccination vaccination = mock(BabyVaccination.class);
         Vaccine vaccine = mock(Vaccine.class);
@@ -86,7 +91,9 @@ class VaccinationServiceUpdateTest {
         VaccinationScheduleUpdateRequest request =
                 new VaccinationScheduleUpdateRequest(
                         3L,
-                        LocalDate.of(2026, 12, 15)
+                        LocalDate.of(2026, 12, 15),
+                        "사실 우리집 근처",
+                        "그다지 안중요"
                 );
 
         when(babyRepository.existsById(babyId)).thenReturn(false);
@@ -108,7 +115,9 @@ class VaccinationServiceUpdateTest {
         VaccinationScheduleUpdateRequest request =
                 new VaccinationScheduleUpdateRequest(
                         3L,
-                        LocalDate.of(2026, 12, 15)
+                        LocalDate.of(2026, 12, 15),
+                        "",
+                        ""
                 );
 
         when(babyRepository.existsById(babyId)).thenReturn(true);
@@ -131,7 +140,9 @@ class VaccinationServiceUpdateTest {
         VaccinationScheduleUpdateRequest request =
                 new VaccinationScheduleUpdateRequest(
                         3L,
-                        LocalDate.of(2026, 12, 15)
+                        LocalDate.of(2026, 12, 15),
+                        "",
+                        ""
                 );
 
         when(babyRepository.existsById(babyId)).thenReturn(true);
@@ -160,7 +171,9 @@ class VaccinationServiceUpdateTest {
         VaccinationScheduleUpdateRequest request =
                 new VaccinationScheduleUpdateRequest(
                         vaccineId,
-                        LocalDate.of(2026, 12, 15)
+                        LocalDate.of(2026, 12, 15),
+                        "",
+                        ""
                 );
 
         when(babyRepository.existsById(babyId)).thenReturn(true);
@@ -190,7 +203,9 @@ class VaccinationServiceUpdateTest {
         VaccinationScheduleUpdateRequest request =
                 new VaccinationScheduleUpdateRequest(
                         3L,
-                        LocalDate.of(2026, 12, 15)
+                        LocalDate.of(2026, 12, 15),
+                        "",
+                        ""
                 );
 
         when(babyRepository.existsById(babyId)).thenReturn(true);

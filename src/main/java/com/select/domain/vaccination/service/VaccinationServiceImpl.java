@@ -57,9 +57,9 @@ public class VaccinationServiceImpl implements VaccinationService {
             );
         }
 
-        // 2. 아기별 접근 권 검증
+        // 2. 아기별 접근 권한 검증
         // TODO: 나중에 로그인 사용 babyId 접근 권한 확인
-        // 이를 위해 인증 정 및 권한 부여 서비스 필요
+        // 이를 위해 인증 정보 및 권한 부여 서비스 필요
 
         // 3. 일정 조회
         List<BabyVaccination> babyVaccinations =
@@ -81,6 +81,8 @@ public class VaccinationServiceImpl implements VaccinationService {
                             vaccine.getRecommendedEndMonth(),
                             babyVaccination.getScheduledDate(),
                             babyVaccination.getCompletedDate(),
+                            babyVaccination.getInstitution(),
+                            babyVaccination.getMemo(),
                             babyVaccination.getCompleted()
                     );
                 }).toList();
@@ -133,6 +135,8 @@ public class VaccinationServiceImpl implements VaccinationService {
                 vaccine.getDoseNumber(),
                 saved.getScheduledDate(),
                 saved.getCompletedDate(),
+                saved.getInstitution(),
+                saved.getMemo(),
                 saved.getCompleted()
         );
     }
@@ -170,6 +174,8 @@ public class VaccinationServiceImpl implements VaccinationService {
                 vaccination.getVaccine().getId(),
                 vaccination.getScheduledDate(),
                 vaccination.getCompletedDate(),
+                vaccination.getInstitution(),
+                vaccination.getMemo(),
                 Boolean.TRUE.equals(vaccination.getCompleted())
         );
     }
@@ -233,6 +239,8 @@ public class VaccinationServiceImpl implements VaccinationService {
                 vaccination.getVaccine().getId(),
                 vaccination.getScheduledDate(),
                 vaccination.getCompletedDate(),
+                vaccination.getInstitution(),
+                vaccination.getMemo(),
                 vaccination.getCompleted()
         );
     }

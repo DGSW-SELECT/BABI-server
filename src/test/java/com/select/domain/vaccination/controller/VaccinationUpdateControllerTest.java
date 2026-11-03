@@ -39,6 +39,8 @@ class VaccinationUpdateControllerTest {
                         3L,
                         LocalDate.of(2026, 12, 15),
                         null,
+                        "",
+                        "",
                         false
                 );
 

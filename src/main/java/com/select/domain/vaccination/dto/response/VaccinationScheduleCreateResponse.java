@@ -10,6 +10,8 @@ public record VaccinationScheduleCreateResponse(
         Integer doseNumber,
         LocalDate scheduleDate,
         LocalDate completedDate,
+        String institution,
+        String memo,
         boolean completed
 ) {
 

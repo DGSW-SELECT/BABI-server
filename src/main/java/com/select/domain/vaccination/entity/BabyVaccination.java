@@ -31,6 +31,12 @@ public class BabyVaccination {
     @Column(name = "completed_date")
     private LocalDate completedDate;
 
+    @Column
+    private String institution;
+
+    @Column
+    private String memo;
+
     @Column(name = "completed")
     private Boolean completed;
 
