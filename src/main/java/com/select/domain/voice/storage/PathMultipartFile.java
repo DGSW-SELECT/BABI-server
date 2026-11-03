@@ -7,6 +7,8 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.Locale;
+import java.util.Map;
 
 /**
  * 로컬에 저장된 음성 파일을 STT 클라이언트가 읽을 수 있도록 감싼다.
@@ -14,6 +16,20 @@ import java.nio.file.StandardCopyOption;
 class PathMultipartFile implements MultipartFile {
 
     private static final String FIELD_NAME = "audio";
+    private static final String DEFAULT_CONTENT_TYPE = "application/octet-stream";
+
+    private static final Map<String, String> CONTENT_TYPES = Map.of(
+            "mp3", "audio/mpeg",
+            "mpga", "audio/mpeg",
+            "mpeg", "audio/mpeg",
+            "mp4", "audio/mp4",
+            "m4a", "audio/m4a",
+            "wav", "audio/wav",
+            "webm", "audio/webm",
+            "ogg", "audio/ogg",
+            "flac", "audio/flac",
+            "aac", "audio/aac"
+    );
 
     private final Path path;
 
@@ -33,7 +49,7 @@ class PathMultipartFile implements MultipartFile {
 
     @Override
     public String getContentType() {
-        return null;
+        return CONTENT_TYPES.getOrDefault(extension(), DEFAULT_CONTENT_TYPE);
     }
 
     @Override
@@ -72,5 +88,14 @@ class PathMultipartFile implements MultipartFile {
     @Override
     public void transferTo(java.io.File dest) throws IOException, IllegalStateException {
         Files.copy(path, dest.toPath(), StandardCopyOption.REPLACE_EXISTING);
+    }
+
+    private String extension() {
+        String filename = getOriginalFilename();
+        int dot = filename.lastIndexOf('.');
+        if (dot < 0 || dot == filename.length() - 1) {
+            return "";
+        }
+        return filename.substring(dot + 1).toLowerCase(Locale.ROOT);
     }
 }

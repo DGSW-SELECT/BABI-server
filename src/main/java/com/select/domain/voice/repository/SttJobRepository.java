@@ -2,8 +2,10 @@ package com.select.domain.voice.repository;
 
 import com.select.domain.voice.entity.SttJob;
 import com.select.domain.voice.entity.SttStatus;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -15,6 +17,13 @@ import java.util.Optional;
 public interface SttJobRepository extends JpaRepository<SttJob, Long> {
 
     Optional<SttJob> findByIdAndBabyId(Long id, Long babyId);
+
+    /**
+     * 완료·실패 처리를 직렬화해 같은 작업이 중복 저장되는 것을 막는다.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select j from SttJob j where j.id = :id")
+    Optional<SttJob> findByIdForUpdate(@Param("id") Long id);
 
     @Query("""
             select j.id
