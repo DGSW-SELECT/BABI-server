@@ -36,7 +36,7 @@ class BabyVaccinationRepositoryTest {
         entityManager.persist(vaccine);
 
         BabyVaccination vaccination =
-                BabyVaccination.create(babyId, vaccine, scheduledDate);
+                BabyVaccination.create(babyId, vaccine, scheduledDate, institution, memo);
 
         entityManager.persist(vaccination);
 
@@ -167,7 +167,9 @@ class BabyVaccinationRepositoryTest {
         BabyVaccination vaccination = BabyVaccination.create(
                 1L,
                 vaccine,
-                LocalDate.of(2026, 11, 1)
+                LocalDate.of(2026, 11, 1),
+                "병원명",
+                "메모씀"
         );
 
         // when: Repository를 통해 저장
