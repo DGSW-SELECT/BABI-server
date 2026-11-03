@@ -29,7 +29,7 @@ def api_json(path):
 
 def verify_jar(path, revision):
     with zipfile.ZipFile(path) as jar:
-        info = jar.read("BOOT-INF/classes/META-INF/build-info.properties").decode()
+        info = jar.read("META-INF/build-info.properties").decode()
         if f"build.commit={revision}" not in info.splitlines():
             raise ValueError("JAR commit does not match the requested revision")
         jar.getinfo("BOOT-INF/classes/application-aws.yml")

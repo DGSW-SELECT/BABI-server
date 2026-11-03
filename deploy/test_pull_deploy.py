@@ -25,7 +25,7 @@ class PullDeployTest(unittest.TestCase):
         (self.root / "deployed-revision").write_text("b" * 40)
         self.candidate = self.root / "candidate.jar"
         with zipfile.ZipFile(self.candidate, "w") as jar:
-            jar.writestr("BOOT-INF/classes/META-INF/build-info.properties", "build.commit=" + self.revision)
+            jar.writestr("META-INF/build-info.properties", "build.commit=" + self.revision)
             jar.writestr("BOOT-INF/classes/application-aws.yml", "")
             jar.writestr("BOOT-INF/classes/com/select/BabiServerApplication.class", b"class")
 

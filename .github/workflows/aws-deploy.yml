@@ -36,6 +36,16 @@ jobs:
         env:
           BABI_REDIS_TEST_PORT: "6379"
         run: ./gradlew build --no-daemon -PgitCommit="$GITHUB_SHA"
+      - name: Verify the actual Spring Boot JAR metadata
+        env:
+          PYTHONPATH: deploy
+        run: |
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          from pull_deploy import verify_jar
+          verify_jar(Path('build/libs/babi-server-0.0.1-SNAPSHOT.jar'), os.environ['GITHUB_SHA'])
+          PY
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: aws-jar
