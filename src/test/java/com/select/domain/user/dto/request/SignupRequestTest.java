@@ -34,7 +34,7 @@ class SignupRequestTest {
                 "test@example.com",
                 password,
                 password,
-                "tester"
+                "tester", "A".repeat(43)
         );
 
         try (var factory = Validation.buildDefaultValidatorFactory()) {
@@ -42,5 +42,3 @@ class SignupRequestTest {
         }
     }
 }
-
-

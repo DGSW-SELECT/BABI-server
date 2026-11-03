@@ -33,7 +33,12 @@ public class SecurityConfig {
                 session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
         );
         http.authorizeHttpRequests(auth -> {
-            auth.requestMatchers(SecurityPaths.LOGIN,SecurityPaths.SIGNUP).permitAll().anyRequest().authenticated();
+            auth.requestMatchers(request -> SecurityPaths.isDocumentationPath(request.getServletPath())).permitAll();
+            auth.requestMatchers(
+                    SecurityPaths.LOGIN,
+                    SecurityPaths.SIGNUP,
+                    SecurityPaths.EMAIL_SEND,
+                    SecurityPaths.EMAIL_VERIFY).permitAll().anyRequest().authenticated();
         });
         http.exceptionHandling(exception -> {
             exception.authenticationEntryPoint((request, response, authException) -> {

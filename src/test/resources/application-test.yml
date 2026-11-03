@@ -5,7 +5,12 @@ spring:
   jpa:
     hibernate:
       ddl-auto: create-drop
-
+  mail:
+    host: localhost
+    username: test@babi.local
+email:
+  verification:
+    secret: test-only-email-verification-secret
 # Ephemeral test-only secret; never reads the local or production JWT secret.
 jwt:
   secret: "${random.uuid}${random.uuid}"
