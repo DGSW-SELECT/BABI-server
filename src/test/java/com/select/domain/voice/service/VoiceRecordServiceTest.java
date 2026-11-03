@@ -3,6 +3,7 @@ package com.select.domain.voice.service;
 import com.select.domain.voice.client.SttClient;
 import com.select.domain.voice.client.dto.response.SttResponse;
 import com.select.domain.voice.dto.request.VoiceRecordRequest;
+import com.select.domain.voice.dto.request.VoiceRecordUpdateRequest;
 import com.select.domain.voice.dto.response.SttTranscriptResponse;
 import com.select.domain.voice.dto.response.VoiceInputResponse;
 import com.select.domain.voice.entity.SttStatus;
@@ -31,6 +32,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -121,6 +123,7 @@ class VoiceRecordServiceTest {
                 .build();
         ReflectionTestUtils.setField(saved, "id", 10L);
         ReflectionTestUtils.setField(saved, "createdAt", createdAt);
+        ReflectionTestUtils.setField(saved, "updatedAt", createdAt);
         when(voiceInputRepository.save(any(VoiceInput.class))).thenReturn(saved);
 
         VoiceInputResponse response = voiceRecordService.save(
@@ -143,6 +146,7 @@ class VoiceRecordServiceTest {
         assertThat(response.transcript()).isEqualTo("분유 먹였어");
         assertThat(response.sttStatus()).isEqualTo(SttStatus.COMPLETED);
         assertThat(response.createdAt()).isEqualTo(createdAt);
+        assertThat(response.updatedAt()).isEqualTo(createdAt);
     }
 
     @Test
@@ -156,6 +160,7 @@ class VoiceRecordServiceTest {
                 .build();
         ReflectionTestUtils.setField(saved, "id", 10L);
         ReflectionTestUtils.setField(saved, "createdAt", createdAt);
+        ReflectionTestUtils.setField(saved, "updatedAt", createdAt);
         when(voiceInputRepository.findByIdAndBabyId(10L, 1L)).thenReturn(Optional.of(saved));
 
         VoiceInputResponse response = voiceRecordService.get(1L, 10L);
@@ -170,5 +175,51 @@ class VoiceRecordServiceTest {
 
         assertThatThrownBy(() -> voiceRecordService.get(1L, 10L))
                 .isInstanceOf(VoiceInputNotFoundException.class);
+    }
+
+    @Test
+    void updateChangesTranscriptAndReturnsUpdatedVoiceInput() {
+        LocalDateTime createdAt = LocalDateTime.of(2026, 10, 25, 12, 0);
+        LocalDateTime updatedAt = LocalDateTime.of(2026, 10, 26, 9, 30);
+        VoiceInput saved = VoiceInput.builder()
+                .babyId(1L)
+                .familyMemberId(7L)
+                .transcript("분유 먹였어")
+                .sttStatus(SttStatus.COMPLETED)
+                .build();
+        ReflectionTestUtils.setField(saved, "id", 10L);
+        ReflectionTestUtils.setField(saved, "createdAt", createdAt);
+        ReflectionTestUtils.setField(saved, "updatedAt", createdAt);
+        when(voiceInputRepository.findByIdAndBabyId(10L, 1L)).thenReturn(Optional.of(saved));
+        when(voiceInputRepository.saveAndFlush(saved)).thenAnswer(invocation -> {
+            ReflectionTestUtils.setField(saved, "updatedAt", updatedAt);
+            return saved;
+        });
+
+        VoiceInputResponse response = voiceRecordService.update(
+                1L,
+                10L,
+                new VoiceRecordUpdateRequest("  수정된 분유 기록  ")
+        );
+
+        assertThat(saved.getTranscript()).isEqualTo("수정된 분유 기록");
+        assertThat(response.voiceInputId()).isEqualTo(10L);
+        assertThat(response.transcript()).isEqualTo("수정된 분유 기록");
+        assertThat(response.createdAt()).isEqualTo(createdAt);
+        assertThat(response.updatedAt()).isEqualTo(updatedAt);
+        verify(voiceInputRepository).saveAndFlush(saved);
+    }
+
+    @Test
+    void updateFailsWhenVoiceInputDoesNotExist() {
+        when(voiceInputRepository.findByIdAndBabyId(10L, 1L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> voiceRecordService.update(
+                1L,
+                10L,
+                new VoiceRecordUpdateRequest("수정된 분유 기록")
+        )).isInstanceOf(VoiceInputNotFoundException.class);
+
+        verify(voiceInputRepository, never()).saveAndFlush(any(VoiceInput.class));
     }
 }

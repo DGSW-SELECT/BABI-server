@@ -3,6 +3,7 @@ package com.select.domain.voice.service;
 import com.select.domain.voice.client.SttClient;
 import com.select.domain.voice.client.dto.response.SttResponse;
 import com.select.domain.voice.dto.request.VoiceRecordRequest;
+import com.select.domain.voice.dto.request.VoiceRecordUpdateRequest;
 import com.select.domain.voice.dto.response.SttTranscriptResponse;
 import com.select.domain.voice.dto.response.VoiceInputResponse;
 import com.select.domain.voice.entity.SttStatus;
@@ -54,5 +55,18 @@ public class VoiceRecordService {
         return voiceInputRepository.findByIdAndBabyId(voiceInputId, babyId)
                 .map(VoiceInputResponse::from)
                 .orElseThrow(VoiceInputNotFoundException::new);
+    }
+
+    @Transactional
+    public VoiceInputResponse update(
+            Long babyId,
+            Long voiceInputId,
+            VoiceRecordUpdateRequest request
+    ) {
+        VoiceInput voiceInput = voiceInputRepository.findByIdAndBabyId(voiceInputId, babyId)
+                .orElseThrow(VoiceInputNotFoundException::new);
+        voiceInput.updateTranscript(request.transcript().trim());
+
+        return VoiceInputResponse.from(voiceInputRepository.saveAndFlush(voiceInput));
     }
 }

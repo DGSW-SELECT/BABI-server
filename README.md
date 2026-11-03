@@ -68,12 +68,15 @@ Gradle로 실행할 경우 프로젝트 루트에서 다음 명령을 실행합�
 
 음성 입력은 STT 변환과 최종 저장을 분리합니다. STT 단계에서는 DB에 저장하지 않습니다.
 
-| Method | Path | 설명 |
-|---|---|---|
-| `POST` | `/api/v1/babies/{babyId}/voice-records/stt` | `multipart/form-data`의 `audio` 파일을 STT 변환해 transcript만 반환 |
-| `POST` | `/api/v1/babies/{babyId}/voice-records` | 사용자가 확인한 transcript를 `voice_inputs`에 저장 |
-| `GET` | `/api/v1/babies/{babyId}/voice-records/{voiceInputId}` | 저장된 음성 기록 단건 조회 |
+| Method | Content-Type | Path | 설명 |
+|---|---|---|---|
+| `POST` | `multipart/form-data` | `/api/v1/babies/{babyId}/voice-records/stt` | `audio` 파일을 STT 변환해 transcript만 반환 |
+| `POST` | `application/json` | `/api/v1/babies/{babyId}/voice-records` | 사용자가 확인·수정한 transcript를 `voice_inputs`에 저장 |
+| `GET` | - | `/api/v1/babies/{babyId}/voice-records/{voiceInputId}` | 저장된 음성 기록 단건 조회 |
+| `PATCH` | `application/json` | `/api/v1/babies/{babyId}/voice-records/{voiceInputId}` | 저장된 음성 기록의 transcript 수정 |
 
+- STT 변환 결과는 DB에 저장하지 않으며, 사용자가 내용을 확인·수정한 뒤 저장 API를 호출합니다.
+- 저장된 기록도 `PATCH` API로 다시 수정할 수 있습니다.
 - 모든 음성 기록 API는 `Authorization: Bearer {accessToken}` 헤더가 필요합니다.
 - 음성 파일은 25MB 이하이며 `mp3`, `mp4`, `m4a`, `mpeg`, `mpga`, `wav`, `webm`, `ogg`, `flac`, `aac`를 지원합니다.
 - 저장 요청 예시:
@@ -82,6 +85,14 @@ Gradle로 실행할 경우 프로젝트 루트에서 다음 명령을 실행합�
 {
   "transcript": "2시에 분유 100ml 먹였어",
   "familyMemberId": 1
+}
+```
+
+- 수정 요청 예시:
+
+```json
+{
+  "transcript": "2시에 분유 120ml 먹였어"
 }
 ```
 

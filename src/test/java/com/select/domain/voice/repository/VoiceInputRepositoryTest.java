@@ -27,7 +27,25 @@ class VoiceInputRepositoryTest {
 
         assertThat(saved.getId()).isNotNull();
         assertThat(saved.getCreatedAt()).isNotNull();
+        assertThat(saved.getUpdatedAt()).isNotNull();
         assertThat(voiceInputRepository.findByIdAndBabyId(saved.getId(), 1L)).isPresent();
         assertThat(voiceInputRepository.findByIdAndBabyId(saved.getId(), 2L)).isEmpty();
+    }
+
+    @Test
+    void updatesTranscriptAndUpdatedAt() {
+        VoiceInput saved = voiceInputRepository.saveAndFlush(VoiceInput.builder()
+                .babyId(1L)
+                .familyMemberId(7L)
+                .transcript("분유 먹였어")
+                .sttStatus(SttStatus.COMPLETED)
+                .build());
+        var createdAt = saved.getCreatedAt();
+
+        saved.updateTranscript("수정된 분유 기록");
+        VoiceInput updated = voiceInputRepository.saveAndFlush(saved);
+
+        assertThat(updated.getTranscript()).isEqualTo("수정된 분유 기록");
+        assertThat(updated.getUpdatedAt()).isAfterOrEqualTo(createdAt);
     }
 }
