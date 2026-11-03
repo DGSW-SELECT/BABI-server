@@ -24,7 +24,7 @@ public class Baby {
     private LocalDate birthDate;
 
     @Column(name = "created_at", nullable = false)
-    private LocalDateTime createAt;
+    private LocalDateTime createdAt;
 
     @PrePersist
     protected void onCreate() {
