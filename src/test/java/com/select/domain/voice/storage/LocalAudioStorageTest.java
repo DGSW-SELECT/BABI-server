@@ -34,6 +34,7 @@ class LocalAudioStorageTest {
         MultipartFile loaded = storage.load(path);
         assertThat(loaded.getBytes()).isEqualTo(audio.getBytes());
         assertThat(loaded.getOriginalFilename()).endsWith(".mp3");
+        assertThat(loaded.getContentType()).isEqualTo("audio/mpeg");
         assertThat(loaded.getSize()).isEqualTo(audio.getSize());
     }
 

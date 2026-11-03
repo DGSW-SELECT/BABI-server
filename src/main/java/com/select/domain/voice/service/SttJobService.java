@@ -137,7 +137,7 @@ public class SttJobService {
      */
     @Transactional
     public SttJobResponse complete(Long jobId, String transcript) {
-        SttJob job = sttJobRepository.findById(jobId)
+        SttJob job = sttJobRepository.findByIdForUpdate(jobId)
                 .orElseThrow(SttJobNotFoundException::new);
         if (job.getStatus() != SttStatus.PROCESSING) {
             log.warn("처리 중 상태가 아니어서 완료 처리를 건너뜁니다. jobId={}, status={}",
@@ -176,7 +176,7 @@ public class SttJobService {
      */
     @Transactional
     public SttJobResponse fail(Long jobId, String error) {
-        SttJob job = sttJobRepository.findById(jobId)
+        SttJob job = sttJobRepository.findByIdForUpdate(jobId)
                 .orElseThrow(SttJobNotFoundException::new);
         if (job.getStatus() != SttStatus.PROCESSING) {
             log.warn("처리 중 상태가 아니어서 실패 처리를 건너뜁니다. jobId={}, status={}",

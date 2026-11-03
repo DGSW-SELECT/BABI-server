@@ -218,7 +218,7 @@ class SttJobServiceTest {
     @Test
     void completeCreatesVoiceInputAndParentingRecords() {
         SttJob job = job(SttStatus.PROCESSING, 1);
-        when(sttJobRepository.findById(JOB_ID)).thenReturn(Optional.of(job));
+        when(sttJobRepository.findByIdForUpdate(JOB_ID)).thenReturn(Optional.of(job));
         when(voiceInputRepository.save(any(VoiceInput.class))).thenAnswer(invocation -> {
             VoiceInput voiceInput = invocation.getArgument(0);
             ReflectionTestUtils.setField(voiceInput, "id", 10L);
@@ -248,7 +248,7 @@ class SttJobServiceTest {
     @Test
     void completeSkipsWhenJobIsNotProcessing() {
         SttJob job = job(SttStatus.COMPLETED, 1);
-        when(sttJobRepository.findById(JOB_ID)).thenReturn(Optional.of(job));
+        when(sttJobRepository.findByIdForUpdate(JOB_ID)).thenReturn(Optional.of(job));
 
         sttJobService.complete(JOB_ID, "중복 완료");
 
@@ -259,7 +259,7 @@ class SttJobServiceTest {
     @Test
     void failSchedulesRetryWhenAttemptsRemain() {
         SttJob job = job(SttStatus.PROCESSING, 1);
-        when(sttJobRepository.findById(JOB_ID)).thenReturn(Optional.of(job));
+        when(sttJobRepository.findByIdForUpdate(JOB_ID)).thenReturn(Optional.of(job));
 
         SttJobResponse response = sttJobService.fail(JOB_ID, "음성 변환에 실패했습니다.");
 
@@ -272,7 +272,7 @@ class SttJobServiceTest {
     @Test
     void failMarksJobFailedAfterLastAttempt() {
         SttJob job = job(SttStatus.PROCESSING, 3);
-        when(sttJobRepository.findById(JOB_ID)).thenReturn(Optional.of(job));
+        when(sttJobRepository.findByIdForUpdate(JOB_ID)).thenReturn(Optional.of(job));
 
         SttJobResponse response = sttJobService.fail(JOB_ID, "음성 변환에 실패했습니다.");
 
