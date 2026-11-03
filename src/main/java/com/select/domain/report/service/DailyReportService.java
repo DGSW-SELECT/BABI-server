@@ -20,7 +20,7 @@ import java.util.Locale;
 @Service
 public class DailyReportService {
 
-    private static final String UNIQUE_CONSTRAINT = "uk_daily_reports_baby_date";
+    private static final String UNIQUE_CONSTRAINT = "uk_daily_report";
 
     private final DailyReportRepository dailyReportRepository;
     private final BabyAccessRepository babyAccessRepository;

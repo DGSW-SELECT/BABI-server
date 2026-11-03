@@ -68,9 +68,8 @@ class DailyReportIntegrationTest {
         jdbcTemplate.update("DELETE FROM sleep_records");
         jdbcTemplate.update("DELETE FROM temperature_records");
         jdbcTemplate.update("DELETE FROM baby_permissions");
-        jdbcTemplate.update("DELETE FROM family_members");
+        jdbcTemplate.update("DELETE FROM baby_members");
         jdbcTemplate.update("DELETE FROM babies");
-        jdbcTemplate.update("DELETE FROM family_groups");
         userRepository.deleteAll();
     }
 
@@ -121,23 +120,25 @@ class DailyReportIntegrationTest {
     }
 
     @Test
-    void familyMemberNeedsPermissionForTheRequestedBaby() throws Exception {
+    void memberNeedsPermissionAndActiveMembershipForTheRequestedBaby() throws Exception {
         User owner = createUser("owner@example.com");
         createBaby(owner.getId());
         User member = createUser("member@example.com");
         jdbcTemplate.update("""
-                INSERT INTO family_members (id, family_group_id, user_id, `role`)
-                VALUES (200, 100, ?, 'GUARDIAN')
-                """, member.getId());
+                INSERT INTO baby_members (id, baby_id, user_id, `role`)
+                VALUES (201, ?, ?, 'GUARDIAN')
+                """, BABY_ID, member.getId());
         String token = loginToken(member.getEmail());
         assertEquals(403, reportRequest("POST", token, CREATE_REQUEST).statusCode());
 
-        jdbcTemplate.update("INSERT INTO baby_permissions (baby_id, family_member_id, permission) VALUES (?, 200, 'REPORT')",
+        jdbcTemplate.update("INSERT INTO baby_permissions (baby_id, baby_member_id, permission) VALUES (?, 201, 'REPORT_READ')",
                 BABY_ID);
         assertEquals(201, reportRequest("POST", token, CREATE_REQUEST).statusCode());
         assertEquals(200, reportRequest("GET", token, null).statusCode());
         jdbcTemplate.update("DELETE FROM baby_permissions");
         assertEquals(403, reportRequest("GET", token, null).statusCode());
+        jdbcTemplate.update("UPDATE baby_members SET removed_at = CURRENT_TIMESTAMP WHERE baby_id = ?", BABY_ID);
+        assertEquals(403, reportRequest("GET", loginToken(owner.getEmail()), null).statusCode());
     }
 
     @ParameterizedTest
@@ -158,6 +159,19 @@ class DailyReportIntegrationTest {
         assertEquals(minutes / 7.0, statisticsRepository.findAverage(BABY_ID, REPORT_DATE).averageDailySleepMinutes());
     }
 
+    @Test
+    void withdrawnUserCannotLoginOrReuseReportToken() throws Exception {
+        User owner = createUser("withdrawn@example.com");
+        createBaby(owner.getId());
+        String token = loginToken(owner.getEmail());
+        jdbcTemplate.update("UPDATE users SET status = 'WITHDRAWN', withdrawn_at = CURRENT_TIMESTAMP WHERE id = ?",
+                owner.getId());
+
+        assertEquals(400, send("POST", "/auth/login", null,
+                objectMapper.writeValueAsString(java.util.Map.of("email", owner.getEmail(), "password", PASSWORD))).statusCode());
+        assertEquals(403, reportRequest("GET", token, null).statusCode());
+    }
+
     private User createUser(String email) {
         return userRepository.saveAndFlush(User.builder()
                 .email(email)
@@ -168,13 +182,11 @@ class DailyReportIntegrationTest {
 
     private void createBaby(long ownerUserId) {
         jdbcTemplate.update("""
-                INSERT INTO family_groups (id, name, owner_user_id, created_at)
-                VALUES (100, 'family', ?, CURRENT_TIMESTAMP)
-                """, ownerUserId);
-        jdbcTemplate.update("""
-                INSERT INTO babies (id, family_group_id, name, birth_date, created_at)
-                VALUES (?, 100, 'baby', '2026-01-01', CURRENT_TIMESTAMP)
-                """, BABY_ID);
+                INSERT INTO babies (id, created_by_user_id, name, birth_date, created_at)
+                VALUES (?, ?, 'baby', '2026-01-01', CURRENT_TIMESTAMP)
+                """, BABY_ID, ownerUserId);
+        jdbcTemplate.update("INSERT INTO baby_members (id, baby_id, user_id, `role`) VALUES (200, ?, ?, 'OWNER')",
+                BABY_ID, ownerUserId);
     }
 
     private String loginToken(String email) throws Exception {

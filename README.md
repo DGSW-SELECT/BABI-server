@@ -75,10 +75,12 @@ Gradle로 실행할 경우 프로젝트 루트에서 다음 명령을 실행합�
 - `SPRING_DATASOURCE_PASSWORD`: DB 비밀번호
 - `JWT_SECRET`: JWT 서명 키 (32바이트 이상)
 
+AWS 프로필·Redis·SMTP 미설정 데모 운영과 `main` 자동 배포는 [AWS 운영 문서](docs/aws-runtime.md)를 참고합니다. 운영 DB는 자동 초기화하거나 migration하지 않습니다.
+
 ## 일일 리포트 API
 
 `POST /auth/login`에서 받은 `accessToken`을 `Authorization: Bearer <token>`으로 전달합니다.
-모든 리포트 API는 아기가 속한 가족 그룹의 소유자 또는 해당 아기의 `baby_permissions`에 등록된 가족 구성원만 사용할 수 있습니다. 가족 구성원이라는 이유만으로 접근이 허용되지는 않습니다.
+모든 리포트 API는 활성 계정이며 `active_baby_members`에 남아 있는 소유자 또는 `baby_permissions`가 부여된 멤버만 사용할 수 있습니다. 아기 생성자라도 멤버에서 제거되면 접근할 수 없습니다.
 
 | Method | Endpoint | 동작 |
 |---|---|---|

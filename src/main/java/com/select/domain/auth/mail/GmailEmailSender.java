@@ -1,5 +1,7 @@
 package com.select.domain.auth.mail;
 
+import com.select.domain.auth.exception.EmailVerificationException;
+import com.select.global.exception.ErrorCode;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
@@ -13,7 +15,7 @@ public class GmailEmailSender implements EmailSender {
 
     public GmailEmailSender(
             JavaMailSender mailSender,
-            @Value("${spring.mail.username}") String from
+            @Value("${spring.mail.username:}") String from
     ) {
         this.mailSender = mailSender;
         this.from = from;
@@ -21,6 +23,9 @@ public class GmailEmailSender implements EmailSender {
 
     @Override
     public void send(String to, String subject, String body) {
+        if (from.isBlank()) {
+            throw new EmailVerificationException(ErrorCode.EMAIL_SEND_FAILED);
+        }
         SimpleMailMessage message = new SimpleMailMessage();
         message.setTo(to);
         message.setSubject(subject);

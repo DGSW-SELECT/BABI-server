@@ -11,7 +11,7 @@ import java.time.LocalDateTime;
 @Table(
         name = "daily_reports",
         uniqueConstraints = @UniqueConstraint(
-                name = "uk_daily_reports_baby_date",
+                name = "uk_daily_report",
                 columnNames = {"baby_id", "report_date"}
         )
 )
