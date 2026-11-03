@@ -1,5 +1,7 @@
 package com.select.domain.user.service;
 
+import com.select.domain.auth.service.EmailVerificationService;
+import com.select.global.util.EmailNormalizer;
 import com.select.domain.user.dto.request.LoginRequest;
 import com.select.domain.user.dto.request.SignupRequest;
 import com.select.domain.user.dto.response.LoginResponse;
@@ -25,20 +27,23 @@ public class UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtProvider jwtProvider;
-    // 미가입 이메일도 실제 BCrypt 검증 비용을 거치도록 사용하는 cost 10 더미 해시입니다.
+    private final EmailVerificationService emailVerificationService;
     private static final String DUMMY_PASSWORD_HASH =
             "$2a$10$G48i72gfQyJ7URWzsalGbeZsaw79R8FDiHbAQBaAoYOLgHqoRBQiG";
 
-    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtProvider jwtProvider) {
+    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtProvider jwtProvider,
+                       EmailVerificationService emailVerificationService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtProvider = jwtProvider;
+        this.emailVerificationService = emailVerificationService;
     }
 
     @Transactional
     public SignupResponse signup(SignupRequest request) {
         String email = normalizeEmail(request.email());
         validateSignup(request, email);
+        emailVerificationService.reserveForSignup(email, request.verificationToken());
         User user = User
                 .builder()
                 .email(email)
@@ -57,7 +62,7 @@ public class UserService {
             throw e;
         }
     }
-    //회원가입이 올바른지 설명
+
     private void validateSignup(SignupRequest request, String email) {
         if (!request.password().equals(request.passwordConfirm())) {
             throw new PasswordMismatchException();
@@ -68,12 +73,11 @@ public class UserService {
         }
     }
 
-    //정규화한 이메일 반환
+
     private String normalizeEmail(String email) {
-        return email.trim().toLowerCase(Locale.ROOT);
+        return EmailNormalizer.normalize(email);
     }
 
-    //데이터베이스에서 나는 오류가 이메일 때문인지 확인
     private boolean isDuplicateEmailViolation(DataIntegrityViolationException e) {
         Throwable cause = e;
         while (cause != null) {
@@ -88,7 +92,6 @@ public class UserService {
         return false;
     }
 
-    //제약조건 오류가 이메일 중복때문에 발생했는지 확인
     private boolean matchesEmailConstraint(String constraintName) {
         if (constraintName == null) {
             return false;

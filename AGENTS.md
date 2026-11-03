@@ -8,10 +8,11 @@
 - `src/test/java/com/select`: JUnit 5 and Mockito tests.
 
 ## Commands
-- Run locally: `MYSQL_PASSWORD=... JWT_SECRET=... ./gradlew bootRun --args='--spring.profiles.active=local'` (`JWT_SECRET` must be at least 32 bytes).
+- Run locally: export the variables in `.env.example`, then `./gradlew bootRun --args='--spring.profiles.active=local'`. Required: `MYSQL_PASSWORD`, `JWT_SECRET` (at least 32 bytes), `MAIL_USERNAME`, `MAIL_PASSWORD`, `EMAIL_VERIFICATION_SECRET`. Local email verification also requires Redis on `localhost:6379`.
 - Build: `./gradlew build`.
 - Test: `./gradlew test`.
 - Targeted test: `./gradlew test --tests 'fully.qualified.TestClass'`.
+- Email signup integration tests: set `BABI_REDIS_TEST_PORT` to a disposable local Redis port before running `./gradlew test`; the suite mocks email delivery and otherwise skips without that variable.
 
 ## Development rules
 - Read relevant code before edits. Reuse existing layers and conventions.

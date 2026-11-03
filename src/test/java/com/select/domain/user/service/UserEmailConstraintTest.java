@@ -1,5 +1,7 @@
 package com.select.domain.user.service;
 
+import com.select.domain.auth.service.EmailVerificationService;
+
 import com.select.domain.user.dto.request.SignupRequest;
 import com.select.domain.user.entity.User;
 import com.select.domain.user.exception.DuplicateEmailException;
@@ -101,10 +103,10 @@ class UserEmailConstraintTest {
     private void assertDuplicateEmailConversion(DataIntegrityViolationException exception, String email) {
         UserRepository repository = mock(UserRepository.class);
         when(repository.saveAndFlush(any(User.class))).thenThrow(exception);
-        UserService service = new UserService(repository, passwordEncoder, mock(JwtProvider.class));
+        UserService service = new UserService(repository, passwordEncoder, mock(JwtProvider.class), mock(EmailVerificationService.class));
 
         assertThrows(DuplicateEmailException.class, () -> service.signup(
-                new SignupRequest(email, "Test1234!", "Test1234!", "tester")
+                new SignupRequest(email, "Test1234!", "Test1234!", "tester", "A".repeat(43))
         ));
     }
 

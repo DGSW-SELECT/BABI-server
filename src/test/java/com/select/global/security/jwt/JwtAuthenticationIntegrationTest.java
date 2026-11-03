@@ -1,5 +1,8 @@
 package com.select.global.security.jwt;
 
+import com.select.domain.auth.service.EmailVerificationService;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+
 import com.select.domain.user.controller.UserController;
 import com.select.global.exception.ErrorCode;
 import com.select.global.security.SecurityPaths;
@@ -53,6 +56,10 @@ import static org.mockito.Mockito.verify;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @Import(JwtAuthenticationIntegrationTest.JwtTestConfiguration.class)
 class JwtAuthenticationIntegrationTest {
+
+    // 이메일 인증 자체는 별도 실제 Redis 통합 테스트에서 검증한다.
+    @MockitoBean
+    private EmailVerificationService emailVerificationService;
 
     @LocalServerPort
     private int port;
@@ -200,7 +207,7 @@ class JwtAuthenticationIntegrationTest {
         String email = "jwt-" + UUID.randomUUID() + "@example.com";
         String signupBody = objectMapper.writeValueAsString(Map.of(
                 "email", email, "password", "Test1234!",
-                "passwordConfirm", "Test1234!", "nickname", "jwt-tester"
+                "passwordConfirm", "Test1234!", "nickname", "jwt-tester", "verificationToken", "A".repeat(43)
         ));
         var signupResponse = client.send(request("/auth/signup")
                         .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
@@ -244,7 +251,7 @@ class JwtAuthenticationIntegrationTest {
         if (registered) {
             String signupBody = objectMapper.writeValueAsString(Map.of(
                     "email", email, "password", "Correct1234!",
-                    "passwordConfirm", "Correct1234!", "nickname", "login-tester"
+                    "passwordConfirm", "Correct1234!", "nickname", "login-tester", "verificationToken", "A".repeat(43)
             ));
             var signupResponse = client.send(request("/auth/signup")
                             .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
