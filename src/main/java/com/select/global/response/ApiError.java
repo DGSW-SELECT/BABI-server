@@ -6,5 +6,4 @@ public record ApiError(
         String code,
         List<ErrorDetail> details
 ) {
-
 }
