@@ -203,7 +203,7 @@ class VaccinationControllerTest {
 
         // when & then
         mockMvc.perform(patch(
-                        "/babies/{babyId}/vaccination-schedules/{vaccinationScheduleId}",
+                        "/babies/{babyId}/vaccination-schedules/{vaccinationScheduleId}/completed",
                         babyId, scheduleId
                 )
                         .contentType(MediaType.APPLICATION_JSON)

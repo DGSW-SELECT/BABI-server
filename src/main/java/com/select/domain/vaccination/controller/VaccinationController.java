@@ -53,7 +53,7 @@ public class VaccinationController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
     @PatchMapping(
-            "/babies/{babyId}/vaccination-schedules/{vaccinationScheduleId}"
+            "/babies/{babyId}/vaccination-schedules/{vaccinationScheduleId}/completed"
     )
     public ResponseEntity<VaccinationScheduleUpdateResponse> updateVaccinationSchedule(
             @PathVariable Long babyId,

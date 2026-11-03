@@ -219,13 +219,13 @@ public class VaccinationServiceImpl implements VaccinationService {
         }
 
         // 변경할 백신 조회
-        Vaccine vaccine = vaccineRepository.findById(request.getVaccineId())
+        Vaccine vaccine = vaccineRepository.findById(request.vaccineId())
                 .orElseThrow(() ->
                         new BusinessException(ErrorCode.VACCINE_NOT_FOUND)
                 );
 
         // 엔티티 수정
-        vaccination.updateSchedule(vaccine, request.getScheduledDate());
+        vaccination.updateSchedule(vaccine, request.scheduledDate());
 
         return new VaccinationScheduleUpdateResponse(
                 vaccination.getId(),
