@@ -6,3 +6,7 @@ jwt:
 
 springdoc:
   packages-to-scan: com.select.domain
+
+baby:
+  invitation:
+    link-base-url: ${BABY_INVITATION_LINK_BASE_URL:}
