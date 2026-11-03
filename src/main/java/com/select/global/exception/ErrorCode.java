@@ -11,7 +11,7 @@ public enum ErrorCode {
     VACCINE_NOT_FOUND (HttpStatus.NOT_FOUND, "백신을 찾을 수 없습니다."),
     VACCINE_INVALID_DATE_SET(HttpStatus.BAD_REQUEST, "조회 기간은 최대 365일입니다."),
     VACCINE_INVALID_SCHEDULE_DATE(HttpStatus.NOT_FOUND, "접종 예정일을 찾을수 없습니다"),
-    DUPLICATE_VACCINATION (HttpStatus.CONFLICT, "이미 있는 백신 예약입니다.")
+    DUPLICATE_VACCINATION (HttpStatus.CONFLICT, "이미 있는 백신 예약입니다."),
     VACCINATION_SCHEDULE_NOT_FOUND(HttpStatus.NOT_FOUND, "접종 일정을 찾을 수 없습니다."),
     VACCINATION_ALREADY_COMPLETED(HttpStatus.CONFLICT, "이미 완료된 일정입니다."),
     BABY_NOT_FOUND(HttpStatus.NOT_FOUND, "아기를 찾을 수 없습니다."),
