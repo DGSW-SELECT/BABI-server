@@ -57,8 +57,8 @@ OPENAI_API_KEY='your-openai-api-key' \
 | Method | Path | 설명 |
 |---|---|---|
 | `POST` | `/api/v1/babies/{babyId}/voice-records/stt` | `multipart/form-data`의 `audio` 파일을 STT 변환해 transcript만 반환 |
-| `POST` | `/api/v1/babies/{babyId}/voice-records` | 사용자가 확인한 transcript를 `voice_inputs`에 저장 |
-| `GET` | `/api/v1/babies/{babyId}/voice-records/{voiceInputId}` | 저장된 음성 기록 단건 조회 |
+| `POST` | `/api/v1/babies/{babyId}/voice-records` | 사용자가 확인한 transcript를 `voice_inputs`에 저장하고 육아기록을 자동 분석·저장 |
+| `GET` | `/api/v1/babies/{babyId}/voice-records/{voiceInputId}` | 저장된 음성 기록과 자동 저장된 육아기록 단건 조회 |
 
 - 모든 음성 기록 API는 `Authorization: Bearer {accessToken}` 헤더가 필요합니다.
 - 음성 파일은 25MB 이하이며 `mp3`, `mp4`, `m4a`, `mpeg`, `mpga`, `wav`, `webm`, `ogg`, `flac`, `aac`를 지원합니다.
@@ -70,6 +70,49 @@ OPENAI_API_KEY='your-openai-api-key' \
   "familyMemberId": 1
 }
 ```
+
+- 저장 시 transcript에서 수유, 수면, 기저귀 기록을 규칙 기반으로 추출해 `parenting_records`에 함께 저장합니다.
+- 한 문장에서 여러 기록이 인식되면 여러 건이 저장됩니다. 예: `분유 120ml 먹이고 기저귀 갈았어` → 수유 1건, 기저귀 1건
+- 기록 시각은 문장의 시간 표현(`오후 2시`, `14:30`, `어제 저녁 7시`)을 사용하고, 시간 표현이 없으면 음성 기록 저장 시각을 사용합니다.
+- 기록 종류를 인식하지 못한 문장은 `voice_inputs`에만 저장되고 `parentingRecords`는 빈 배열로 반환됩니다.
+- 현재 규칙 기반 분석기가 인식하는 표현:
+  - 수유: `분유`, `모유`, `수유`, `이유식`, `젖병`, `직수`, `퓨레`, `죽`, `밥`, 금액 단위 `ml`/`cc`
+  - 수면: `잠을`, `잠이`, `잠들`, `낮잠`, `밤잠`, `잤`, `수면`, `재웠` + `N시간 M분`/`N분` duration
+  - 기저귀: `기저귀`, `응가`, `대변`, `오줌`, `소변`, `쉬야`, `똥`
+- 응답 예시:
+
+```json
+{
+  "success": true,
+  "message": "음성 기록이 저장되었습니다.",
+  "data": {
+    "voiceInputId": 10,
+    "babyId": 1,
+    "familyMemberId": 7,
+    "transcript": "오후 2시에 분유 100ml 먹였어",
+    "sttStatus": "COMPLETED",
+    "createdAt": "2026-11-03T16:44:00",
+    "parentingRecords": [
+      {
+        "parentingRecordId": 100,
+        "babyId": 1,
+        "familyMemberId": 7,
+        "voiceInputId": 10,
+        "recordType": "FEEDING",
+        "occurredAt": "2026-11-03T14:00:00",
+        "amountMl": 100,
+        "durationMinutes": null,
+        "feedingType": "FORMULA",
+        "diaperType": null,
+        "memo": "오후 2시에 분유 100ml 먹였어",
+        "createdAt": "2026-11-03T16:44:00"
+      }
+    ]
+  }
+}
+```
+
+> 현재 분석기는 MVP용 규칙 기반 구현입니다. `ParentingRecordAnalyzer` 인터페이스를 유지하고 있으므로 이후 LLM 기반 분석기로 교체할 수 있습니다.
 
 > `familyMemberId`는 family 도메인/JWT 연동 전까지 요청으로 받는 임시 값입니다. 연동 후에는 클라이언트 입력 대신 인증된 가족 구성원 ID를 서버에서 결정해야 합니다.
 
@@ -83,6 +126,13 @@ com.select
 │   ├── response
 │   └── security
 └── domain
+    ├── parenting
+    │   ├── analyzer
+    │   ├── dto
+    │   │   └── response
+    │   ├── entity
+    │   ├── repository
+    │   └── service
     ├── user
     │   ├── controller
     │   ├── dto

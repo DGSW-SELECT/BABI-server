@@ -1,5 +1,7 @@
 package com.select.domain.voice.service;
 
+import com.select.domain.parenting.dto.response.ParentingRecordResponse;
+import com.select.domain.parenting.service.ParentingRecordService;
 import com.select.domain.voice.client.SttClient;
 import com.select.domain.voice.client.dto.response.SttResponse;
 import com.select.domain.voice.dto.request.VoiceRecordRequest;
@@ -16,15 +18,23 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.List;
+
 @Service
 public class VoiceRecordService {
 
     private final VoiceInputRepository voiceInputRepository;
     private final SttClient sttClient;
+    private final ParentingRecordService parentingRecordService;
 
-    public VoiceRecordService(VoiceInputRepository voiceInputRepository, SttClient sttClient) {
+    public VoiceRecordService(
+            VoiceInputRepository voiceInputRepository,
+            SttClient sttClient,
+            ParentingRecordService parentingRecordService
+    ) {
         this.voiceInputRepository = voiceInputRepository;
         this.sttClient = sttClient;
+        this.parentingRecordService = parentingRecordService;
     }
 
     public SttTranscriptResponse transcribe(Long babyId, MultipartFile audio) {
@@ -46,13 +56,26 @@ public class VoiceRecordService {
                 .transcript(request.transcript().trim())
                 .sttStatus(SttStatus.COMPLETED)
                 .build();
-        return VoiceInputResponse.from(voiceInputRepository.save(voiceInput));
+
+        VoiceInput saved = voiceInputRepository.save(voiceInput);
+        List<ParentingRecordResponse> parentingRecords = parentingRecordService.analyzeAndSave(
+                saved.getBabyId(),
+                saved.getFamilyMemberId(),
+                saved.getId(),
+                saved.getTranscript(),
+                saved.getCreatedAt()
+        );
+
+        return VoiceInputResponse.of(saved, parentingRecords);
     }
 
     @Transactional(readOnly = true)
     public VoiceInputResponse get(Long babyId, Long voiceInputId) {
-        return voiceInputRepository.findByIdAndBabyId(voiceInputId, babyId)
-                .map(VoiceInputResponse::from)
+        VoiceInput voiceInput = voiceInputRepository.findByIdAndBabyId(voiceInputId, babyId)
                 .orElseThrow(VoiceInputNotFoundException::new);
+        List<ParentingRecordResponse> parentingRecords =
+                parentingRecordService.findByVoiceInput(babyId, voiceInputId);
+
+        return VoiceInputResponse.of(voiceInput, parentingRecords);
     }
 }
