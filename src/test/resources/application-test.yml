@@ -15,3 +15,7 @@ email:
 jwt:
   secret: "${random.uuid}${random.uuid}"
   access-token-expiration-minutes: 30
+
+# Tests must not call the real STT API.
+stt:
+  api-key: test-key
