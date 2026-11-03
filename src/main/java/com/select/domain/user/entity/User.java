@@ -33,6 +33,12 @@ public class User {
     @Column(nullable = false, length = 50)
     private String nickname;
 
+    @Column(nullable = false, length = 20)
+    private String status = "ACTIVE";
+
+    @Column(name = "withdrawn_at")
+    private LocalDateTime withdrawnAt;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
@@ -52,6 +58,10 @@ public class User {
     @PreUpdate
     public void onUpdated() {
         this.updatedAt = LocalDateTime.now();
+    }
+
+    public boolean isActive() {
+        return "ACTIVE".equals(status);
     }
 
     @Builder

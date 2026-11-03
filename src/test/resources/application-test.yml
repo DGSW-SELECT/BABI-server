@@ -4,7 +4,10 @@ spring:
     driver-class-name: org.h2.Driver
   jpa:
     hibernate:
-      ddl-auto: create-drop
+      ddl-auto: validate
+  sql:
+    init:
+      schema-locations: classpath:schema-test.sql
   mail:
     host: localhost
     username: test@babi.local
