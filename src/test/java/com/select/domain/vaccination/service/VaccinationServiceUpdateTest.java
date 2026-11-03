@@ -81,7 +81,7 @@ class VaccinationServiceUpdateTest {
         assertEquals(vaccineId, response.vaccineId());
         assertEquals(scheduledDate, response.scheduledDate());
 
-        verify(vaccination).updateSchedule(vaccine, scheduledDate);
+        verify(vaccination).updateSchedule(vaccine, scheduledDate, "어딘가", "아플듯");
     }
     @Test
     void UPDATE_SCHEDULE_BABY_NOT_FOUND() {
@@ -158,7 +158,7 @@ class VaccinationServiceUpdateTest {
         );
 
         verify(vaccination, never())
-                .updateSchedule(any(), any());
+                .updateSchedule(any(), any(), any(), any());
     }
     @Test
     void UPDATE_VACCINE_NOT_FOUND() {
@@ -191,7 +191,7 @@ class VaccinationServiceUpdateTest {
         );
 
         verify(vaccination, never())
-                .updateSchedule(any(), any());
+                .updateSchedule(any(), any(), any(), any());
     }
     @Test
     void UPDATE_COMPLETED_SCHEDULE_FAIL() {
@@ -222,6 +222,6 @@ class VaccinationServiceUpdateTest {
         );
 
         verify(vaccination, never())
-                .updateSchedule(any(), any());
+                .updateSchedule(any(), any(), any(), any();
     }
 }
