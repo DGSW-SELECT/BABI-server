@@ -1,8 +1,11 @@
 package com.select.domain.user.service;
 
+import com.select.domain.auth.service.EmailVerificationService;
+
 import com.select.domain.user.dto.request.LoginRequest;
 import com.select.domain.user.dto.request.SignupRequest;
 import com.select.domain.user.entity.User;
+import org.springframework.test.util.ReflectionTestUtils;
 import com.select.domain.user.exception.DuplicateEmailException;
 import com.select.domain.user.exception.InvalidCredentialsException;
 import com.select.domain.user.exception.PasswordMismatchException;
@@ -43,12 +46,14 @@ class UserServiceTest {
     private UserRepository userRepository;
     private PasswordEncoder passwordEncoder;
     private UserService userService;
+    private EmailVerificationService emailVerificationService;
 
     @BeforeEach
     void setUp() {
         userRepository = mock(UserRepository.class);
         passwordEncoder = mock(PasswordEncoder.class);
-        userService = new UserService(userRepository, passwordEncoder, mock(JwtProvider.class));
+        emailVerificationService = mock(EmailVerificationService.class);
+        userService = new UserService(userRepository, passwordEncoder, mock(JwtProvider.class), emailVerificationService);
     }
 
     @ParameterizedTest
@@ -79,7 +84,7 @@ class UserServiceTest {
     @Test
     void signUpNormalizesUppercaseEmailBeforeSaving() {
         signUpSuccessfully(new SignupRequest(
-                "USER@EXAMPLE.COM", "Test1234!", "Test1234!", "tester"
+                "USER@EXAMPLE.COM", "Test1234!", "Test1234!", "tester", "A".repeat(43)
         ));
 
         assertSavedEmail("user@example.com");
@@ -88,7 +93,7 @@ class UserServiceTest {
     @Test
     void signUpTrimsEmailBeforeSaving() {
         signUpSuccessfully(new SignupRequest(
-                "  user@example.com  ", "Test1234!", "Test1234!", "tester"
+                "  user@example.com  ", "Test1234!", "Test1234!", "tester", "A".repeat(43)
         ));
 
         assertSavedEmail("user@example.com");
@@ -99,7 +104,7 @@ class UserServiceTest {
         when(userRepository.existsByEmail("user@example.com")).thenReturn(true);
 
         assertThrows(DuplicateEmailException.class, () -> userService.signup(new SignupRequest(
-                "USER@EXAMPLE.COM", "Test1234!", "Test1234!", "tester"
+                "USER@EXAMPLE.COM", "Test1234!", "Test1234!", "tester", "A".repeat(43)
         )));
 
         verify(userRepository).existsByEmail("user@example.com");
@@ -110,7 +115,7 @@ class UserServiceTest {
     @Test
     void signUpChecksPasswordMismatchBeforeEmailLookup() {
         assertThrows(PasswordMismatchException.class, () -> userService.signup(new SignupRequest(
-                "user@example.com", "Test1234!", "Different1234!", "tester"
+                "user@example.com", "Test1234!", "Different1234!", "tester", "A".repeat(43)
         )));
 
         verifyNoInteractions(userRepository, passwordEncoder);
@@ -122,7 +127,7 @@ class UserServiceTest {
         when(userRepository.findByEmail("missing@example.com")).thenReturn(Optional.empty());
         BCryptPasswordEncoder realEncoder = spy(new BCryptPasswordEncoder());
         JwtProvider jwtProvider = mock(JwtProvider.class);
-        UserService service = new UserService(userRepository, realEncoder, jwtProvider);
+        UserService service = new UserService(userRepository, realEncoder, jwtProvider, mock(EmailVerificationService.class));
 
         assertThrows(InvalidCredentialsException.class, () -> service.login(
                 new LoginRequest("  MISSING@EXAMPLE.COM  ", password)
@@ -135,6 +140,33 @@ class UserServiceTest {
         verify(realEncoder, never()).encode(any());
         verify(userRepository).findByEmail("missing@example.com");
         verifyNoInteractions(jwtProvider);
+    }
+
+    @Test
+    void loginWithCorrectPasswordReturnsToken() {
+        User user = User.builder().email("user@example.com")
+                .passwordHash("valid-hash").nickname("tester").build();
+        ReflectionTestUtils.setField(user, "id", 42L);
+        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("Test1234!", "valid-hash")).thenReturn(true);
+        JwtProvider provider = mock(JwtProvider.class);
+        when(provider.createAccessToken("42")).thenReturn("access-token");
+        UserService service = new UserService(userRepository, passwordEncoder, provider, mock(EmailVerificationService.class));
+
+        assertEquals("access-token", service.login(
+                new LoginRequest("  USER@EXAMPLE.COM  ", "Test1234!")).accessToken());
+    }
+
+    @Test
+    void signupWithoutVerificationNeverHashesPasswordOrWritesUser() {
+        org.mockito.Mockito.doThrow(new com.select.domain.auth.exception.EmailVerificationException(
+                com.select.global.exception.ErrorCode.EMAIL_NOT_VERIFIED))
+                .when(emailVerificationService).reserveForSignup("signup@example.com", "A".repeat(43));
+
+        assertThrows(com.select.domain.auth.exception.EmailVerificationException.class,
+                () -> userService.signup(signupRequest()));
+        verify(userRepository, never()).saveAndFlush(any());
+        verifyNoInteractions(passwordEncoder);
     }
 
     private void signUpSuccessfully(SignupRequest request) {
@@ -151,10 +183,11 @@ class UserServiceTest {
         verify(userRepository).saveAndFlush(userCaptor.capture());
         assertEquals(expectedEmail, userCaptor.getValue().getEmail());
         verify(userRepository).existsByEmail(expectedEmail);
+        verify(emailVerificationService).reserveForSignup(expectedEmail, "A".repeat(43));
     }
 
     private SignupRequest signupRequest() {
-        return new SignupRequest("signup@example.com", "Test1234!", "Test1234!", "tester");
+        return new SignupRequest("signup@example.com", "Test1234!", "Test1234!", "tester", "A".repeat(43));
     }
 
     private static Stream<String> emailConstraintNames() {

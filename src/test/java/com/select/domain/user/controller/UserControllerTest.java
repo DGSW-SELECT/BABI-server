@@ -1,5 +1,7 @@
 package com.select.domain.user.controller;
 
+import com.select.domain.auth.service.EmailVerificationService;
+
 import com.select.domain.user.dto.request.LoginRequest;
 import com.select.domain.user.dto.response.LoginResponse;
 import com.select.domain.user.dto.response.SignupResponse;
@@ -153,7 +155,7 @@ class UserControllerTest {
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         MockMvc signupMockMvc = MockMvcBuilders
-                .standaloneSetup(new UserController(new UserService(userRepository, passwordEncoder, mock(JwtProvider.class))))
+                .standaloneSetup(new UserController(new UserService(userRepository, passwordEncoder, mock(JwtProvider.class), mock(EmailVerificationService.class))))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
 
@@ -217,7 +219,8 @@ class UserControllerTest {
                   "email": "test@example.com",
                   "password": "Test1234!",
                   "passwordConfirm": "%s",
-                  "nickname": "tester"
+                  "nickname": "tester",
+                  "verificationToken": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
                 }
                 """.formatted("a".repeat(21));
 
@@ -276,7 +279,8 @@ class UserControllerTest {
                   "email": "%s",
                   "password": "%s",
                   "passwordConfirm": "%s",
-                  "nickname": "tester"
+                  "nickname": "tester",
+                  "verificationToken": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
                 }
                 """.formatted(email, password, password);
     }
