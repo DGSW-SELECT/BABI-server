@@ -1,5 +1,7 @@
 package com.select.domain.user.dto.request;
 
+import com.select.global.util.EmailNormalizer;
+
 import jakarta.validation.constraints.*;
 
 public record SignupRequest(
@@ -17,12 +19,20 @@ public record SignupRequest(
         )
         String password,
 
+        @Size(max = 20)
         @NotBlank
         String passwordConfirm,
 
         @NotBlank
         @Size(max = 50)
-        String nickname
+        String nickname,
+
+        @NotBlank
+        @Pattern(regexp = "[A-Za-z0-9_-]{43}")
+        String verificationToken
 
 ) {
+    public SignupRequest {
+        email = EmailNormalizer.normalize(email);
+    }
 }
