@@ -24,7 +24,7 @@ import java.util.List;
 @Transactional(readOnly = true)
 public class VaccinationServiceImpl implements VaccinationService {
 
-    private static final long MAX_RANGE_DAY = 366;
+    private static final long MAX_RANGE_DAY = 365;
 
     private final BabyVaccinationRepository babyVaccinationRepository;
     private final VaccineRepository vaccineRepository;
