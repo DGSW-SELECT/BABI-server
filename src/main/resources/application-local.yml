@@ -2,6 +2,7 @@ spring:
   config:
     activate:
       on-profile: local
+    import: optional:file:./.env[.properties]
   datasource:
     url: jdbc:mysql://localhost:3307/babi
     username: babi_user
