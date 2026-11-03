@@ -20,3 +20,5 @@ outputs/
 
 /.env
 babi-backup-before-schema-restore.sql
+
+__pycache__/

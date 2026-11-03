@@ -126,7 +126,7 @@ public class UserService {
             throw new InvalidCredentialsException();
         }
         User user = optionalUser.get();
-        if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
+        if (!passwordEncoder.matches(request.password(), user.getPasswordHash()) || !user.isActive()) {
             throw new InvalidCredentialsException();
         }
         String accessToken = jwtProvider.createAccessToken(user.getId().toString());

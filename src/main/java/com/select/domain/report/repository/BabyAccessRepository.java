@@ -16,15 +16,14 @@ public class BabyAccessRepository {
         return Boolean.TRUE.equals(jdbcTemplate.queryForObject("""
                 SELECT EXISTS (
                     SELECT 1
-                    FROM babies b
-                    JOIN family_groups fg ON fg.id = b.family_group_id
-                    WHERE b.id = ? AND fg.owner_user_id = ?
-                ) OR EXISTS (
-                    SELECT 1
-                    FROM baby_permissions bp
-                    JOIN family_members fm ON fm.id = bp.family_member_id
-                    WHERE bp.baby_id = ? AND fm.user_id = ?
+                    FROM active_baby_members bm
+                    JOIN users u ON u.id = bm.user_id
+                    LEFT JOIN baby_permissions bp
+                      ON bp.baby_id = bm.baby_id AND bp.baby_member_id = bm.id
+                    WHERE bm.baby_id = ? AND bm.user_id = ?
+                      AND u.status = 'ACTIVE'
+                      AND (bm.role = 'OWNER' OR bp.baby_member_id IS NOT NULL)
                 )
-                """, Boolean.class, babyId, userId, babyId, userId));
+                """, Boolean.class, babyId, userId));
     }
 }
