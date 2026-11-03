@@ -40,7 +40,9 @@ class VaccinationHistoryControllerTest {
                         10L,
                         "DTaP",
                         1,
-                        LocalDate.of(2026, 9, 20)
+                        LocalDate.of(2026, 9, 20),
+                        "병원명",
+                        "메모"
                 ))
         );
         when(vaccinationService.getVaccinationHistory(babyId)).thenReturn(response);
@@ -54,7 +56,9 @@ class VaccinationHistoryControllerTest {
                 .andExpect(jsonPath("$.items[0].vaccinationScheduleId").value(10))
                 .andExpect(jsonPath("$.items[0].vaccineName").value("DTaP"))
                 .andExpect(jsonPath("$.items[0].doseNumber").value(1))
-                .andExpect(jsonPath("$.items[0].completedDate").value("2026-09-20"));
+                .andExpect(jsonPath("$.items[0].completedDate").value("2026-09-20"))
+                .andExpect(jsonPath("$.items[0].institution").value("병원명"))
+                .andExpect(jsonPath("$.items[0].memo").value("메모"));
 
         verify(vaccinationService).getVaccinationHistory(babyId);
     }
