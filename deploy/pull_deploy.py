@@ -101,6 +101,14 @@ def deploy_latest():
         raise
     if release["draft"] or release["tag_name"] != tag or release["target_commitish"] != revision:
         raise ValueError("Release does not target current main")
+    if release["author"]["login"] != "github-actions[bot]":
+        raise ValueError("Release was not published by GitHub Actions")
+    runs = api_json(f"/actions/workflows/aws-deploy.yml/runs?branch=main&head_sha={revision}&status=success&per_page=10")
+    if not any(run["head_sha"] == revision and run["head_branch"] == "main"
+               and run["conclusion"] == "success" and run["head_repository"]["full_name"] == REPOSITORY
+               for run in runs["workflow_runs"]):
+        print("Waiting for successful main workflow", revision, flush=True)
+        return
     asset = next(asset for asset in release["assets"] if asset["name"] == "babi-server.jar")
     url = f"https://github.com/{REPOSITORY}/releases/download/{tag}/babi-server.jar"
     if asset["browser_download_url"] != url or not 0 < asset["size"] <= MAX_JAR_BYTES:

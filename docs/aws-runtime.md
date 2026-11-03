@@ -10,7 +10,7 @@
 1. `main` PR에서 Java 21 build, 실제 Redis 통합 테스트, 배포 스크립트 실패·rollback 테스트를 실행한다.
 2. 기존 보호 규칙에 따른 승인 2명과 마지막 push 승인 후 PR을 merge한다.
 3. `AWS main build` workflow가 성공하면 해당 commit의 JAR를 `aws-<전체 SHA>` prerelease로 게시한다. 수동 재실행은 GitHub Actions의 `workflow_dispatch`를 사용한다.
-4. EC2의 `babi-deploy.timer`가 5분마다 현재 `main`과 해당 release를 확인한다. SHA-256, 파일 크기, JAR의 `build.commit`, H2 미포함을 검증한 뒤 JAR를 교체한다.
+4. EC2의 `babi-deploy.timer`가 5분마다 현재 `main`, Actions가 게시한 release와 같은 commit의 workflow 성공을 확인한다. SHA-256, 파일 크기, JAR의 `build.commit`, H2 미포함을 검증한 뒤 JAR를 교체한다.
 5. API를 재시작하고 로그인·회원가입·이메일 API 문서 및 무인증 리포트 `401`을 확인한다. 시작 실패 시 이전 JAR로 복구한다. 실패한 commit은 `failed-revision`에 기록하고 자동 재시도하지 않는다.
 
 AWS access key, EC2의 GitHub token, 추가 인스턴스, 공개 SSH/DB 포트, self-hosted Actions runner를 사용하지 않는다. 공개 release에는 JAR만 포함하며 비밀번호·설정 파일은 넣지 않는다. GitHub API의 비인증 조회 제한을 고려해 5분 주기로 확인한다.

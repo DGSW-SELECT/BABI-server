@@ -33,10 +33,28 @@ class PullDeployTest(unittest.TestCase):
         content = self.candidate.read_bytes()
         return {
             "draft": False, "tag_name": "aws-" + self.revision, "target_commitish": self.revision,
+            "author": {"login": "github-actions[bot]"},
             "assets": [{"name": "babi-server.jar", "size": len(content),
                         "browser_download_url": f"https://github.com/{deploy.REPOSITORY}/releases/download/aws-{self.revision}/babi-server.jar",
                         "digest": "sha256:" + hashlib.sha256(content).hexdigest()}],
         }
+
+    def successful_runs(self):
+        return {"workflow_runs": [{"head_sha": self.revision, "head_branch": "main", "conclusion": "success",
+                                   "head_repository": {"full_name": deploy.REPOSITORY}}]}
+
+    def test_complete_successful_main_release_is_downloaded_and_deployed(self):
+        with patch.object(deploy, "api_json", side_effect=[{"sha": self.revision}, self.release(), self.successful_runs(), {"sha": self.revision}]), \
+                patch.object(deploy, "urlopen", return_value=io.BytesIO(self.candidate.read_bytes())), \
+                patch.object(deploy.subprocess, "run"), patch.object(deploy, "ready", return_value=True):
+            deploy.deploy_latest()
+        self.assertEqual(self.revision, (self.root / "deployed-revision").read_text().strip())
+
+    def test_release_without_successful_main_workflow_is_not_downloaded(self):
+        with patch.object(deploy, "api_json", side_effect=[{"sha": self.revision}, self.release(), {"workflow_runs": []}]), \
+                patch.object(deploy, "urlopen") as download:
+            deploy.deploy_latest()
+        download.assert_not_called()
 
     def test_success_records_exact_revision_and_preserves_previous_jar(self):
         with patch.object(deploy.subprocess, "run"), patch.object(deploy, "ready", return_value=True):
@@ -70,7 +88,7 @@ class PullDeployTest(unittest.TestCase):
     def test_corrupt_download_never_replaces_running_jar(self):
         release = self.release()
         release["assets"][0]["digest"] = "sha256:" + "0" * 64
-        with patch.object(deploy, "api_json", side_effect=[{"sha": self.revision}, release]), \
+        with patch.object(deploy, "api_json", side_effect=[{"sha": self.revision}, release, self.successful_runs()]), \
                 patch.object(deploy, "urlopen", return_value=io.BytesIO(self.candidate.read_bytes())), \
                 patch.object(deploy, "install_jar") as install:
             with self.assertRaisesRegex(ValueError, "checksum"):
@@ -78,7 +96,7 @@ class PullDeployTest(unittest.TestCase):
         install.assert_not_called()
 
     def test_newer_main_during_download_is_not_replaced_by_old_release(self):
-        with patch.object(deploy, "api_json", side_effect=[{"sha": self.revision}, self.release(), {"sha": "c" * 40}]), \
+        with patch.object(deploy, "api_json", side_effect=[{"sha": self.revision}, self.release(), self.successful_runs(), {"sha": "c" * 40}]), \
                 patch.object(deploy, "urlopen", return_value=io.BytesIO(self.candidate.read_bytes())), \
                 patch.object(deploy, "install_jar") as install:
             deploy.deploy_latest()
