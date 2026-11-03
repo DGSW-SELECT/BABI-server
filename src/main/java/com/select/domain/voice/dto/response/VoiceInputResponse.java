@@ -11,7 +11,8 @@ public record VoiceInputResponse(
         Long familyMemberId,
         String transcript,
         SttStatus sttStatus,
-        LocalDateTime createdAt
+        LocalDateTime createdAt,
+        LocalDateTime updatedAt
 ) {
 
     public static VoiceInputResponse from(VoiceInput voiceInput) {
@@ -21,7 +22,8 @@ public record VoiceInputResponse(
                 voiceInput.getFamilyMemberId(),
                 voiceInput.getTranscript(),
                 voiceInput.getSttStatus(),
-                voiceInput.getCreatedAt()
+                voiceInput.getCreatedAt(),
+                voiceInput.getUpdatedAt()
         );
     }
 }
