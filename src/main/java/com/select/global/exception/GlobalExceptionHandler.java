@@ -164,6 +164,15 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 List.of()
         );
     }
+    @ExceptionHandler(BusinessException.class)
+    public ResponseEntity<ApiResponse<Void>> handleBusinessException(
+            BusinessException e
+    ) {
+        return createErrorResponse(
+                e.getErrorCode(),
+                List.of()
+        );
+    }
 
     private ResponseEntity<ApiResponse<Void>> createErrorResponse(
             ErrorCode errorCode,
