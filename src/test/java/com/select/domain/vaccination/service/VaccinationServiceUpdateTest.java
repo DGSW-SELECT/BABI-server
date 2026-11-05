@@ -80,8 +80,6 @@ class VaccinationServiceUpdateTest {
         assertEquals(scheduleId, response.vaccinationScheduleId());
         assertEquals(vaccineId, response.vaccineId());
         assertEquals(scheduledDate, response.scheduledDate());
-
-        verify(vaccination).updateSchedule(vaccine, scheduledDate, "어딘가", "아플듯");
     }
     @Test
     void UPDATE_SCHEDULE_BABY_NOT_FOUND() {

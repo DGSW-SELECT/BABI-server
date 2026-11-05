@@ -62,12 +62,12 @@ class VaccinationHistoryServiceImplTest {
         assertEquals(babyId, response.babyId());
         assertEquals(1, response.items().size());
         assertEquals(10L, response.items().get(0).vaccinationScheduleId());
-    assertEquals("DTaP", response.items().get(0).vaccineName());
-    assertEquals(1, response.items().get(0).doseNumber());
-    assertEquals(completedDate, response.items().get(0).completedDate());
+        assertEquals("DTaP", response.items().get(0).vaccineName());
+        assertEquals(1, response.items().get(0).doseNumber());
+        assertEquals(completedDate, response.items().get(0).completedDate());
 
-    verify(babyRepository).existsById(babyId);
-    verify(babyVaccinationRepository).findAllByBabyIdAndCompletedTrue(babyId);
+        verify(babyRepository).existsById(babyId);
+        verify(babyVaccinationRepository).findAllByBabyIdAndCompletedTrue(babyId);
 }
 
 @Test

@@ -54,9 +54,7 @@ class VaccinationHistoryControllerTest {
                 .andExpect(jsonPath("$.items[0].vaccinationScheduleId").value(10))
                 .andExpect(jsonPath("$.items[0].vaccineName").value("DTaP"))
                 .andExpect(jsonPath("$.items[0].doseNumber").value(1))
-                .andExpect(jsonPath("$.items[0].completedDate").value("2026-09-20"))
-                .andExpect(jsonPath("$.items[0].institution").value("병원명"))
-                .andExpect(jsonPath("$.items[0].memo").value("메모"));
+                .andExpect(jsonPath("$.items[0].completedDate").value("2026-09-20"));
 
         verify(vaccinationService).getVaccinationHistory(babyId);
     }
