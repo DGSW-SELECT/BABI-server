@@ -222,6 +222,6 @@ class VaccinationServiceUpdateTest {
         );
 
         verify(vaccination, never())
-                .updateSchedule(any(), any(), any(), any();
+                .updateSchedule(any(), any(), any(), any());
     }
 }

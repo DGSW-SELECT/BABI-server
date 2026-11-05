@@ -358,7 +358,7 @@ class VaccinationServiceImplTest{
         BabyVaccination vaccination = BabyVaccination.create(
                 2L,
                 vaccine,
-                LocalDate.now().plusDays(7)
+                LocalDate.now().plusDays(7),
                 null,
                 null
         );

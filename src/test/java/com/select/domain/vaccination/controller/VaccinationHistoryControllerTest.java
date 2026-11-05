@@ -40,9 +40,7 @@ class VaccinationHistoryControllerTest {
                         10L,
                         "DTaP",
                         1,
-                        LocalDate.of(2026, 9, 20),
-                        "병원명",
-                        "메모"
+                        LocalDate.of(2026, 9, 20)
                 ))
         );
         when(vaccinationService.getVaccinationHistory(babyId)).thenReturn(response);

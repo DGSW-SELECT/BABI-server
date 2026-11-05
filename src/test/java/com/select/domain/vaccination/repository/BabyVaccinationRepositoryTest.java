@@ -36,7 +36,7 @@ class BabyVaccinationRepositoryTest {
         entityManager.persist(vaccine);
 
         BabyVaccination vaccination =
-                BabyVaccination.create(babyId, vaccine, scheduledDate, institution, memo);
+                BabyVaccination.create(babyId, vaccine, scheduledDate,"test","test");
 
         entityManager.persist(vaccination);
 
