@@ -2,5 +2,8 @@ package com.select.domain.baby.entity;
 
 public enum BabyRole {
     OWNER,
-    MEMBER
+    GUARDIAN,
+    PARENT,
+    CAREGIVER,
+    VIEWER
 }

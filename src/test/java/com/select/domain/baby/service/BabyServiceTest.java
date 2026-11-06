@@ -7,6 +7,7 @@ import com.select.domain.baby.exception.BabyNotFoundException;
 import com.select.domain.baby.exception.InvalidOwnershipTransferException;
 import com.select.domain.baby.repository.BabyMemberRepository;
 import com.select.domain.baby.repository.BabyRepository;
+import com.select.domain.baby.repository.BabyPermissionRepository;
 import com.select.domain.baby.request.BabyCreateRequest;
 import com.select.domain.baby.response.BabyCreateResponse;
 import com.select.domain.baby.response.BabyReadResponse;
@@ -29,6 +30,7 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.same;
@@ -49,6 +51,7 @@ class BabyServiceTest {
     private BabyRepository babyRepository;
     private BabyMemberRepository babyMemberRepository;
     private UserRepository userRepository;
+    private BabyPermissionRepository permissions;
     private BabyService babyService;
 
     @BeforeEach
@@ -56,7 +59,8 @@ class BabyServiceTest {
         babyRepository = mock(BabyRepository.class);
         babyMemberRepository = mock(BabyMemberRepository.class);
         userRepository = mock(UserRepository.class);
-        babyService = new BabyService(babyRepository, babyMemberRepository, userRepository);
+        permissions = mock(BabyPermissionRepository.class);
+        babyService = new BabyService(babyRepository, babyMemberRepository, userRepository, permissions);
     }
 
     @Test
@@ -157,7 +161,7 @@ class BabyServiceTest {
         BabyMember owner = BabyMember.builder()
                 .babyId(BABY_ID).userId(OWNER_USER_ID).role(BabyRole.OWNER).build();
         BabyMember member = BabyMember.builder()
-                .babyId(secondBabyId).userId(OWNER_USER_ID).role(BabyRole.MEMBER).build();
+                .babyId(secondBabyId).userId(OWNER_USER_ID).role(BabyRole.GUARDIAN).build();
         when(babyMemberRepository.findByUserId(OWNER_USER_ID)).thenReturn(List.of(owner, member));
         when(babyRepository.findAllById(List.of(BABY_ID, secondBabyId))).thenReturn(List.of(
                 babyWithId(secondBabyId, "둘째", secondBirthDate, 99L), existingBaby()
@@ -297,14 +301,15 @@ class BabyServiceTest {
     void leaveBabyDeletesOnlyRequestingMembersRelationship() {
         Long memberUserId = 8L;
         BabyMember member = BabyMember.builder()
-                .babyId(BABY_ID).userId(memberUserId).role(BabyRole.MEMBER).build();
+                .babyId(BABY_ID).userId(memberUserId).role(BabyRole.GUARDIAN).build();
         when(babyMemberRepository.findByBabyIdAndUserId(BABY_ID, memberUserId))
                 .thenReturn(Optional.of(member));
 
         assertDoesNotThrow(() -> babyService.leaveBaby(BABY_ID, memberUserId));
 
         verify(babyMemberRepository).findByBabyIdAndUserId(BABY_ID, memberUserId);
-        verify(babyMemberRepository).delete(same(member));
+        assertNotNull(member.getRemovedAt());
+        verify(permissions).deleteByBabyIdAndBabyMemberId(BABY_ID, member.getId());
         verifyNoMoreInteractions(babyMemberRepository);
         var order = inOrder(babyRepository, babyMemberRepository);
         order.verify(babyRepository).findByIdForUpdate(BABY_ID);
@@ -356,13 +361,13 @@ class BabyServiceTest {
         BabyMember owner = BabyMember.builder()
                 .babyId(BABY_ID).userId(OWNER_USER_ID).role(BabyRole.OWNER).build();
         BabyMember newOwner = BabyMember.builder()
-                .babyId(BABY_ID).userId(newOwnerUserId).role(BabyRole.MEMBER).build();
+                .babyId(BABY_ID).userId(newOwnerUserId).role(BabyRole.GUARDIAN).build();
         when(babyMemberRepository.findByBabyIdAndUserId(BABY_ID, OWNER_USER_ID)).thenReturn(Optional.of(owner));
         when(babyMemberRepository.findByBabyIdAndUserId(BABY_ID, newOwnerUserId)).thenReturn(Optional.of(newOwner));
 
         assertDoesNotThrow(() -> babyService.transferOwnership(BABY_ID, OWNER_USER_ID, newOwnerUserId));
 
-        assertEquals(BabyRole.MEMBER, owner.getRole());
+        assertEquals(BabyRole.GUARDIAN, owner.getRole());
         assertEquals(BabyRole.OWNER, newOwner.getRole());
         assertEquals(OWNER_USER_ID, owner.getUserId());
         assertEquals(newOwnerUserId, newOwner.getUserId());
@@ -380,13 +385,13 @@ class BabyServiceTest {
     void transferOwnershipRejectsRequestingMemberBeforeLookingUpTarget() {
         Long memberUserId = 8L;
         BabyMember member = BabyMember.builder()
-                .babyId(BABY_ID).userId(memberUserId).role(BabyRole.MEMBER).build();
+                .babyId(BABY_ID).userId(memberUserId).role(BabyRole.GUARDIAN).build();
         when(babyMemberRepository.findByBabyIdAndUserId(BABY_ID, memberUserId)).thenReturn(Optional.of(member));
 
         assertThrows(AccessDeniedException.class,
                 () -> babyService.transferOwnership(BABY_ID, memberUserId, OWNER_USER_ID));
 
-        assertEquals(BabyRole.MEMBER, member.getRole());
+        assertEquals(BabyRole.GUARDIAN, member.getRole());
         verify(babyMemberRepository).findByBabyIdAndUserId(BABY_ID, memberUserId);
         verifyNoMoreInteractions(babyMemberRepository);
         var order = inOrder(babyRepository, babyMemberRepository);
@@ -471,14 +476,14 @@ class BabyServiceTest {
     private List<BabyMember> guardianRelationships() {
         return List.of(
                 BabyMember.builder().babyId(BABY_ID).userId(OWNER_USER_ID).role(BabyRole.OWNER).build(),
-                BabyMember.builder().babyId(BABY_ID).userId(8L).role(BabyRole.MEMBER).build()
+                BabyMember.builder().babyId(BABY_ID).userId(8L).role(BabyRole.GUARDIAN).build()
         );
     }
 
     private Set<BabyMemberResponse> expectedGuardians() {
         return Set.of(
                 new BabyMemberResponse(OWNER_USER_ID, "보호자1", BabyRole.OWNER),
-                new BabyMemberResponse(8L, "보호자2", BabyRole.MEMBER)
+                new BabyMemberResponse(8L, "보호자2", BabyRole.GUARDIAN)
         );
     }
 

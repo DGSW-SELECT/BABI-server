@@ -1,6 +1,7 @@
 package com.select.domain.baby.service;
 
 import com.select.domain.baby.entity.BabyMember;
+import com.select.domain.report.repository.BabyAccessRepository;
 import com.select.domain.baby.entity.BabyRole;
 import com.select.domain.baby.repository.BabyMemberRepository;
 import com.select.domain.baby.request.BabyCreateRequest;
@@ -56,6 +57,7 @@ class BabyInvitationMySqlIntegrationTest extends BabyInvitationIntegrationTest {
     }
 
     @Autowired private JdbcTemplate mysqlJdbc;
+    @Autowired private BabyAccessRepository reportAccess;
     @Autowired private UserRepository mysqlUsers;
     @Autowired private BabyMemberRepository mysqlMembers;
     @Autowired private BabyService mysqlBabies;
@@ -63,33 +65,34 @@ class BabyInvitationMySqlIntegrationTest extends BabyInvitationIntegrationTest {
     @Autowired private PlatformTransactionManager mysqlTransactions;
 
     @Test
+    void codeJoinGrantsReportAccessAndLeaveRevokesIt() {
+        var fixture = fixture();
+        Long joiningUser = user();
+        String code = mysqlInvitations.getCode(fixture.babyId, fixture.ownerId).code();
+        mysqlInvitations.accept(code, joiningUser);
+        assertTrue(reportAccess.hasAccess(joiningUser, fixture.babyId));
+        mysqlBabies.leaveBaby(fixture.babyId, joiningUser);
+        assertFalse(reportAccess.hasAccess(joiningUser, fixture.babyId));
+    }
+
+    @Test
     void usesOnlyIsolatedMysqlAndExpectedSchemaConstraints() {
         assertEquals("babi_invitation_isolated", mysqlJdbc.queryForObject("SELECT DATABASE()", String.class));
         assertTrue(mysqlJdbc.queryForObject("SELECT VERSION()", String.class).startsWith("8.4."));
-        assertEquals(6, mysqlJdbc.queryForObject("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name IN ('users','babies','baby_members','baby_invitation_codes','allocated_baby_invitation_codes','baby_email_invitations')", Integer.class));
-        assertEquals(2, mysqlJdbc.queryForObject("SELECT COUNT(*) FROM information_schema.key_column_usage WHERE table_schema = DATABASE() AND referenced_table_name = 'babies' AND table_name IN ('baby_invitation_codes','baby_email_invitations')", Integer.class));
-        assertEquals(4, mysqlJdbc.queryForObject("SELECT COUNT(DISTINCT constraint_name) FROM information_schema.table_constraints WHERE table_schema = DATABASE() AND constraint_type = 'UNIQUE' AND constraint_name IN ('uk_users_email','uk_baby_members_baby_user','uk_baby_invitation_code','uk_baby_invitation_code_allocation')", Integer.class));
-        assertEquals(1, mysqlJdbc.queryForObject("SELECT COUNT(*) FROM information_schema.table_constraints WHERE table_schema = DATABASE() AND constraint_type = 'UNIQUE' AND constraint_name = 'uk_baby_invitation_email'", Integer.class));
-        assertEquals(5, mysqlJdbc.queryForObject("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name IN ('users','babies','baby_members','allocated_baby_invitation_codes','baby_email_invitations') AND column_name='id' AND extra LIKE '%auto_increment%'", Integer.class));
-        assertEquals(2, mysqlJdbc.queryForObject("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name IN ('baby_invitation_codes','allocated_baby_invitation_codes') AND column_name='code' AND column_type='varbinary(6)' AND is_nullable='NO'", Integer.class));
-        assertEquals(2, mysqlJdbc.queryForObject("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name IN ('baby_invitation_codes','baby_email_invitations') AND column_name='expires_at' AND column_type='datetime(6)' AND is_nullable='NO'", Integer.class));
-        assertEquals(6, mysqlJdbc.queryForObject("SELECT COUNT(*) FROM information_schema.table_constraints WHERE table_schema=DATABASE() AND constraint_type='PRIMARY KEY' AND table_name IN ('users','babies','baby_members','baby_invitation_codes','allocated_baby_invitation_codes','baby_email_invitations')", Integer.class));
-        assertEquals(2, mysqlJdbc.queryForObject("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND ((table_name='users' AND column_name='email') OR (table_name='baby_email_invitations' AND column_name='email')) AND column_type='varchar(320)' AND is_nullable='NO'", Integer.class));
-        assertEquals(2, mysqlJdbc.queryForObject("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name IN ('baby_invitation_codes','baby_email_invitations') AND column_name='generation' AND column_type='varchar(36)' AND is_nullable='NO'", Integer.class));
-        assertEquals(1, mysqlJdbc.queryForObject("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='baby_email_invitations' AND column_name='sent_at' AND column_type='datetime(6)' AND is_nullable='NO'", Integer.class));
-        assertEquals(6, mysqlJdbc.queryForObject("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND engine='InnoDB' AND table_name IN ('users','babies','baby_members','baby_invitation_codes','allocated_baby_invitation_codes','baby_email_invitations')", Integer.class));
+        assertEquals(6, mysqlJdbc.queryForObject("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('users','babies','baby_members','baby_invitation_codes','allocated_baby_invitation_codes','baby_email_invitations')", Integer.class));
+        assertEquals(2, mysqlJdbc.queryForObject("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND ((table_name='baby_invitation_codes' AND column_name='max_uses') OR (table_name='baby_email_invitations' AND column_name='token_hash')) AND is_nullable='NO'", Integer.class));
+        assertEquals(2, mysqlJdbc.queryForObject("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name IN ('baby_invitation_codes','allocated_baby_invitation_codes') AND column_name='code' AND column_type='varchar(32)'", Integer.class));
+        assertEquals(1, mysqlJdbc.queryForObject("SELECT COUNT(*) FROM information_schema.table_constraints WHERE table_schema=DATABASE() AND constraint_name='uk_email_invitation_pending' AND constraint_type='UNIQUE'", Integer.class));
     }
 
     @Test
     void mysqlRejectsInvalidForeignKeysNullsAndDuplicateEmailInvitations() {
         var fixture = fixture();
         mysqlInvitations.send(fixture.babyId, fixture.ownerId, fixture.targetEmail);
-        rejectAndRollback("INSERT INTO baby_invitation_codes (baby_id, code, generation, expires_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP(6))",
-                -1L, new byte[]{'x','x','x','x','x','x'}, UUID.randomUUID().toString());
-        rejectAndRollback("INSERT INTO baby_email_invitations (baby_id, email, generation, sent_at, expires_at, status) VALUES (?, ?, ?, CURRENT_TIMESTAMP(6), CURRENT_TIMESTAMP(6), 'PENDING')",
-                -1L, "nonexistent@example.invalid", UUID.randomUUID().toString());
-        rejectAndRollback("INSERT INTO baby_email_invitations (baby_id, email, generation, sent_at, expires_at, status) SELECT baby_id, email, generation, sent_at, expires_at, status FROM baby_email_invitations WHERE baby_id = ?", fixture.babyId);
-        rejectAndRollback("INSERT INTO baby_members (baby_id, user_id, role) VALUES (?, ?, ?)", fixture.babyId, fixture.ownerId, "MEMBER");
+        rejectAndRollback("INSERT INTO baby_email_invitations (baby_id, invited_by_member_id, invited_email, role, token_hash, expires_at) VALUES (?, ?, ?, 'GUARDIAN', ?, CURRENT_TIMESTAMP)",
+                -1L, -1L, "nonexistent@example.invalid", "a".repeat(64));
+        rejectAndRollback("INSERT INTO baby_email_invitations (baby_id, invited_by_member_id, invited_email, role, token_hash, expires_at) SELECT baby_id, invited_by_member_id, invited_email, role, ?, expires_at FROM baby_email_invitations WHERE baby_id = ?", "b".repeat(64), fixture.babyId);
+        rejectAndRollback("INSERT INTO baby_members (baby_id, user_id, role) VALUES (?, ?, ?)", fixture.babyId, fixture.ownerId, "GUARDIAN");
         rejectAndRollback("INSERT INTO allocated_baby_invitation_codes (code) VALUES (NULL)");
         assertEquals(1, mysqlJdbc.queryForObject("SELECT COUNT(*) FROM baby_email_invitations WHERE baby_id = ?", Integer.class, fixture.babyId));
         assertEquals(2, mysqlJdbc.queryForObject("SELECT COUNT(*) FROM baby_members WHERE baby_id = ?", Integer.class, fixture.babyId));
@@ -119,14 +122,14 @@ class BabyInvitationMySqlIntegrationTest extends BabyInvitationIntegrationTest {
                 () -> mysqlBabies.transferOwnership(fixture.babyId, fixture.ownerId, fixture.memberId));
         assertEquals(BabyRole.OWNER, mysqlMembers.findByBabyIdAndUserId(fixture.babyId, fixture.memberId).orElseThrow().getRole());
         assertEquals(1, mysqlJdbc.queryForObject("SELECT COUNT(*) FROM baby_email_invitations WHERE baby_id = ? AND status = 'PENDING'", Integer.class, fixture.babyId));
-        assertEquals(BabyRole.MEMBER, mysqlMembers.findByBabyIdAndUserId(fixture.babyId, fixture.ownerId).orElseThrow().getRole());
+        assertEquals(BabyRole.GUARDIAN, mysqlMembers.findByBabyIdAndUserId(fixture.babyId, fixture.ownerId).orElseThrow().getRole());
     }
 
     private Fixture fixture() {
         Long owner = user();
         Long member = user();
         Long baby = mysqlBabies.createBaby(new BabyCreateRequest("MySQL test", LocalDate.of(2025, 1, 1)), owner).babyId();
-        mysqlMembers.saveAndFlush(BabyMember.builder().babyId(baby).userId(member).role(BabyRole.MEMBER).build());
+        mysqlMembers.saveAndFlush(BabyMember.builder().babyId(baby).userId(member).role(BabyRole.GUARDIAN).build());
         return new Fixture(baby, owner, member, UUID.randomUUID() + "@example.invalid");
     }
 

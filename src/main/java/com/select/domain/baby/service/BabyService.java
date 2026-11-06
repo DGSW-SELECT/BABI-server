@@ -3,10 +3,12 @@ package com.select.domain.baby.service;
 import com.select.domain.baby.entity.Baby;
 import com.select.domain.baby.entity.BabyMember;
 import com.select.domain.baby.entity.BabyRole;
+import com.select.domain.baby.entity.BabyPermission;
 import com.select.domain.baby.exception.BabyNotFoundException;
 import com.select.domain.baby.exception.InvalidOwnershipTransferException;
 import com.select.domain.baby.repository.BabyMemberRepository;
 import com.select.domain.baby.repository.BabyRepository;
+import com.select.domain.baby.repository.BabyPermissionRepository;
 import com.select.domain.baby.request.BabyCreateRequest;
 import com.select.domain.baby.request.BabyUpdateRequest;
 import com.select.domain.baby.response.BabyCreateResponse;
@@ -32,6 +34,7 @@ public class BabyService {
     private final BabyRepository babyRepository;
     private final BabyMemberRepository babyMemberRepository;
     private final UserRepository userRepository;
+    private final BabyPermissionRepository babyPermissionRepository;
 
     @Transactional
     public BabyCreateResponse createBaby(BabyCreateRequest request, Long userId) {
@@ -137,7 +140,8 @@ public class BabyService {
             if (member.getRole() == BabyRole.OWNER) {
                 throw new AccessDeniedException("관리자는 권한을 위임한 후 탈퇴할 수 있습니다.");
             }
-            babyMemberRepository.delete(member);
+            babyPermissionRepository.deleteByBabyIdAndBabyMemberId(babyId, member.getId());
+            member.deactivate();
     }
 
     @Transactional
@@ -153,10 +157,11 @@ public class BabyService {
         }
         BabyMember newOwner = babyMemberRepository.findByBabyIdAndUserId(babyId,newOwnerUserId)
                 .orElseThrow(() -> new AccessDeniedException("해당 아기의 보호자가 아닙니다."));
-        if (newOwner.getRole() != BabyRole.MEMBER) {
+        if (newOwner.getRole() == BabyRole.OWNER) {
             throw new AccessDeniedException("관리자에게 권한을 위임할수 없습니다.");
         }
-        owner.changeRole(BabyRole.MEMBER);
+        owner.changeRole(BabyRole.GUARDIAN);
         newOwner.changeRole(BabyRole.OWNER);
+        babyPermissionRepository.save(new BabyPermission(babyId, owner.getId(), BabyPermission.CARE_ALL));
     }
 }

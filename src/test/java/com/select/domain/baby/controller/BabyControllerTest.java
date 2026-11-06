@@ -10,6 +10,7 @@ import com.select.domain.baby.entity.Baby;
 import com.select.domain.baby.entity.BabyMember;
 import com.select.domain.baby.entity.BabyRole;
 import com.select.domain.baby.repository.BabyRepository;
+import com.select.domain.baby.repository.BabyPermissionRepository;
 import com.select.domain.baby.repository.BabyMemberRepository;
 import com.select.domain.user.repository.UserRepository;
 import com.select.domain.user.entity.User;
@@ -176,7 +177,7 @@ class BabyControllerTest {
         );
         when(babyService.getBabyMembers(BABY_ID, requestingUserId)).thenReturn(List.of(
                 new BabyMemberResponse(USER_ID, "보호자1", BabyRole.OWNER),
-                new BabyMemberResponse(8L, "보호자2", BabyRole.MEMBER)
+                new BabyMemberResponse(8L, "보호자2", BabyRole.GUARDIAN)
         ));
 
         mockMvc.perform(get("/babies/{babyId}/members", BABY_ID))
@@ -190,7 +191,7 @@ class BabyControllerTest {
                 .andExpect(jsonPath("$.data[0].role").value("OWNER"))
                 .andExpect(jsonPath("$.data[1].userId").value(8))
                 .andExpect(jsonPath("$.data[1].nickname").value("보호자2"))
-                .andExpect(jsonPath("$.data[1].role").value("MEMBER"))
+                .andExpect(jsonPath("$.data[1].role").value("GUARDIAN"))
                 .andExpect(jsonPath("$.error").doesNotExist());
 
         verify(babyService).getBabyMembers(BABY_ID, requestingUserId);
@@ -231,7 +232,7 @@ class BabyControllerTest {
         when(memberRepository.existsByBabyIdAndUserId(BABY_ID, USER_ID)).thenReturn(true);
         when(memberRepository.findByBabyId(BABY_ID)).thenReturn(List.of(
                 BabyMember.builder().babyId(BABY_ID).userId(USER_ID).role(BabyRole.OWNER).build(),
-                BabyMember.builder().babyId(BABY_ID).userId(8L).role(BabyRole.MEMBER).build()
+                BabyMember.builder().babyId(BABY_ID).userId(8L).role(BabyRole.GUARDIAN).build()
         ));
         List<User> users = List.of();
         if (partiallyMissing) {
@@ -242,7 +243,7 @@ class BabyControllerTest {
         }
         when(userRepository.findAllById(List.of(USER_ID, 8L))).thenReturn(users);
         MockMvc realServiceMockMvc = MockMvcBuilders.standaloneSetup(new BabyController(
-                        new BabyService(babyRepository, memberRepository, userRepository)))
+                        new BabyService(babyRepository, memberRepository, userRepository, mock(BabyPermissionRepository.class))))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver())
                 .build();
@@ -288,7 +289,7 @@ class BabyControllerTest {
         );
         BabyMemberRepository memberRepository = mock(BabyMemberRepository.class);
         BabyMember member = BabyMember.builder()
-                .babyId(BABY_ID).userId(memberUserId).role(BabyRole.MEMBER).build();
+                .babyId(BABY_ID).userId(memberUserId).role(BabyRole.GUARDIAN).build();
         when(memberRepository.findByBabyIdAndUserId(BABY_ID, memberUserId)).thenReturn(Optional.of(member));
 
         leaveBabyMvc(memberRepository).perform(delete("/babies/{babyId}/members/me", BABY_ID))
@@ -299,7 +300,7 @@ class BabyControllerTest {
                 .andExpect(jsonPath("$.error").doesNotExist());
 
         verify(memberRepository).findByBabyIdAndUserId(BABY_ID, memberUserId);
-        verify(memberRepository).delete(same(member));
+        org.junit.jupiter.api.Assertions.assertNotNull(member.getRemovedAt());
         verifyNoMoreInteractions(memberRepository);
     }
 
@@ -384,7 +385,7 @@ class BabyControllerTest {
         BabyRepository babyRepository = mock(BabyRepository.class);
         BabyMemberRepository memberRepository = mock(BabyMemberRepository.class);
         UserRepository userRepository = mock(UserRepository.class);
-        BabyService realService = new BabyService(babyRepository, memberRepository, userRepository);
+        BabyService realService = new BabyService(babyRepository, memberRepository, userRepository, mock(BabyPermissionRepository.class));
         MockMvc realServiceMockMvc = MockMvcBuilders.standaloneSetup(new BabyController(realService))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver())
@@ -406,7 +407,7 @@ class BabyControllerTest {
 
     private MockMvc leaveBabyMvc(BabyMemberRepository memberRepository) {
         BabyService realService = new BabyService(
-                mock(BabyRepository.class), memberRepository, mock(UserRepository.class)
+                mock(BabyRepository.class), memberRepository, mock(UserRepository.class), mock(BabyPermissionRepository.class)
         );
         return MockMvcBuilders.standaloneSetup(new BabyController(realService))
                 .setControllerAdvice(new GlobalExceptionHandler())

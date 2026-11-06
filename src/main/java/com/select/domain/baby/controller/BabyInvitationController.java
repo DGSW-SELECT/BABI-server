@@ -19,7 +19,7 @@ public class BabyInvitationController {
     private final BabyInvitationWorkflow invitations;
 
     @GetMapping("/{babyId}/invitation-code")
-    @Operation(summary = "초대 코드 조회 또는 최초 발급", description = "OWNER만 호출할 수 있습니다. 만료된 코드는 자동으로 재발급하지 않으며 409 INVITATION_CODE_EXPIRED를 반환합니다.")
+    @Operation(summary = "초대 코드 조회 또는 최초 발급", description = "OWNER만 호출할 수 있습니다. 만료되거나 사용 횟수를 소진한 코드는 자동 재발급하지 않으며 409를 반환합니다.")
     public ApiResponse<BabyInvitationCodeResponse> getCode(@PathVariable Long babyId, @AuthenticationPrincipal String principal) {
         return new ApiResponse<>(true, "초대 코드 조회에 성공했습니다.", invitations.getCode(babyId, Long.valueOf(principal)));
     }
@@ -39,14 +39,14 @@ public class BabyInvitationController {
     }
 
     @PostMapping("/invitations/check")
-    @Operation(summary = "이메일 초대 확인", description = "로그인 계정에 해당하는 초대와 코드의 유효기간을 확인합니다.")
+    @Operation(summary = "초대 코드 확인", description = "로그인한 사용자가 코드와 유효기간을 확인합니다.")
     public ApiResponse<BabyInvitationResponse> check(@Valid @RequestBody InvitationCodeRequest request,
             @AuthenticationPrincipal String principal) {
         return new ApiResponse<>(true, "보호자 초대를 확인했습니다.", invitations.inspect(request.code(), Long.valueOf(principal)));
     }
 
     @PostMapping("/invitations/accept")
-    @Operation(summary = "이메일 초대 수락", description = "로그인 계정의 이메일과 유효한 초대가 일치하면 MEMBER로 등록합니다.")
+    @Operation(summary = "초대 코드 수락", description = "로그인한 사용자를 GUARDIAN으로 등록합니다. 코드를 가진 사용자는 누구나 참여할 수 있습니다.")
     public ApiResponse<BabyInvitationResponse> accept(@Valid @RequestBody InvitationCodeRequest request,
             @AuthenticationPrincipal String principal) {
         return new ApiResponse<>(true, "보호자 초대를 수락했습니다.", invitations.accept(request.code(), Long.valueOf(principal)));

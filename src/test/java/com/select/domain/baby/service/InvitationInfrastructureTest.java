@@ -30,11 +30,12 @@ class InvitationInfrastructureTest {
     @Test
     void invitationExpiresExactlyAtTheFourteenDayBoundary() {
         Instant sent = Instant.parse("2026-10-28T00:00:00Z");
-        var invitation = new BabyEmailInvitation(1L, "test@example.invalid", "generation", sent);
+        var invitation = new BabyEmailInvitation(1L, "test@example.invalid", 1L, "0".repeat(64), sent);
         Instant expiry = sent.plus(Duration.ofDays(14));
-        assertTrue(invitation.usable("generation", expiry.minusNanos(1)));
-        assertFalse(invitation.usable("generation", expiry));
-        assertFalse(invitation.usable("different-generation", sent));
+        assertTrue(invitation.usable(expiry.minusNanos(1)));
+        assertFalse(invitation.usable(expiry));
+        invitation.revoke();
+        assertFalse(invitation.usable(sent));
     }
 
     @Test

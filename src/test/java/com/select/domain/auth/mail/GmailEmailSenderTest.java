@@ -1,7 +1,11 @@
 package com.select.domain.auth.mail;
 
+import com.select.domain.auth.exception.EmailVerificationException;
+import com.select.global.exception.ErrorCode;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.mail.MailSendException;
@@ -27,5 +31,16 @@ class GmailEmailSenderTest {
         assertTrue(output.getAll().contains(IllegalStateException.class.getName()));
         assertFalse(output.getAll().contains("private-"));
         assertFalse(output.getAll().contains("@example.invalid"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", " "})
+    void missingSmtpAccountFailsWithoutSendingMail(String from) {
+        JavaMailSender mailSender = mock(JavaMailSender.class);
+        var sender = new GmailEmailSender(mailSender, from);
+        var error = assertThrows(EmailVerificationException.class,
+                () -> sender.send("demo@example.invalid", "subject", "body"));
+        assertEquals(ErrorCode.EMAIL_SEND_FAILED, error.getErrorCode());
+        verifyNoInteractions(mailSender);
     }
 }

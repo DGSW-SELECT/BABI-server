@@ -6,6 +6,7 @@ import com.select.domain.baby.entity.BabyEmailInvitation;
 import com.select.domain.baby.entity.BabyInvitationCode;
 import com.select.domain.baby.entity.BabyMember;
 import com.select.domain.baby.entity.BabyRole;
+import com.select.domain.baby.entity.BabyPermission;
 import com.select.domain.baby.entity.AllocatedBabyInvitationCode;
 import com.select.domain.baby.exception.BabyInvitationException;
 import com.select.domain.baby.exception.BabyNotFoundException;
@@ -27,12 +28,14 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.Locale;
 import java.util.function.Supplier;
 
 @Service
 public class BabyInvitationWorkflow {
     private final BabyRepository babies;
     private final BabyMemberRepository members;
+    private final BabyPermissionRepository memberPermissions;
     private final BabyInvitationCodeRepository codes;
     private final AllocatedBabyInvitationCodeRepository allocatedCodes;
     private final BabyEmailInvitationRepository invitations;
@@ -44,13 +47,14 @@ public class BabyInvitationWorkflow {
     private final EmailSender sender;
     private final TransactionTemplate transactions;
 
-    public BabyInvitationWorkflow(BabyRepository babies, BabyMemberRepository members,
+    public BabyInvitationWorkflow(BabyRepository babies, BabyMemberRepository members, BabyPermissionRepository memberPermissions,
             BabyInvitationCodeRepository codes, AllocatedBabyInvitationCodeRepository allocatedCodes, BabyEmailInvitationRepository invitations,
             UserRepository users, BabyInvitationService permissions, InvitationCodeGenerator generator,
             InvitationRateLimiter limiter, InvitationLinkFactory links, EmailSender sender,
             PlatformTransactionManager transactionManager) {
         this.babies = babies;
         this.members = members;
+        this.memberPermissions = memberPermissions;
         this.codes = codes;
         this.allocatedCodes = allocatedCodes;
         this.invitations = invitations;
@@ -66,7 +70,7 @@ public class BabyInvitationWorkflow {
     public BabyInvitationCodeResponse getCode(Long babyId, Long userId) {
         return withCodeRetry(() -> {
             lockOwnedBaby(babyId, userId);
-            return new BabyInvitationCodeResponse(requireUsableCode(getOrCreateCode(babyId)).value());
+            return new BabyInvitationCodeResponse(requireUsableCode(getOrCreateCode(babyId, userId)).value());
         }, !TransactionSynchronizationManager.isActualTransactionActive());
     }
 
@@ -75,15 +79,11 @@ public class BabyInvitationWorkflow {
             lockOwnedBaby(babyId, userId);
             var current = codes.findByIdForUpdate(babyId).orElse(null);
             String value = generateUnusedCode(current == null ? null : current.value());
-            if (current == null) {
-                current = new BabyInvitationCode(babyId, value);
-            } else {
-                current.rotate(value);
-            }
-            codes.saveAndFlush(current);
+            if (current != null) current.revoke();
+            var replacement = codes.saveAndFlush(new BabyInvitationCode(babyId, value, ownerMemberId(babyId, userId)));
             limiter.rotate(userId);
             invitations.findByBabyId(babyId).forEach(BabyEmailInvitation::revoke);
-            return new BabyInvitationCodeResponse(current.value());
+            return new BabyInvitationCodeResponse(replacement.value());
         });
     }
 
@@ -100,22 +100,25 @@ public class BabyInvitationWorkflow {
                     throw new BabyInvitationException(ErrorCode.INVITATION_ALREADY_MEMBER);
                 }
             });
-            var code = requireUsableCode(getOrCreateCode(babyId));
+            var code = requireUsableCode(getOrCreateCode(babyId, userId));
             String link = links.create(code.value());
             limiter.send(userId, babyId, email);
-            Instant now = Instant.now();
+            Instant now = Instant.now().truncatedTo(java.time.temporal.ChronoUnit.SECONDS);
             var invitation = invitations.findForUpdate(babyId, email).orElse(null);
+            if (invitation != null && !invitation.getExpiresAt().isAfter(now)) {
+                invitation.expire();
+                invitations.saveAndFlush(invitation);
+                invitation = null;
+            }
             if (invitation == null) {
-                invitation = new BabyEmailInvitation(babyId, email, code.getGeneration(), now);
-            } else if (!invitation.usable(code.getGeneration(), now)) {
-                invitation.renew(code.getGeneration(), now);
+                invitation = new BabyEmailInvitation(babyId, email, ownerMemberId(babyId, userId), randomTokenHash(), now);
             }
             invitations.saveAndFlush(invitation);
             try {
                 sender.send(email, "[BABI] 아기 보호자 초대",
                         "BABI 아기 보호자로 초대되었습니다.\n초대 코드: " + code.value()
                                 + "\n초대 링크: " + link + "\n이메일 초대 유효기간: " + invitation.getExpiresAt()
-                                + "\n초대받은 이메일의 계정으로 로그인한 후 수락해 주세요.");
+                                + "\n로그인한 후 초대 코드를 입력해 주세요.");
             } catch (RuntimeException e) {
                 // Do not propagate SMTP exceptions containing recipient addresses or message bodies.
                 throw new BabyInvitationException(ErrorCode.INVITATION_SEND_FAILED);
@@ -129,8 +132,8 @@ public class BabyInvitationWorkflow {
         Long babyId = resolveBaby(value);
         return transact(() -> {
             Baby baby = lockBaby(babyId);
-            var invitation = eligibleInvitation(babyId, value, userId);
-            return response(baby, invitation);
+            var code = eligibleCode(babyId, value, userId, Instant.now());
+            return response(baby, code);
         });
     }
 
@@ -139,51 +142,83 @@ public class BabyInvitationWorkflow {
         Long babyId = resolveBaby(value);
         return transact(() -> {
             Baby baby = lockBaby(babyId);
-            var invitation = eligibleInvitation(babyId, value, userId);
-            members.saveAndFlush(BabyMember.builder().babyId(babyId).userId(userId).role(BabyRole.MEMBER).build());
-            invitation.accept();
-            return response(baby, invitation);
+            Instant now = Instant.now();
+            var code = eligibleCode(babyId, value, userId, now);
+            code.consume(now);
+            BabyMember member = members.findIncludingRemoved(babyId, userId).orElseGet(() ->
+                    BabyMember.builder().babyId(babyId).userId(userId).role(BabyRole.GUARDIAN).build());
+            member.reactivate(BabyRole.GUARDIAN);
+            member = members.saveAndFlush(member);
+            memberPermissions.save(new BabyPermission(babyId, member.getId(), BabyPermission.CARE_ALL));
+            return response(baby, code);
         });
     }
 
-    private BabyEmailInvitation eligibleInvitation(Long babyId, String value, Long userId) {
+    private BabyInvitationCode eligibleCode(Long babyId, String value, Long userId, Instant now) {
         var code = codes.findByIdForUpdate(babyId).orElseThrow(this::invalid);
-        if (!code.value().equals(value) || !code.usable(Instant.now())) throw invalid();
-        String email = EmailNormalizer.normalize(account(userId).getEmail());
-        var invitation = invitations.findForUpdate(babyId, email).orElseThrow(this::invalid);
-        if (!invitation.getEmail().equals(email)) throw invalid();
-        if (!invitation.usable(code.getGeneration(), Instant.now())) throw invalid();
+        if (!code.value().equals(normalizeCode(value))) throw invalid();
+        if (!account(userId).isActive()) throw new BabyInvitationException(ErrorCode.UNAUTHORIZED);
         if (members.existsByBabyIdAndUserId(babyId, userId)) {
             throw new BabyInvitationException(ErrorCode.INVITATION_ALREADY_MEMBER);
         }
-        return invitation;
+        if (!code.getExpiresAt().isAfter(now)) throw invalid();
+        if (code.getUsedCount() >= code.getMaxUses()) {
+            throw new BabyInvitationException(ErrorCode.INVITATION_CODE_EXHAUSTED);
+        }
+        if (!code.usable(now)) throw invalid();
+        return code;
+    }
+
+    private String normalizeCode(String value) {
+        if (value == null || !value.matches("[A-Za-z0-9]{6}")) throw invalid();
+        return value.toUpperCase(Locale.ROOT);
     }
 
     private Long resolveBaby(String value) {
-        if (value == null || !value.matches("[A-Za-z0-9]{6}")) throw invalid();
-        // Resolve only a scalar outside the mutation transaction; never cache an old code/owner snapshot.
-        return codes.findBabyIdByCode(value.getBytes(StandardCharsets.US_ASCII)).orElseThrow(this::invalid);
+        return codes.findBabyIdByCode(normalizeCode(value).getBytes(StandardCharsets.US_ASCII)).orElseThrow(this::invalid);
     }
 
-    private BabyInvitationCode getOrCreateCode(Long babyId) {
+    private BabyInvitationCode getOrCreateCode(Long babyId, Long userId) {
         return codes.findByIdForUpdate(babyId).orElseGet(() ->
-                codes.saveAndFlush(new BabyInvitationCode(babyId, generateUnusedCode(null))));
+                codes.saveAndFlush(new BabyInvitationCode(babyId, generateUnusedCode(null), ownerMemberId(babyId, userId))));
+    }
+
+    private Long ownerMemberId(Long babyId, Long userId) {
+        return members.findByBabyIdAndUserId(babyId, userId).orElseThrow(this::invalid).getId();
+    }
+
+    private String randomTokenHash() {
+        try {
+            byte[] token = new byte[32];
+            new java.security.SecureRandom().nextBytes(token);
+            return java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(token));
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 unavailable", e);
+        }
     }
 
     private BabyInvitationCode requireUsableCode(BabyInvitationCode code) {
-        if (!code.usable(Instant.now())) {
+        if (!code.getExpiresAt().isAfter(Instant.now())) {
             throw new BabyInvitationException(ErrorCode.INVITATION_CODE_EXPIRED);
+        }
+        if (!code.usable(Instant.now())) {
+            throw new BabyInvitationException(ErrorCode.INVITATION_CODE_EXHAUSTED);
         }
         return code;
     }
 
     private String generateUnusedCode(String previous) {
         for (int attempt = 0; attempt < 20; attempt++) {
-            String value = generator.generate();
+            String value = normalizeCode(generator.generate());
             byte[] bytes = value.getBytes(StandardCharsets.US_ASCII);
             if (!value.equals(previous) && !codes.existsByCode(bytes) && !allocatedCodes.existsByCode(bytes)) {
                 // A permanent UNIQUE reservation closes races with both allocations and retirements.
-                allocatedCodes.saveAndFlush(new AllocatedBabyInvitationCode(value));
+                try {
+                    allocatedCodes.saveAndFlush(new AllocatedBabyInvitationCode(value));
+                } catch (DataIntegrityViolationException e) {
+                    // This insert contains only the reserved code and its timestamp. Retry after rollback.
+                    throw new AllocationCollision(e);
+                }
                 return value;
             }
         }
@@ -208,9 +243,17 @@ public class BabyInvitationWorkflow {
         return new BabyInvitationResponse(baby.getId(), baby.getName(), invitation.getExpiresAt());
     }
 
+    private BabyInvitationResponse response(Baby baby, BabyInvitationCode code) {
+        return new BabyInvitationResponse(baby.getId(), baby.getName(), code.getExpiresAt());
+    }
+
     private BabyInvitationException invalid() {
         // Same result for wrong account, expired, revoked, used, and unknown invitations.
         return new BabyInvitationException(ErrorCode.INVITATION_INVALID);
+    }
+
+    private static final class AllocationCollision extends RuntimeException {
+        private AllocationCollision(Throwable cause) { super(cause); }
     }
 
     private <T> T transact(Supplier<T> action) {
@@ -229,6 +272,8 @@ public class BabyInvitationWorkflow {
         for (int attempt = 0; attempt < 5; attempt++) {
             try {
                 return transactions.execute(status -> action.get());
+            } catch (AllocationCollision e) {
+                // Retry the entire transaction after the failed reservation rolled back.
             } catch (DataIntegrityViolationException e) {
                 boolean collision = false;
                 for (Throwable cause = e; cause != null; cause = cause.getCause()) {

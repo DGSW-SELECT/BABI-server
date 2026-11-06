@@ -25,7 +25,7 @@ public class Baby {
     @Column(nullable = false)
     private LocalDate birthDate;
 
-    @Column(nullable = false,name = "user_id")
+    @Column(nullable = false, name = "created_by_user_id")
     private Long createdByUserId;
 
     @Column(nullable = false, name = "created_at")

@@ -4,47 +4,42 @@ import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.UUID;
 
 @Entity
-@Table(name = "baby_invitation_codes", uniqueConstraints =
-        @UniqueConstraint(name = "uk_baby_invitation_code", columnNames = "code"))
+@Table(name = "baby_invitation_codes", uniqueConstraints = @UniqueConstraint(name = "uk_invitation_code", columnNames = "code"))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class BabyInvitationCode {
-    @Id
-    private Long babyId;
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+    @Column(name = "baby_id", nullable = false) private Long babyId;
+    @Column(nullable = false, length = 32) private String code;
+    @Column(nullable = false, length = 30) private String role;
+    @Column(name = "created_by_member_id", nullable = false) private Long createdByMemberId;
+    @Column(name = "max_uses", nullable = false) private int maxUses;
+    @Column(name = "used_count", nullable = false) private int usedCount;
+    @Column(nullable = false, length = 20) private String status;
+    @Column(name = "expires_at", nullable = false) private Instant expiresAt;
+    @Column(name = "revoked_at") private Instant revokedAt;
+    @Column(name = "created_at", nullable = false) private Instant createdAt;
 
-    // Binary storage preserves case-sensitive uniqueness on MySQL as well as H2.
-    @Column(nullable = false, length = 6)
-    private byte[] code;
-
-    @Column(nullable = false, length = 36)
-    private String generation;
-
-    @Column(nullable = false)
-    private Instant expiresAt;
-
-    public BabyInvitationCode(Long babyId, String code) {
+    public BabyInvitationCode(Long babyId, String code, Long creatorId) {
         this.babyId = babyId;
-        rotate(code);
+        this.code = code;
+        this.createdByMemberId = creatorId;
+        this.role = "GUARDIAN";
+        this.maxUses = 100; // Explicit application policy; existing rows retain their own limits.
+        this.status = "ACTIVE";
+        this.createdAt = Instant.now();
+        this.expiresAt = createdAt.plus(Duration.ofDays(14));
     }
-
-    public String value() {
-        return new String(code, StandardCharsets.US_ASCII);
+    public String value() { return code; }
+    public boolean usable(Instant now) { return "ACTIVE".equals(status) && expiresAt.isAfter(now) && usedCount < maxUses; }
+    public void consume(Instant now) {
+        if (!usable(now)) throw new IllegalStateException("Invitation code is unavailable");
+        usedCount++;
     }
-
-    public void rotate(String code) {
-        this.code = code.getBytes(StandardCharsets.US_ASCII);
-        this.generation = UUID.randomUUID().toString();
-        this.expiresAt = Instant.now().plus(Duration.ofDays(14));
-    }
-
-    public boolean usable(Instant now) {
-        return expiresAt.isAfter(now);
-    }
+    public void revoke() { status = "REVOKED"; revokedAt = Instant.now(); }
 }

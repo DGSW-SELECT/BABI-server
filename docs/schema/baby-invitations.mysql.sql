@@ -1,3 +1,5 @@
+-- 폐기된 이전 제안: 최종 SQL 및 현재 엔티티와 호환되지 않습니다. 실행하거나 배포에 적용하지 마세요.
+-- 팀 기준은 src/main/resources/schema.sql 및 babi_DB_Real.sql 입니다.
 -- Review and apply to the intended MySQL 8.4 environment before deploying invitation APIs.
 -- This file is a deployment artifact only; it is not automatically executed.
 -- Existing babies, baby_members and users tables are not modified.

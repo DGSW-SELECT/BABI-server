@@ -72,7 +72,7 @@ class BabyIntegrationTest {
         memberId = user("보호자");
         outsiderId = user("외부 사용자");
         babyId = service.createBaby(new BabyCreateRequest("아기", LocalDate.of(2025, 1, 15)), ownerId).babyId();
-        members.saveAndFlush(BabyMember.builder().babyId(babyId).userId(memberId).role(BabyRole.MEMBER).build());
+        members.saveAndFlush(BabyMember.builder().babyId(babyId).userId(memberId).role(BabyRole.GUARDIAN).build());
     }
 
     @Test
@@ -117,7 +117,7 @@ class BabyIntegrationTest {
         assertError(request("PATCH", ownerPath, ownerId, "{\"newOwnerUserId\":" + outsiderId + "}"), 403, "FORBIDDEN");
         assertError(request("PATCH", ownerPath, ownerId, "{\"newOwnerUserId\":" + ownerId + "}"), 400, "VALIDATION_ERROR");
         assertEquals(200, request("PATCH", ownerPath, ownerId, target).statusCode());
-        assertEquals(BabyRole.MEMBER, members.findByBabyIdAndUserId(babyId, ownerId).orElseThrow().getRole());
+        assertEquals(BabyRole.GUARDIAN, members.findByBabyIdAndUserId(babyId, ownerId).orElseThrow().getRole());
         assertEquals(BabyRole.OWNER, members.findByBabyIdAndUserId(babyId, memberId).orElseThrow().getRole());
         assertError(request("DELETE", leavePath, memberId, null), 403, "FORBIDDEN");
         assertEquals(200, request("DELETE", leavePath, ownerId, null).statusCode());
@@ -129,7 +129,7 @@ class BabyIntegrationTest {
 
     @Test
     void concurrentTransfersCannotCreateTwoOwners() throws Exception {
-        members.saveAndFlush(BabyMember.builder().babyId(babyId).userId(outsiderId).role(BabyRole.MEMBER).build());
+        members.saveAndFlush(BabyMember.builder().babyId(babyId).userId(outsiderId).role(BabyRole.GUARDIAN).build());
         assertSerializedRejection(() -> service.transferOwnership(babyId, ownerId, memberId),
                 () -> service.transferOwnership(babyId, ownerId, outsiderId));
         assertEquals(List.of(memberId), ownerIds());

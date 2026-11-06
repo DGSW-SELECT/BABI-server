@@ -53,10 +53,45 @@ Gradle로 실행할 경우 프로젝트 루트에서 다음 명령을 실행합�
 
 `Could not resolve placeholder 'EMAIL_VERIFICATION_SECRET'`가 계속 발생하면 `local` 프로필, 실행 구성의 Working directory, `.env` 파일과 해당 키의 존재 여부를 확인합니다. 설정값 자체는 로그나 스크린샷에 노출하지 않습니다.
 
+애플리케이션은 시작 시 `schema.sql`을 자동 실행하지 않습니다 (`spring.sql.init.mode: never`). 실행 전에 팀에서 승인한 스키마를 별도로 준비해야 하며, 로컬 프로필은 Hibernate `validate`로 엔티티와 스키마를 검증합니다. 서버 시작은 기존 데이터베이스를 초기화하거나 테이블을 변경하지 않습니다. 스키마 변경은 별도 검토와 마이그레이션이 필요합니다.
+
 종료는 `docker compose down`을 사용합니다. 이 명령은 컨테이너와 네트워크를 제거하며, 일반적으로 `babi_mysql_data` Volume의 DB 데이터는 유지됩니다.
 
 **주의:** `docker compose down -v`는 `babi_mysql_data` 데이터 Volume도 삭제하므로 저장된 DB 데이터가 손실될 수 있습니다. 기존 데이터를 유지해야 한다면 `-v` 옵션을 사용하지 않습니다.
 
+테스트는 H2 메모리 DB를 사용합니다. 테스트 종료 후 데이터는 삭제되며 H2는 배포용 JAR에 포함되지 않습니다.
+
+## 배포 DB
+
+배포 환경은 MySQL DB를 준비하고 다음 환경 변수를 설정해야 합니다. 비밀번호를 Git에 저장하지 않습니다.
+
+- `SPRING_DATASOURCE_URL`: `jdbc:mysql://localhost:3306/babi` 형식의 연결 주소
+- `SPRING_DATASOURCE_USERNAME`: DB 계정
+- `SPRING_DATASOURCE_PASSWORD`: DB 비밀번호
+- `JWT_SECRET`: JWT 서명 키 (32바이트 이상)
+
+AWS 프로필·Redis·SMTP 미설정 데모 운영과 `main` 자동 배포는 [AWS 운영 문서](docs/aws-runtime.md)를 참고합니다. 운영 DB는 자동 초기화하거나 migration하지 않습니다.
+
+## 일일 리포트 API
+
+`POST /auth/login`에서 받은 `accessToken`을 `Authorization: Bearer <token>`으로 전달합니다.
+모든 리포트 API는 활성 계정이며 `active_baby_members`에 남아 있는 소유자 또는 `baby_permissions`가 부여된 멤버만 사용할 수 있습니다. 아기 생성자라도 멤버에서 제거되면 접근할 수 없습니다.
+
+| Method | Endpoint | 동작 |
+|---|---|---|
+| POST | `/babi/api/babies/{babyId}/daily-reports` | 생성 (`reportDate`, `summary`) |
+| GET | `/babi/api/babies/{babyId}/daily-reports/{date}` | 조회 |
+| PATCH | `/babi/api/babies/{babyId}/daily-reports/{date}` | 요약 수정 (`summary`) |
+| DELETE | `/babi/api/babies/{babyId}/daily-reports/{date}` | 삭제 |
+
+7일 통계는 리포트 날짜 6일 전 00:00부터 다음 날 00:00 직전까지 계산합니다. 경계를 넘는 수면은 구간과 겹치는 시간만 포함합니다.
+
+## 검증
+
+```bash
+./gradlew test
+./gradlew build
+```
 ## Swagger API 문서
 
 서버 실행 후 다음 주소에서 현재 브랜치의 Controller와 DTO를 기반으로 생성한 API 문서를 확인할 수 있습니다.

@@ -51,6 +51,7 @@ class BabyInvitationIntegrationTest {
     @Autowired private BabyService babyService;
     @Autowired private BabyRepository babies;
     @Autowired private BabyMemberRepository members;
+    @Autowired private BabyPermissionRepository memberPermissions;
     @Autowired private BabyInvitationCodeRepository codes;
     @Autowired private AllocatedBabyInvitationCodeRepository allocatedCodes;
     @Autowired private BabyEmailInvitationRepository invitations;
@@ -83,11 +84,11 @@ class BabyInvitationIntegrationTest {
     void codeIsGeneratedOnceAndPersistedWithoutEmailExpiry() {
         Instant before = Instant.now();
         String first = workflow.getCode(babyId, ownerId).code();
-        Instant expiry = codes.findById(babyId).orElseThrow().getExpiresAt();
-        assertFalse(expiry.isBefore(before.plus(Duration.ofDays(14))));
+        Instant expiry = codes.findFirstByBabyIdAndStatus(babyId, "ACTIVE").orElseThrow().getExpiresAt();
+        assertFalse(expiry.isBefore(before.plus(Duration.ofDays(14)).minusSeconds(1)));
         assertTrue(expiry.isBefore(Instant.now().plus(Duration.ofDays(14)).plusSeconds(1)));
         assertTrue(first.matches("[A-Za-z0-9]{6}"));
-        assertEquals(first, codes.findById(babyId).orElseThrow().value());
+        assertEquals(first, codes.findFirstByBabyIdAndStatus(babyId, "ACTIVE").orElseThrow().value());
         assertEquals(first, workflow.getCode(babyId, ownerId).code());
         verifyNoInteractions(limiter);
         workflow.send(babyId, ownerId, email);
@@ -97,7 +98,7 @@ class BabyInvitationIntegrationTest {
 
     @Test
     void codeExpiresAtExactFourteenDayBoundary() {
-        BabyInvitationCode code = new BabyInvitationCode(babyId, "AbC123");
+        BabyInvitationCode code = new BabyInvitationCode(babyId, "AbC123", 1L);
         assertTrue(code.usable(code.getExpiresAt().minusNanos(1)));
         assertFalse(code.usable(code.getExpiresAt()));
         assertFalse(code.usable(code.getExpiresAt().plusNanos(1)));
@@ -115,18 +116,18 @@ class BabyInvitationIntegrationTest {
         assertEquals(ErrorCode.INVITATION_CODE_EXPIRED, sendError.getErrorCode());
         assertError(request("GET", "/babies/" + babyId + "/invitation-code", ownerId, null),
                 409, "INVITATION_CODE_EXPIRED");
-        assertEquals(old, codes.findById(babyId).orElseThrow().value());
+        assertEquals(old, codes.findFirstByBabyIdAndStatus(babyId, "ACTIVE").orElseThrow().value());
         assertEquals(allocations, allocatedCodes.count());
         assertInvalid(() -> workflow.inspect(old, guestId));
         assertInvalid(() -> workflow.accept(old, guestId));
         verify(sender, times(1)).send(anyString(), anyString(), anyString());
         String replacement = workflow.rotate(babyId, ownerId).code();
         assertNotEquals(old, replacement);
-        assertEquals(BabyEmailInvitation.Status.REVOKED, invitation().getStatus());
+        assertEquals(BabyEmailInvitation.Status.CANCELED, invitation().getStatus());
         assertInvalid(() -> workflow.accept(old, guestId));
         workflow.send(babyId, ownerId, email);
         workflow.accept(replacement, guestId);
-        assertEquals(BabyRole.MEMBER, members.findByBabyIdAndUserId(babyId, guestId).orElseThrow().getRole());
+        assertEquals(BabyRole.GUARDIAN, members.findByBabyIdAndUserId(babyId, guestId).orElseThrow().getRole());
     }
 
     @Test
@@ -139,28 +140,131 @@ class BabyInvitationIntegrationTest {
         verify(sender).send(eq(otherEmail), anyString(), contains(value));
         workflow.accept(value, guestId);
         workflow.accept(value, outsiderId);
-        assertEquals(BabyRole.MEMBER, members.findByBabyIdAndUserId(babyId, guestId).orElseThrow().getRole());
-        assertEquals(BabyRole.MEMBER, members.findByBabyIdAndUserId(babyId, outsiderId).orElseThrow().getRole());
+        assertEquals(BabyRole.GUARDIAN, members.findByBabyIdAndUserId(babyId, guestId).orElseThrow().getRole());
+        assertEquals(BabyRole.GUARDIAN, members.findByBabyIdAndUserId(babyId, outsiderId).orElseThrow().getRole());
     }
 
     @Test
-    void codeUniquenessIsCaseSensitiveAndEnforcedByDatabase() {
+    void acceptsOneHundredUsersAndRejectsTheNextWithoutIncrementing() throws Exception {
+        String code = workflow.getCode(babyId, ownerId).code();
+        assertEquals(100, jdbc.queryForObject("select max_uses from baby_invitation_codes where baby_id = ? and status = 'ACTIVE'", Integer.class, babyId));
+        for (int i = 0; i < 100; i++) workflow.accept(code, user("guardian"));
+        assertEquals(100, jdbc.queryForObject("select used_count from baby_invitation_codes where baby_id = ? and status = 'ACTIVE'", Integer.class, babyId));
+        assertError(request("POST", "/babies/invitations/accept", guestId, "{\"code\":\"" + code + "\"}"), 409, "INVITATION_CODE_EXHAUSTED");
+        assertFalse(members.existsByBabyIdAndUserId(babyId, guestId));
+        assertEquals(100, jdbc.queryForObject("select used_count from baby_invitation_codes where baby_id = ? and status = 'ACTIVE'", Integer.class, babyId));
+    }
+
+    @Test
+    void rolledBackAcceptanceDoesNotConsumeCodeOrCreateMember() {
+        String code = workflow.getCode(babyId, ownerId).code();
+        assertThrows(IllegalStateException.class, () -> new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+            workflow.accept(code, guestId);
+            throw new IllegalStateException("test rollback");
+        }));
+        assertEquals(0, jdbc.queryForObject("select used_count from baby_invitation_codes where baby_id = ? and status = 'ACTIVE'", Integer.class, babyId));
+        assertFalse(members.existsByBabyIdAndUserId(babyId, guestId));
+        workflow.accept(code, guestId);
+        assertEquals(1, jdbc.queryForObject("select used_count from baby_invitation_codes where baby_id = ? and status = 'ACTIVE'", Integer.class, babyId));
+    }
+
+    @Test
+    void simultaneousLastSlotAcceptsExactlyOneUser() throws Exception {
+        String code = workflow.getCode(babyId, ownerId).code();
+        for (int i = 0; i < 99; i++) workflow.accept(code, user("guardian"));
+        CountDownLatch gate = new CountDownLatch(1);
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var one = executor.submit(() -> { gate.await(); try { workflow.accept(code, guestId); return true; } catch (BabyInvitationException ex) { assertEquals(ErrorCode.INVITATION_CODE_EXHAUSTED, ex.getErrorCode()); return false; } });
+            var two = executor.submit(() -> { gate.await(); try { workflow.accept(code, outsiderId); return true; } catch (BabyInvitationException ex) { assertEquals(ErrorCode.INVITATION_CODE_EXHAUSTED, ex.getErrorCode()); return false; } });
+            gate.countDown();
+            assertNotEquals(one.get(10, TimeUnit.SECONDS), two.get(10, TimeUnit.SECONDS));
+        }
+        assertEquals(100, jdbc.queryForObject("select used_count from baby_invitation_codes where baby_id = ? and status = 'ACTIVE'", Integer.class, babyId));
+        assertEquals(101, members.findByBabyId(babyId).size());
+    }
+
+    @Test
+    void existingCodeLimitIsNotChanged() {
+        String code = workflow.getCode(babyId, ownerId).code();
+        jdbc.update("update baby_invitation_codes set max_uses = 1 where baby_id = ? and status = 'ACTIVE'", babyId);
+        assertEquals(code, workflow.getCode(babyId, ownerId).code());
+        workflow.accept(code, guestId);
+        assertEquals(ErrorCode.INVITATION_CODE_EXHAUSTED, assertThrows(BabyInvitationException.class, () -> workflow.accept(code, outsiderId)).getErrorCode());
+        assertEquals(1, jdbc.queryForObject("select max_uses from baby_invitation_codes where baby_id = ? and status = 'ACTIVE'", Integer.class, babyId));
+    }
+
+    @Test
+    void reissueResetsCountAndRevokesPreviousCode() {
+        String old = workflow.getCode(babyId, ownerId).code();
+        workflow.accept(old, guestId);
+        assertEquals(ErrorCode.INVITATION_ALREADY_MEMBER, assertThrows(BabyInvitationException.class, () -> workflow.accept(old, guestId)).getErrorCode());
+        assertEquals(1, jdbc.queryForObject("select used_count from baby_invitation_codes where code = ?", Integer.class, old));
+        String replacement = workflow.rotate(babyId, ownerId).code();
+        assertEquals("REVOKED", jdbc.queryForObject("select status from baby_invitation_codes where code = ?", String.class, old));
+        assertInvalid(() -> workflow.accept(old, outsiderId));
+        assertEquals(0, jdbc.queryForObject("select used_count from baby_invitation_codes where code = ?", Integer.class, replacement));
+        assertEquals(100, jdbc.queryForObject("select max_uses from baby_invitation_codes where code = ?", Integer.class, replacement));
+        workflow.accept(replacement, outsiderId);
+    }
+
+    @Test
+    void codeAloneAllowsMultipleAccountsAndIgnoresCase() {
+        String code = workflow.getCode(babyId, ownerId).code();
+        assertTrue(code.matches("[A-Z0-9]{6}"));
+        assertEquals(babyId, workflow.inspect(code.toLowerCase(Locale.ROOT), guestId).babyId());
+        assertEquals(babyId, workflow.accept(code.toLowerCase(Locale.ROOT), guestId).babyId());
+        assertEquals(babyId, workflow.accept(code, outsiderId).babyId());
+        assertEquals(BabyRole.GUARDIAN, members.findByBabyIdAndUserId(babyId, guestId).orElseThrow().getRole());
+        assertEquals(BabyRole.GUARDIAN, members.findByBabyIdAndUserId(babyId, outsiderId).orElseThrow().getRole());
+        assertThrows(BabyInvitationException.class, () -> workflow.accept(code, guestId));
+        verifyNoInteractions(sender);
+    }
+
+    @Test
+    void codeAloneRejectsExpiredAndRotatedCodes() {
+        String old = workflow.getCode(babyId, ownerId).code();
+        String replacement = workflow.rotate(babyId, ownerId).code();
+        assertInvalid(() -> workflow.accept(old, guestId));
+        assertEquals(babyId, workflow.accept(replacement, guestId).babyId());
+    }
+
+    @Test
+    void leavingRemovesPermissionsAndReinvitationReactivatesSameMember() {
+        workflow.send(babyId, ownerId, email);
+        String code = workflow.getCode(babyId, ownerId).code();
+        workflow.accept(code, guestId);
+        Long membershipId = members.findByBabyIdAndUserId(babyId, guestId).orElseThrow().getId();
+        assertEquals(1, jdbc.queryForObject("select count(*) from baby_permissions where baby_member_id = ?", Integer.class, membershipId));
+        babyService.leaveBaby(babyId, guestId);
+        assertFalse(members.existsByBabyIdAndUserId(babyId, guestId));
+        assertNotNull(members.findIncludingRemoved(babyId, guestId).orElseThrow().getRemovedAt());
+        assertEquals(0, jdbc.queryForObject("select count(*) from baby_permissions where baby_member_id = ?", Integer.class, membershipId));
+        workflow.accept(code, guestId);
+        BabyMember restored = members.findByBabyIdAndUserId(babyId, guestId).orElseThrow();
+        assertEquals(membershipId, restored.getId());
+        assertNull(restored.getRemovedAt());
+        assertEquals(BabyRole.GUARDIAN, restored.getRole());
+        assertEquals(1, jdbc.queryForObject("select count(*) from baby_permissions where baby_member_id = ?", Integer.class, membershipId));
+    }
+
+    @Test
+    void codeUniquenessUsesNormalizedValuesAndIsEnforcedByDatabase() {
         Long secondBaby = anotherBaby();
-        doReturn("AbC123", "aBc123").when(generator).generate();
-        assertEquals("AbC123", workflow.getCode(babyId, ownerId).code());
-        assertEquals("aBc123", workflow.getCode(secondBaby, ownerId).code());
+        doReturn("AbC123", "aBc123", "DEF456").when(generator).generate();
+        assertEquals("ABC123", workflow.getCode(babyId, ownerId).code());
+        assertEquals("DEF456", workflow.getCode(secondBaby, ownerId).code());
         Long thirdBaby = anotherBaby();
         assertThrows(DataIntegrityViolationException.class,
-                () -> codes.saveAndFlush(new BabyInvitationCode(thirdBaby, "AbC123")));
+                () -> codes.saveAndFlush(new BabyInvitationCode(thirdBaby, "ABC123", members.findByBabyIdAndUserId(thirdBaby, ownerId).orElseThrow().getId())));
     }
 
     @Test
     void collisionChoosesAnotherCodeWithoutReplacingExistingBabyCode() {
         Long second = anotherBaby();
-        doReturn("XyZ987", "XyZ987", "ZyX987").when(generator).generate();
-        assertEquals("XyZ987", workflow.getCode(babyId, ownerId).code());
-        assertEquals("ZyX987", workflow.getCode(second, ownerId).code());
-        assertEquals("XyZ987", workflow.getCode(babyId, ownerId).code());
+        doReturn("XYZ987", "XYZ987", "ZYX987").when(generator).generate();
+        assertEquals("XYZ987", workflow.getCode(babyId, ownerId).code());
+        assertEquals("ZYX987", workflow.getCode(second, ownerId).code());
+        assertEquals("XYZ987", workflow.getCode(babyId, ownerId).code());
     }
 
     @Test
@@ -192,13 +296,13 @@ class BabyInvitationIntegrationTest {
             var b = executor.submit(() -> workflow.getCode(otherBaby, ownerId).code());
             assertNotEquals(a.get(8, TimeUnit.SECONDS), b.get(8, TimeUnit.SECONDS));
         }
-        assertNotEquals(codes.findById(babyId).orElseThrow().value(), codes.findById(otherBaby).orElseThrow().value());
+        assertNotEquals(codes.findFirstByBabyIdAndStatus(babyId, "ACTIVE").orElseThrow().value(), codes.findFirstByBabyIdAndStatus(otherBaby, "ACTIVE").orElseThrow().value());
     }
 
     @Test
     void codeIsReadFromStorageByNewWorkflowInstance() {
         String previous = workflow.getCode(babyId, ownerId).code();
-        var restarted = new BabyInvitationWorkflow(babies, members, codes, allocatedCodes, invitations, users,
+        var restarted = new BabyInvitationWorkflow(babies, members, memberPermissions, codes, allocatedCodes, invitations, users,
                 new BabyInvitationService(members), new InvitationCodeGenerator(), limiter,
                 new InvitationLinkFactory("https://app.babi.test/invite"), sender, transactionManager);
         assertEquals(previous, restarted.getCode(babyId, ownerId).code());
@@ -206,18 +310,18 @@ class BabyInvitationIntegrationTest {
 
     @Test
     void retiredCodesCannotBeAssignedAgainToAnyBaby() {
-        doReturn("Hist12", "Hist34", "Hist12", "Hist56").when(generator).generate();
-        assertEquals("Hist12", workflow.getCode(babyId, ownerId).code());
-        assertEquals("Hist34", workflow.rotate(babyId, ownerId).code());
-        assertEquals("Hist56", workflow.getCode(anotherBaby(), ownerId).code());
-        assertTrue(allocatedCodes.existsByCode("Hist12".getBytes(StandardCharsets.US_ASCII)));
+        doReturn("HIST12", "HIST34", "HIST12", "HIST56").when(generator).generate();
+        assertEquals("HIST12", workflow.getCode(babyId, ownerId).code());
+        assertEquals("HIST34", workflow.rotate(babyId, ownerId).code());
+        assertEquals("HIST56", workflow.getCode(anotherBaby(), ownerId).code());
+        assertTrue(allocatedCodes.existsByCode("HIST12".getBytes(StandardCharsets.US_ASCII)));
     }
 
     @Test
     void ownerMailContainsHttpsLinkAndCodeAndDuplicateSendKeepsExpiry() {
         workflow.send(babyId, ownerId, "  " + email.toUpperCase(Locale.ROOT) + "  ");
         var first = invitation();
-        assertEquals(Duration.ofDays(14), Duration.between(first.getSentAt(), first.getExpiresAt()));
+        assertEquals(Duration.ofDays(14), Duration.between(first.getCreatedAt(), first.getExpiresAt()));
         String value = workflow.getCode(babyId, ownerId).code();
         workflow.send(babyId, ownerId, email);
         var second = invitation();
@@ -237,9 +341,9 @@ class BabyInvitationIntegrationTest {
         var before = invitation();
         workflow.send(babyId, ownerId, email);
         var after = invitation();
-        assertEquals(before.getId(), after.getId());
+        assertNotEquals(before.getId(), after.getId());
         assertTrue(after.getExpiresAt().isAfter(Instant.now().plus(Duration.ofDays(13))));
-        assertEquals(Duration.ofDays(14), Duration.between(after.getSentAt(), after.getExpiresAt()));
+        assertEquals(Duration.ofDays(14), Duration.between(after.getCreatedAt(), after.getExpiresAt()));
         assertEquals(value, workflow.getCode(babyId, ownerId).code());
     }
 
@@ -249,28 +353,21 @@ class BabyInvitationIntegrationTest {
         String old = workflow.getCode(babyId, ownerId).code();
         String replacement = workflow.rotate(babyId, ownerId).code();
         assertNotEquals(old, replacement);
-        assertEquals(BabyEmailInvitation.Status.REVOKED, invitation().getStatus());
+        assertEquals(BabyEmailInvitation.Status.CANCELED, invitation().getStatus());
         assertInvalid(() -> workflow.accept(old, guestId));
-        assertInvalid(() -> workflow.accept(replacement, guestId));
-        workflow.send(babyId, ownerId, email);
         assertEquals(babyId, workflow.accept(replacement, guestId).babyId());
     }
 
     @Test
-    void wrongEmailExpiredAndUsedInvitationsCannotBeAccepted() {
+    void expiredEmailDoesNotPreventValidCodeUse() {
         workflow.send(babyId, ownerId, email);
         String value = workflow.getCode(babyId, ownerId).code();
-        assertInvalid(() -> workflow.inspect(value, outsiderId));
-        assertInvalid(() -> workflow.accept(value, outsiderId));
         expireInvitation();
-        assertInvalid(() -> workflow.accept(value, guestId));
-        workflow.send(babyId, ownerId, email);
-        assertEquals(babyId, workflow.inspect(value, guestId).babyId());
+        assertEquals(babyId, workflow.inspect(value, outsiderId).babyId());
+        assertEquals(babyId, workflow.accept(value, outsiderId).babyId());
         assertEquals(babyId, workflow.accept(value, guestId).babyId());
-        assertEquals(BabyRole.MEMBER, members.findByBabyIdAndUserId(babyId, guestId).orElseThrow().getRole());
-        assertEquals(BabyEmailInvitation.Status.ACCEPTED, invitation().getStatus());
-        assertInvalid(() -> workflow.accept(value, guestId));
-        assertEquals(2, members.findByBabyId(babyId).size());
+        assertEquals(ErrorCode.INVITATION_ALREADY_MEMBER,
+                assertThrows(BabyInvitationException.class, () -> workflow.accept(value, guestId)).getErrorCode());
     }
 
     @Test
@@ -288,11 +385,11 @@ class BabyInvitationIntegrationTest {
         var self = assertThrows(BabyInvitationException.class,
                 () -> workflow.send(babyId, ownerId, users.findById(ownerId).orElseThrow().getEmail()));
         assertEquals(ErrorCode.INVITATION_SELF, self.getErrorCode());
-        members.saveAndFlush(BabyMember.builder().babyId(babyId).userId(guestId).role(BabyRole.MEMBER).build());
+        members.saveAndFlush(BabyMember.builder().babyId(babyId).userId(guestId).role(BabyRole.GUARDIAN).build());
         var duplicate = assertThrows(BabyInvitationException.class, () -> workflow.send(babyId, ownerId, email));
         assertEquals(ErrorCode.INVITATION_ALREADY_MEMBER, duplicate.getErrorCode());
         verifyNoInteractions(sender);
-        assertTrue(codes.findById(babyId).isEmpty());
+        assertTrue(codes.findFirstByBabyIdAndStatus(babyId, "ACTIVE").isEmpty());
     }
 
     @Test
@@ -301,7 +398,7 @@ class BabyInvitationIntegrationTest {
         var error = assertThrows(BabyInvitationException.class, () -> workflow.send(babyId, ownerId, email));
         assertEquals(ErrorCode.INVITATION_SEND_FAILED, error.getErrorCode());
         assertNull(error.getCause());
-        assertTrue(codes.findById(babyId).isEmpty());
+        assertTrue(codes.findFirstByBabyIdAndStatus(babyId, "ACTIVE").isEmpty());
         assertTrue(invitations.findByBabyId(babyId).isEmpty());
     }
 
@@ -315,7 +412,7 @@ class BabyInvitationIntegrationTest {
         assertThrows(BabyInvitationException.class, () -> workflow.send(babyId, ownerId, email));
         assertEquals(previousExpiry, invitation().getExpiresAt());
         assertEquals(value, workflow.getCode(babyId, ownerId).code());
-        assertInvalid(() -> workflow.accept(value, guestId));
+        assertEquals(babyId, workflow.accept(value, guestId).babyId());
     }
 
     @Test
@@ -337,7 +434,7 @@ class BabyInvitationIntegrationTest {
         doThrow(new BabyInvitationException(ErrorCode.INVITATION_RATE_LIMITED))
                 .when(limiter).send(ownerId, babyId, email);
         assertThrows(BabyInvitationException.class, () -> workflow.send(babyId, ownerId, email));
-        assertTrue(codes.findById(babyId).isEmpty());
+        assertTrue(codes.findFirstByBabyIdAndStatus(babyId, "ACTIVE").isEmpty());
         assertTrue(invitations.findByBabyId(babyId).isEmpty());
         verifyNoInteractions(sender);
     }
@@ -355,7 +452,7 @@ class BabyInvitationIntegrationTest {
                 workflow.accept(value, guestId);
                 success.incrementAndGet();
             } catch (BabyInvitationException e) {
-                assertEquals(ErrorCode.INVITATION_INVALID, e.getErrorCode());
+                assertEquals(ErrorCode.INVITATION_ALREADY_MEMBER, e.getErrorCode());
                 rejected.incrementAndGet();
             } catch (InterruptedException e) {
                 throw new IllegalStateException(e);
@@ -386,36 +483,26 @@ class BabyInvitationIntegrationTest {
         String code = workflow.getCode(babyId, ownerId).code();
         verify(sender, times(2)).send(eq(email), anyString(), contains(code));
         workflow.accept(code, guestId);
-        assertEquals(BabyRole.MEMBER, members.findByBabyIdAndUserId(babyId, guestId).orElseThrow().getRole());
+        assertEquals(BabyRole.GUARDIAN, members.findByBabyIdAndUserId(babyId, guestId).orElseThrow().getRole());
     }
 
     @Test
-    void codeWithoutEmailInvitationAndDifferentBabysCodeCannotRegisterMember() {
-        workflow.send(babyId, ownerId, email);
-        String invitedCode = workflow.getCode(babyId, ownerId).code();
+    void codeWithoutEmailJoinsOnlyTheBabyIdentifiedByThatCode() {
+        String firstCode = workflow.getCode(babyId, ownerId).code();
         Long otherBaby = anotherBaby();
         String otherCode = workflow.getCode(otherBaby, ownerId).code();
-        assertNotEquals(invitedCode, otherCode);
-        assertInvalid(() -> workflow.accept(otherCode, guestId));
-        assertFalse(members.existsByBabyIdAndUserId(otherBaby, guestId));
-        assertInvalid(() -> workflow.accept("000000".equals(invitedCode) ? "999999" : "000000", guestId));
-        workflow.accept(invitedCode, guestId);
-        assertTrue(members.existsByBabyIdAndUserId(babyId, guestId));
-        assertFalse(members.existsByBabyIdAndUserId(otherBaby, guestId));
+        assertNotEquals(firstCode, otherCode);
+        workflow.accept(otherCode, guestId);
+        assertTrue(members.existsByBabyIdAndUserId(otherBaby, guestId));
+        assertFalse(members.existsByBabyIdAndUserId(babyId, guestId));
+        assertInvalid(() -> workflow.accept("000000".equals(firstCode) ? "999999" : "000000", outsiderId));
     }
 
     @Test
-    void caseChangedCodeIsRejectedForAnInvitedAccount() {
-        String value;
-        do {
-            value = "Qa" + UUID.randomUUID().toString().replace("-", "").substring(0, 4);
-        } while (allocatedCodes.existsByCode(value.getBytes(StandardCharsets.US_ASCII)));
-        doReturn(value).when(generator).generate();
-        workflow.send(babyId, ownerId, email);
-        String wrongCase = "q" + value.substring(1);
-        assertInvalid(() -> workflow.inspect(wrongCase, guestId));
-        assertInvalid(() -> workflow.accept(wrongCase, guestId));
-        workflow.accept(value, guestId);
+    void lowercaseCodeIsAccepted() {
+        String code = workflow.getCode(babyId, ownerId).code();
+        assertEquals(babyId, workflow.inspect(code.toLowerCase(Locale.ROOT), guestId).babyId());
+        workflow.accept(code.toLowerCase(Locale.ROOT), guestId);
         assertTrue(members.existsByBabyIdAndUserId(babyId, guestId));
     }
 
@@ -426,15 +513,16 @@ class BabyInvitationIntegrationTest {
         workflow.accept(code, guestId);
         String base = "/babies/" + babyId;
         assertEquals(BabyRole.OWNER, members.findByBabyIdAndUserId(babyId, ownerId).orElseThrow().getRole());
-        assertEquals(BabyRole.MEMBER, members.findByBabyIdAndUserId(babyId, guestId).orElseThrow().getRole());
+        assertEquals(BabyRole.GUARDIAN, members.findByBabyIdAndUserId(babyId, guestId).orElseThrow().getRole());
         assertError(request("DELETE", base + "/members/me", ownerId, null), 403, "FORBIDDEN");
         assertEquals(200, request("PATCH", base + "/members/owner", ownerId,
                 "{\"newOwnerUserId\":" + guestId + "}").statusCode());
-        assertEquals(BabyRole.MEMBER, members.findByBabyIdAndUserId(babyId, ownerId).orElseThrow().getRole());
+        assertEquals(BabyRole.GUARDIAN, members.findByBabyIdAndUserId(babyId, ownerId).orElseThrow().getRole());
         assertEquals(BabyRole.OWNER, members.findByBabyIdAndUserId(babyId, guestId).orElseThrow().getRole());
         assertError(request("GET", base + "/invitation-code", ownerId, null), 403, "FORBIDDEN");
         assertEquals(200, request("GET", base + "/invitation-code", guestId, null).statusCode());
         assertEquals(200, request("POST", base + "/invitation-code/reissue", guestId, null).statusCode());
+        assertEquals(200, request("GET", base + "/invitation-code", guestId, null).statusCode());
         assertEquals(200, request("POST", base + "/invitations", guestId,
                 mapper.writeValueAsString(Map.of("email", users.findById(outsiderId).orElseThrow().getEmail()))).statusCode());
         assertEquals(200, request("DELETE", base + "/members/me", ownerId, null).statusCode());
@@ -477,7 +565,7 @@ class BabyInvitationIntegrationTest {
         String old = workflow.getCode(babyId, ownerId).code();
         serialized(() -> workflow.accept(old, guestId), () -> workflow.rotate(babyId, ownerId));
         assertTrue(members.existsByBabyIdAndUserId(babyId, guestId));
-        assertEquals(BabyEmailInvitation.Status.ACCEPTED, invitation().getStatus());
+        assertEquals(BabyEmailInvitation.Status.CANCELED, invitation().getStatus());
         assertInvalid(() -> workflow.accept(old, guestId));
     }
 
@@ -501,7 +589,7 @@ class BabyInvitationIntegrationTest {
     @ParameterizedTest
     @CsvSource({"GET,/invitation-code", "POST,/invitation-code/reissue", "POST,/invitations"})
     void membersAndOutsidersCannotUseOwnerEndpoints(String method, String suffix) throws Exception {
-        members.saveAndFlush(BabyMember.builder().babyId(babyId).userId(guestId).role(BabyRole.MEMBER).build());
+        members.saveAndFlush(BabyMember.builder().babyId(babyId).userId(guestId).role(BabyRole.GUARDIAN).build());
         for (Long userId : List.of(guestId, outsiderId)) {
             assertError(request(method, "/babies/" + babyId + suffix, userId,
                     method.equals("POST") ? "{\"email\":\"new@example.invalid\"}" : null), 403, "FORBIDDEN");
@@ -534,13 +622,13 @@ class BabyInvitationIntegrationTest {
         String value = workflow.getCode(babyId, ownerId).code();
         String json = mapper.writeValueAsString(Map.of("code", value, "email", email));
         var wrong = request("POST", "/babies/invitations/check", outsiderId, json);
-        assertError(wrong, 400, "INVITATION_INVALID");
+        assertEquals(200, wrong.statusCode(), wrong.body());
         assertFalse(wrong.body().contains(email));
         var own = request("POST", "/babies/invitations/check", guestId, json);
         assertEquals(200, own.statusCode(), own.body());
         assertFalse(own.body().contains(email));
         assertEquals(babyId.longValue(), mapper.readTree(own.body()).path("data").path("babyId").asLong());
-        assertError(request("POST", "/babies/invitations/accept", outsiderId, json), 400, "INVITATION_INVALID");
+        assertEquals(200, request("POST", "/babies/invitations/accept", outsiderId, json).statusCode());
         assertEquals(200, request("POST", "/babies/invitations/accept", guestId, json).statusCode());
     }
 
@@ -585,10 +673,8 @@ class BabyInvitationIntegrationTest {
     }
 
     private void expireInvitation() {
-        new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
-            var existing = invitations.findForUpdate(babyId, email).orElseThrow();
-            existing.renew(existing.getGeneration(), Instant.now().minus(Duration.ofDays(14)));
-        });
+        jdbc.update("update baby_email_invitations set expires_at = ? where baby_id = ? and invited_email = ? and status = 'PENDING'",
+                java.sql.Timestamp.from(Instant.now().minusSeconds(1)), babyId, email);
     }
 
     private void expireCode() {
@@ -597,7 +683,7 @@ class BabyInvitationIntegrationTest {
     }
 
     private BabyEmailInvitation invitation() {
-        return invitations.findByBabyId(babyId).getFirst();
+        return invitations.findByBabyId(babyId).stream().max(Comparator.comparing(BabyEmailInvitation::getId)).orElseThrow();
     }
 
     private Long user(String nickname) {

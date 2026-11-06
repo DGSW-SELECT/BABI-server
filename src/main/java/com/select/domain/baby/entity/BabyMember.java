@@ -5,12 +5,13 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(
         name = "baby_members",
         uniqueConstraints = @UniqueConstraint(
-                name = "uk_baby_members_baby_user",
+                name = "uk_baby_member",
                 columnNames = {"baby_id", "user_id"}
         )
 )
@@ -32,6 +33,9 @@ public class BabyMember {
     @Enumerated(EnumType.STRING)
     private BabyRole role;
 
+    @Column(name = "removed_at")
+    private LocalDateTime removedAt;
+
     @Builder
     public BabyMember(Long babyId, Long userId, BabyRole role) {
         this.babyId = babyId;
@@ -41,5 +45,14 @@ public class BabyMember {
 
     public void changeRole(BabyRole role) {
         this.role = role;
+    }
+
+    public void deactivate() {
+        this.removedAt = LocalDateTime.now();
+    }
+
+    public void reactivate(BabyRole role) {
+        this.role = role;
+        this.removedAt = null;
     }
 }

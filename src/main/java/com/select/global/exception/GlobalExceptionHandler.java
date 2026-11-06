@@ -25,6 +25,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
+import com.select.domain.report.exception.DailyReportAlreadyExistsException;
+import com.select.domain.report.exception.DailyReportNotFoundException;
 
 
 import java.util.ArrayList;
@@ -38,6 +40,20 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(BabyInvitationException.class)
     public ResponseEntity<ApiResponse<Void>> handleBabyInvitation(BabyInvitationException e) {
         return createErrorResponse(e.getErrorCode(), List.of());
+    }
+
+    @ExceptionHandler(DailyReportAlreadyExistsException.class)
+    public ResponseEntity<ApiResponse<Void>> handleDailyReportAlreadyExists(
+            DailyReportAlreadyExistsException e
+    ) {
+        return createErrorResponse(ErrorCode.DAILY_REPORT_ALREADY_EXISTS, List.of());
+    }
+
+    @ExceptionHandler(DailyReportNotFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> handleDailyReportNotFound(
+            DailyReportNotFoundException e
+    ) {
+        return createErrorResponse(ErrorCode.DAILY_REPORT_NOT_FOUND, List.of());
     }
 
     @ExceptionHandler(EmailVerificationException.class)

@@ -12,7 +12,7 @@ import java.util.Optional;
 
 public interface BabyEmailInvitationRepository extends JpaRepository<BabyEmailInvitation, Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("select i from BabyEmailInvitation i where i.babyId = :babyId and i.email = :email")
+    @Query("select i from BabyEmailInvitation i where i.babyId = :babyId and i.email = :email and i.status = com.select.domain.baby.entity.BabyEmailInvitation.Status.PENDING")
     Optional<BabyEmailInvitation> findForUpdate(@Param("babyId") Long babyId, @Param("email") String email);
 
     List<BabyEmailInvitation> findByBabyId(Long babyId);

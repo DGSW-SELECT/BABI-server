@@ -6,7 +6,7 @@ import java.security.SecureRandom;
 
 @Component
 public class InvitationCodeGenerator {
-    private static final String ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    private static final String ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
     private final SecureRandom random = new SecureRandom();
 
     public String generate() {
