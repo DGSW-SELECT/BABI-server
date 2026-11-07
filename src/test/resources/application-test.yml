@@ -7,6 +7,7 @@ spring:
       ddl-auto: validate
   sql:
     init:
+      mode: always
       schema-locations: classpath:schema-test.sql
   mail:
     host: localhost

@@ -30,9 +30,9 @@ cp .env.example .env
 | `MAIL_PASSWORD` | 해당 Gmail 계정에서 발급한 앱 비밀번호를 입력합니다. 일반 로그인 비밀번호를 사용하지 않습니다. |
 | `EMAIL_VERIFICATION_SECRET` | 인증번호를 HMAC-SHA256으로 해시하는 독립적인 무작위 비밀키입니다. `JWT_SECRET`과 다른 값을 사용합니다. 예를 들어 `openssl rand -hex 32`로 생성한 값을 설정할 수 있습니다. |
 
-실제 이메일 계정·앱 비밀번호·비밀키는 `.env`에만 보관하고 Git에 커밋하지 않습니다. 아래 실행 명령은 `.env`를 셸에서 읽으므로 `KEY=value` 형식을 유지하고, 공백이나 셸 특수문자가 들어가는 값은 작은따옴표로 감쌉니다. 직접 작성한 신뢰할 수 있는 `.env`만 읽습니다.
+실제 이메일 계정·앱 비밀번호·비밀키는 Git에 커밋하지 않습니다. `.env`는 `.gitignore`에 포함되어 있습니다. Docker Compose와 Spring Boot가 같은 파일을 읽으므로 따옴표 없이 `KEY=value` 형식으로 작성하고, 값에는 공백·백슬래시·달러 기호를 사용하지 않습니다. 각 프로그램의 해석 방식이 달라질 수 있습니다. 비밀키에는 `openssl rand -hex 32`로 생성한 값을 사용할 수 있습니다. Gmail 앱 비밀번호는 표시되는 공백을 제거하여 입력합니다. 외부에서 받은 `.env`를 셸 명령으로 실행하지 않습니다.
 
-`.env` 파일은 Docker Compose에서 설정값을 읽는 데 사용되며, 현재 프로젝트에는 호스트에서 실행하는 Spring Boot에 `.env`를 자동으로 로드하는 설정이 없습니다. 애플리케이션 실행 시 아래와 같이 환경 변수를 별도로 전달해야 합니다.
+`local` 프로필은 실행 프로세스의 **작업 디렉터리**에 있는 `.env`를 Spring의 properties 파일로 읽습니다. 파일 자체가 없어도 시작은 진행하지만 필요한 값이 다른 곳에도 없으면 시작에 실패합니다. OS 환경변수 또는 IntelliJ 실행 구성에서 명시한 환경변수가 `.env` 값보다 우선합니다. `local` 외의 프로필은 이 파일을 자동으로 읽지 않으며 운영 환경은 기존처럼 필요한 비밀값을 별도로 제공해야 합니다.
 
 2. MySQL과 Redis를 실행합니다.
 
@@ -43,22 +43,17 @@ docker compose ps
 
 MySQL은 `127.0.0.1:3307`으로만 노출되며, MySQL 데이터 디렉터리(`/var/lib/mysql`)는 `babi_mysql_data` Docker Volume에 저장됩니다.
 
-3. IntelliJ에서 `local` 프로필로 애플리케이션을 실행합니다. 실행 구성의 환경 변수에 `MYSQL_PASSWORD`, `JWT_SECRET`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `EMAIL_VERIFICATION_SECRET`을 `.env`의 값과 동일하게 설정해야 합니다. `.env` 파일을 만드는 것만으로 IntelliJ 실행 구성에 적용되지는 않습니다. `JWT_ACCESS_TOKEN_EXPIRATION_MINUTES`를 변경했다면 해당 값도 전달합니다.
+3. IntelliJ의 Spring Boot 실행 구성에서 Main class를 `com.select.BabiServerApplication`, Active profiles를 `local`, Working directory를 **BABI-server 프로젝트 루트**로 지정하고 실행합니다. 이 설정에서는 `.env`의 값이 Spring 설정으로 전달되므로 환경변수를 하나씩 복사할 필요가 없습니다. 실행 구성에 동일한 환경변수가 이미 들어 있다면 그 값이 우선하므로 오래된 값이 없는지 확인합니다. IntelliJ의 별도 `.env` 플러그인은 필요하지 않습니다.
 
-Gradle로 실행할 경우 프로젝트 루트에서 다음 명령을 실행합니다. Bash 또는 Zsh 기준이며, 괄호 안의 별도 셸에서 `.env`의 변수를 export한 뒤 Spring Boot를 실행합니다.
+Gradle로 실행할 경우 프로젝트 루트에서 다음 명령을 실행합니다.
 
 ```bash
-(
-  set -a
-  . ./.env || exit
-  set +a
-  ./gradlew bootRun --args='--spring.profiles.active=local'
-)
+./gradlew bootRun --args='--spring.profiles.active=local'
 ```
 
-`set -a`는 `.env`에서 읽은 변수를 자식 Gradle·Spring Boot 프로세스에 전달합니다. 별도 셸이 종료되면 이 설정은 현재 터미널에 남지 않습니다.
+`Could not resolve placeholder 'EMAIL_VERIFICATION_SECRET'`가 계속 발생하면 `local` 프로필, 실행 구성의 Working directory, `.env` 파일과 해당 키의 존재 여부를 확인합니다. 설정값 자체는 로그나 스크린샷에 노출하지 않습니다.
 
-애플리케이션 시작 시 `src/main/resources/schema.sql`을 적용해 리포트·통계·아기 접근 권한에 필요한 테이블을 생성합니다. 빈 DB에서도 별도 로컬 SQL 파일 없이 실행할 수 있습니다. `CREATE TABLE IF NOT EXISTS`를 사용하므로 기존 데이터는 유지되며, 기존 테이블의 컬럼·제약 변경은 별도 migration이 필요합니다.
+애플리케이션은 시작 시 `schema.sql`을 자동 실행하지 않습니다 (`spring.sql.init.mode: never`). 실행 전에 팀에서 승인한 스키마를 별도로 준비해야 하며, 로컬 프로필은 Hibernate `validate`로 엔티티와 스키마를 검증합니다. 서버 시작은 기존 데이터베이스를 초기화하거나 테이블을 변경하지 않습니다. 스키마 변경은 별도 검토와 마이그레이션이 필요합니다.
 
 종료는 `docker compose down`을 사용합니다. 이 명령은 컨테이너와 네트워크를 제거하며, 일반적으로 `babi_mysql_data` Volume의 DB 데이터는 유지됩니다.
 
