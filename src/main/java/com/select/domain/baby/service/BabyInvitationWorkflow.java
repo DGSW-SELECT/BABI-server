@@ -88,8 +88,12 @@ public class BabyInvitationWorkflow {
     }
 
     public BabyInvitationResponse send(Long babyId, Long userId, String targetEmail) {
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            // A caller-owned transaction could roll back after the external message was delivered.
+            throw new BabyInvitationException(ErrorCode.INVITATION_UNAVAILABLE);
+        }
         String email = EmailNormalizer.normalize(targetEmail);
-        return withCodeRetry(() -> {
+        PreparedInvitation prepared = withCodeRetry(() -> {
             Baby baby = lockOwnedBaby(babyId, userId);
             User owner = account(userId);
             if (EmailNormalizer.normalize(owner.getEmail()).equals(email)) {
@@ -114,18 +118,30 @@ public class BabyInvitationWorkflow {
                 invitation = new BabyEmailInvitation(babyId, email, ownerMemberId(babyId, userId), randomTokenHash(), now);
             }
             invitations.saveAndFlush(invitation);
+            return new PreparedInvitation(invitation.getId(), code.value(), link, response(baby, invitation));
+        });
+
+        // The invitation and code have committed before the external call. Re-lock the baby
+        // so rotation or ownership transfer cannot invalidate this message while it is sent.
+        return transact(() -> {
+            lockOwnedBaby(babyId, userId);
+            var current = requireUsableCode(codes.findByIdForUpdate(babyId).orElseThrow(this::invalid));
+            var invitation = invitations.findForUpdate(babyId, email).orElseThrow(this::invalid);
+            if (!current.value().equals(prepared.code()) || !invitation.getId().equals(prepared.invitationId())
+                    || !invitation.usable(Instant.now())) throw invalid();
             try {
                 sender.send(email, "[BABI] 아기 보호자 초대",
-                        "BABI 아기 보호자로 초대되었습니다.\n초대 코드: " + code.value()
-                                + "\n초대 링크: " + link + "\n이메일 초대 유효기간: " + invitation.getExpiresAt()
+                        "BABI 아기 보호자로 초대되었습니다.\n초대 코드: " + prepared.code()
+                                + "\n초대 링크: " + prepared.link() + "\n이메일 초대 유효기간: " + prepared.response().expiresAt()
                                 + "\n로그인한 후 초대 코드를 입력해 주세요.");
             } catch (RuntimeException e) {
-                // Do not propagate SMTP exceptions containing recipient addresses or message bodies.
                 throw new BabyInvitationException(ErrorCode.INVITATION_SEND_FAILED);
             }
-            return response(baby, invitation);
+            return prepared.response();
         });
     }
+
+    private record PreparedInvitation(Long invitationId, String code, String link, BabyInvitationResponse response) {}
 
     public BabyInvitationResponse inspect(String value, Long userId) {
         limiter.lookup(userId);

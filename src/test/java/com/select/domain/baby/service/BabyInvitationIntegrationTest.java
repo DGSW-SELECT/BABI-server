@@ -393,26 +393,69 @@ class BabyInvitationIntegrationTest {
     }
 
     @Test
-    void firstMailFailureRollsBackInvitationAndNewCode() {
+    void firstMailFailurePreservesCommittedInvitationAndCode() {
         doThrow(new MailSendException("private address and body")).when(sender).send(anyString(), anyString(), anyString());
         var error = assertThrows(BabyInvitationException.class, () -> workflow.send(babyId, ownerId, email));
         assertEquals(ErrorCode.INVITATION_SEND_FAILED, error.getErrorCode());
         assertNull(error.getCause());
-        assertTrue(codes.findFirstByBabyIdAndStatus(babyId, "ACTIVE").isEmpty());
-        assertTrue(invitations.findByBabyId(babyId).isEmpty());
+        assertTrue(codes.findFirstByBabyIdAndStatus(babyId, "ACTIVE").isPresent());
+        assertEquals(BabyEmailInvitation.Status.PENDING, invitation().getStatus());
+        Long invitationId = invitation().getId();
+        String code = workflow.getCode(babyId, ownerId).code();
+        reset(sender);
+        workflow.send(babyId, ownerId, email);
+        assertEquals(invitationId, invitation().getId());
+        verify(sender).send(eq(email), anyString(), contains(code));
     }
 
     @Test
-    void failedResendPreservesPreviousExpiredInvitationAndCode() {
+    void failedResendKeepsNewInvitationAndCode() {
         workflow.send(babyId, ownerId, email);
         String value = workflow.getCode(babyId, ownerId).code();
         expireInvitation();
         Instant previousExpiry = invitation().getExpiresAt();
         doThrow(new MailSendException("test failure")).when(sender).send(anyString(), anyString(), anyString());
         assertThrows(BabyInvitationException.class, () -> workflow.send(babyId, ownerId, email));
-        assertEquals(previousExpiry, invitation().getExpiresAt());
+        assertTrue(invitation().getExpiresAt().isAfter(previousExpiry));
+        assertEquals(BabyEmailInvitation.Status.PENDING, invitation().getStatus());
         assertEquals(value, workflow.getCode(babyId, ownerId).code());
         assertEquals(babyId, workflow.accept(value, guestId).babyId());
+    }
+
+    @Test
+    void failedCommitNeverSendsInvitation() {
+        doAnswer(call -> {
+            org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                    new org.springframework.transaction.support.TransactionSynchronization() {
+                        @Override public void beforeCommit(boolean readOnly) { throw new IllegalStateException("commit failure"); }
+                    });
+            return null;
+        }).when(limiter).send(ownerId, babyId, email);
+        assertThrows(RuntimeException.class, () -> workflow.send(babyId, ownerId, email));
+        verifyNoInteractions(sender);
+        assertTrue(codes.findFirstByBabyIdAndStatus(babyId, "ACTIVE").isEmpty());
+        assertTrue(invitations.findByBabyId(babyId).isEmpty());
+    }
+
+    @Test
+    void rejectsCallingSendInsideAnotherTransaction() {
+        var error = assertThrows(BabyInvitationException.class, () ->
+                new TransactionTemplate(transactionManager).execute(status -> workflow.send(babyId, ownerId, email)));
+        assertEquals(ErrorCode.INVITATION_UNAVAILABLE, error.getErrorCode());
+        verifyNoInteractions(sender);
+    }
+
+    @Test
+    void invitationIsCommittedBeforeDelivery() {
+        doAnswer(call -> {
+            try (var executor = Executors.newSingleThreadExecutor()) {
+                var count = executor.submit(() -> jdbc.queryForObject(
+                        "select count(*) from baby_email_invitations where baby_id = ? and invited_email = ?", Long.class, babyId, email));
+                assertEquals(1L, count.get(5, TimeUnit.SECONDS));
+            }
+            return null;
+        }).when(sender).send(anyString(), anyString(), anyString());
+        workflow.send(babyId, ownerId, email);
     }
 
     @Test

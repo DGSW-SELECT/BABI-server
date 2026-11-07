@@ -25,6 +25,8 @@ import java.util.UUID;
 import java.util.concurrent.*;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
 @EnabledIfEnvironmentVariable(named = "BABI_ISOLATED_MYSQL_TEST", matches = "enabled")
 class BabyInvitationMySqlIntegrationTest extends BabyInvitationIntegrationTest {
@@ -63,6 +65,7 @@ class BabyInvitationMySqlIntegrationTest extends BabyInvitationIntegrationTest {
     @Autowired private BabyService mysqlBabies;
     @Autowired private BabyInvitationWorkflow mysqlInvitations;
     @Autowired private PlatformTransactionManager mysqlTransactions;
+    @Autowired private EmailSender mysqlSender;
 
     @Test
     void codeJoinGrantsReportAccessAndLeaveRevokesIt() {
@@ -118,8 +121,24 @@ class BabyInvitationMySqlIntegrationTest extends BabyInvitationIntegrationTest {
     @Test
     void invitationCommittedBeforeConcurrentTransferRemainsValid() throws Exception {
         var fixture = fixture();
-        serialized(() -> mysqlInvitations.send(fixture.babyId, fixture.ownerId, fixture.targetEmail),
-                () -> mysqlBabies.transferOwnership(fixture.babyId, fixture.ownerId, fixture.memberId));
+        CountDownLatch sending = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        doAnswer(call -> {
+            sending.countDown();
+            assertTrue(release.await(8, TimeUnit.SECONDS));
+            return null;
+        }).when(mysqlSender).send(anyString(), anyString(), anyString());
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var send = executor.submit(() -> mysqlInvitations.send(fixture.babyId, fixture.ownerId, fixture.targetEmail));
+            try {
+                assertTrue(sending.await(8, TimeUnit.SECONDS));
+                var transfer = executor.submit(() -> mysqlBabies.transferOwnership(fixture.babyId, fixture.ownerId, fixture.memberId));
+                assertThrows(TimeoutException.class, () -> transfer.get(300, TimeUnit.MILLISECONDS));
+                release.countDown();
+                send.get(8, TimeUnit.SECONDS);
+                transfer.get(8, TimeUnit.SECONDS);
+            } finally { release.countDown(); }
+        }
         assertEquals(BabyRole.OWNER, mysqlMembers.findByBabyIdAndUserId(fixture.babyId, fixture.memberId).orElseThrow().getRole());
         assertEquals(1, mysqlJdbc.queryForObject("SELECT COUNT(*) FROM baby_email_invitations WHERE baby_id = ? AND status = 'PENDING'", Integer.class, fixture.babyId));
         assertEquals(BabyRole.GUARDIAN, mysqlMembers.findByBabyIdAndUserId(fixture.babyId, fixture.ownerId).orElseThrow().getRole());
