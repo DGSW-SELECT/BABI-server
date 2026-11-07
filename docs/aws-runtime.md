@@ -32,8 +32,10 @@ sudo systemctl start babi-deploy.service
 
 `/etc/babi/app.env`는 `root:root`, `0600`으로 유지한다. 기존 `MYSQL_PASSWORD`, `JWT_SECRET`을 유지하며 독립적인 무작위 `EMAIL_VERIFICATION_SECRET`을 추가한다. `/etc/babi`는 `0700`, 배포 파일은 디렉터리 `0755`·파일 `0644`를 사용한다. `/opt/babi`와 배포 스크립트는 root가 소유한다.
 
-SMTP 계정이 없는 데모 운영에서는 `MAIL_USERNAME`, `MAIL_PASSWORD`를 설정하지 않는다. 기존·데모 계정 로그인은 가능하지만 인증 메일 발송은 `503 EMAIL_SEND_FAILED`로 실패하며 회원가입의 이메일 인증 검증은 그대로 유지한다. SMTP 설정 후 실제 메일 발송·가입을 별도로 검증해야 한다. 보안 그룹 아웃바운드가 HTTPS만 허용된 현재 구성에서는 SMTP 포트 허용도 별도 승인이 필요하다.
+Discord 인증은 실제 이메일 소유권을 확인하지 않는 시연 전용이다. 전용 MySQL `babi_discord_demo`, 전용 인증 Redis, 비공개 채널 및 환경변수 설정이 필요하다. 현재 AWS 연결과 배포는 검증되지 않았다. 상세 조건은 README를 참고한다.
 
-Redis는 `deploy/compose.redis.yml`로 기존 EC2에 추가한다. 128 MiB 메모리 제한과 64 MiB 데이터 제한을 적용하며 이메일 인증용 TTL 데이터만 저장한다. Redis 재시작 시 진행 중인 인증은 다시 해야 한다.
+기존 `deploy/compose.redis.yml`의 Redis는 시연 격리 조건을 충족한다고 가정할 수 없다. 팀원이 비밀번호와 비기본 포트를 사용하는 별도의 전용 Redis 및 확인값을 준비해야 한다. Redis 재시작 시 진행 중인 인증은 다시 해야 한다.
 
 데모 계정은 두 개의 일반 계정만 생성하고 비밀번호는 저장소·release·로그에 남기지 않는다. 운영 DB 백업은 서버 `/var/backups/babi`에 `root:root`, `0600`으로 보관한다. 일회성 배포 전 백업은 정기 백업을 대신하지 않는다.
+
+인증번호 발송은 Redis 전역 30회/분과 출처별 10회/분이 기본값이며 양의 정수 환경변수 `BABI_EMAIL_SEND_GLOBAL_PER_MINUTE`, `BABI_EMAIL_SEND_SOURCE_PER_MINUTE`로 조정한다. `aws`의 전달 헤더 처리에서는 출처를 공통 버킷으로 취급한다. 신뢰할 프록시와 헤더 덮어쓰기 및 서버 직접 접근 차단이 확인되기 전에는 전달 헤더의 IP를 신뢰하지 않는다. Redis 장애 시 발송은 차단된다. 실제 배포 전 전용 시연 DB·Redis와 접근 제한을 별도 확인한다.
