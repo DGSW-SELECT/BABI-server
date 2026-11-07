@@ -19,15 +19,13 @@ class LocalEnvironmentConfigTest {
     void localProfileLoadsDotEnvAndExplicitEnvironmentWins() throws Exception {
         Files.writeString(directory.resolve(".env"), """
                 EMAIL_VERIFICATION_SECRET=local-test-secret
-                MAIL_USERNAME=local@example.invalid
-                MAIL_PASSWORD=local-test-password
+                DISCORD_WEBHOOK_URL=local-test-placeholder
                 MYSQL_PASSWORD=local-db-password
                 JWT_SECRET=local-jwt-secret
                 """);
-        MockEnvironment environment = environment("local", Map.of("MAIL_USERNAME", "override@example.invalid"));
+        MockEnvironment environment = environment("local", Map.of("DISCORD_WEBHOOK_URL", "override-test-placeholder"));
         assertEquals("local-test-secret", environment.getProperty("email.verification.secret"));
-        assertEquals("override@example.invalid", environment.getProperty("spring.mail.username"));
-        assertEquals("local-test-password", environment.getProperty("spring.mail.password"));
+        assertEquals("override-test-placeholder", environment.getProperty("DISCORD_WEBHOOK_URL"));
     }
 
     @Test

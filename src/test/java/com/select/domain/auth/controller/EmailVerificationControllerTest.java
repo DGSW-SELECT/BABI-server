@@ -3,6 +3,7 @@ package com.select.domain.auth.controller;
 import com.select.domain.auth.exception.EmailVerificationException;
 import com.select.domain.auth.dto.response.EmailVerificationResponse;
 import com.select.domain.auth.service.EmailVerificationService;
+import com.select.domain.auth.service.EmailSendRateLimiter;
 import com.select.global.exception.ErrorCode;
 import com.select.global.exception.GlobalExceptionHandler;
 import org.junit.jupiter.api.BeforeEach;
@@ -23,7 +24,7 @@ class EmailVerificationControllerTest {
     @BeforeEach
     void setUp() {
         service = mock(EmailVerificationService.class);
-        mvc = MockMvcBuilders.standaloneSetup(new EmailVerificationController(service))
+        mvc = MockMvcBuilders.standaloneSetup(new EmailVerificationController(service, mock(EmailSendRateLimiter.class)))
                 .setControllerAdvice(new GlobalExceptionHandler()).build();
     }
 
