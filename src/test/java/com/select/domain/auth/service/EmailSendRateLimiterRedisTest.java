@@ -2,6 +2,8 @@ package com.select.domain.auth.service;
 
 import com.select.domain.auth.exception.EmailVerificationException;
 import com.select.global.exception.ErrorCode;
+import com.select.global.exception.GlobalExceptionHandler;
+import com.select.domain.auth.controller.EmailVerificationController;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
@@ -17,6 +19,9 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @EnabledIfEnvironmentVariable(named = "BABI_REDIS_TEST_PORT", matches = "[0-9]+")
 class EmailSendRateLimiterRedisTest {
@@ -61,6 +66,36 @@ class EmailSendRateLimiterRedisTest {
         var limiter = new EmailSendRateLimiter(redis, 2, 5, "none");
         limiter.check(request("192.0.2.1", null)); limiter.check(request("192.0.2.2", null));
         blocked(limiter, request("127.0.0.1", null));
+    }
+    @Test void globalLimitBlocksHttpSendAcrossDifferentSources() throws Exception {
+        var service = mock(EmailVerificationService.class);
+        var mvc = org.springframework.test.web.servlet.setup.MockMvcBuilders
+                .standaloneSetup(new EmailVerificationController(service, new EmailSendRateLimiter(redis, 2, 10, "none")))
+                .setControllerAdvice(new GlobalExceptionHandler()).build();
+        httpSend(mvc, "192.0.2.1", "one@example.invalid", 200);
+        httpSend(mvc, "192.0.2.2", "two@example.invalid", 200);
+        httpSend(mvc, "127.0.0.1", "three@example.invalid", 429);
+        verify(service).sendVerificationCode("one@example.invalid");
+        verify(service).sendVerificationCode("two@example.invalid");
+        verifyNoMoreInteractions(service);
+    }
+    @Test void sourceLimitBlocksHttpSendWithoutBlockingOtherSources() throws Exception {
+        var service = mock(EmailVerificationService.class);
+        var mvc = org.springframework.test.web.servlet.setup.MockMvcBuilders
+                .standaloneSetup(new EmailVerificationController(service, new EmailSendRateLimiter(redis, 20, 2, "none")))
+                .setControllerAdvice(new GlobalExceptionHandler()).build();
+        httpSend(mvc, "192.0.2.1", "one@example.invalid", 200);
+        httpSend(mvc, "192.0.2.1", "two@example.invalid", 200);
+        httpSend(mvc, "192.0.2.1", "three@example.invalid", 429);
+        httpSend(mvc, "192.0.2.2", "four@example.invalid", 200);
+        verify(service, times(3)).sendVerificationCode(anyString());
+        verify(service, never()).sendVerificationCode("three@example.invalid");
+    }
+    private void httpSend(org.springframework.test.web.servlet.MockMvc mvc, String peer, String email, int expected) throws Exception {
+        var result = mvc.perform(post("/auth/email/send").contentType("application/json")
+                .content("{\"email\":\"" + email + "\"}").with(req -> { req.setRemoteAddr(peer); return req; }))
+                .andExpect(status().is(expected));
+        if (expected == 429) result.andExpect(jsonPath("$.error.code").value("EMAIL_SEND_RATE_LIMITED"));
     }
     @Test void forwardedStrategyUsesSharedBucket() {
         var limiter = new EmailSendRateLimiter(redis, 20, 1, "native");
