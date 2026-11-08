@@ -1,11 +1,16 @@
 package com.select.domain.vaccination.repository;
 
+import com.select.domain.baby.entity.Baby;
+import com.select.domain.user.entity.User;
 import com.select.domain.vaccination.entity.BabyVaccination;
 import com.select.domain.vaccination.entity.Vaccine;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
+import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDate;
@@ -13,6 +18,8 @@ import java.time.LocalDate;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @DataJpaTest
+@ActiveProfiles("test")
+@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 class VaccinationHistoryRepositoryTest {
 
     @Autowired
@@ -20,6 +27,39 @@ class VaccinationHistoryRepositoryTest {
 
     @Autowired
     private TestEntityManager entityManager;
+    private Long babyId1;
+    private Long babyId2;
+
+    @BeforeEach
+    void setUp() {
+        User user = User.builder()
+                .email("test@test.com")
+                .passwordHash("test-password")
+                .nickname("테스트")
+                .build();
+
+        entityManager.persist(user);
+        entityManager.flush();
+
+        Baby baby1 = Baby.builder()
+                .name("아기1")
+                .birthDate(LocalDate.of(2025, 1, 1))
+                .createdByUserId(user.getId())
+                .build();
+
+        Baby baby2 = Baby.builder()
+                .name("아기2")
+                .birthDate(LocalDate.of(2025, 2, 1))
+                .createdByUserId(user.getId())
+                .build();
+
+        entityManager.persist(baby1);
+        entityManager.persist(baby2);
+        entityManager.flush();
+
+        babyId1 = baby1.getId();
+        babyId2 = baby2.getId();
+    }
 
     private Vaccine createVaccine(String name, int doseNumber) {
         Vaccine vaccine = new Vaccine();

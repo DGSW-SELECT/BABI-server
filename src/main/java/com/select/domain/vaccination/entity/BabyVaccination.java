@@ -19,6 +19,7 @@ public class BabyVaccination {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(nullable = false)
     private Long babyId;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -37,7 +38,7 @@ public class BabyVaccination {
     @Column
     private String memo;
 
-    @Column(name = "completed")
+    @Column(name = "completed", nullable = false)
     private Boolean completed;
 
     public void complete(LocalDate completedDate) {

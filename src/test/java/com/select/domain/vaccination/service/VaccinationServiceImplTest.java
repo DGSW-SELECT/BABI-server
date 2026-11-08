@@ -59,6 +59,7 @@ class VaccinationServiceImplTest{
                 .findByBabyIdAndScheduledDateBetweenOrderByScheduledDateAscIdAsc(
                     BabyId, from, to))
                 .thenReturn(List.of(vaccination));
+        when(babyRepository.existsById(BabyId)).thenReturn(true);
         // when
         VaccinationScheduleResponse response =
                 service.getVaccinationSchedules(BabyId, from, to);
@@ -86,6 +87,7 @@ class VaccinationServiceImplTest{
                         babyId, from, to
                 ))
                 .thenReturn(List.of());
+        when(babyRepository.existsById(babyId)).thenReturn(true);
         // when
         VaccinationScheduleResponse response =
                 service.getVaccinationSchedules(babyId, from, to);

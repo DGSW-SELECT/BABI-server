@@ -21,4 +21,10 @@ public interface BabyVaccinationRepository extends JpaRepository<BabyVaccination
     );
 
     List<BabyVaccination> findAllByBabyIdAndCompletedTrue(Long babyId);
+
+    boolean existsByBabyIdAndVaccine_IdAndIdNot(
+            Long babyId,
+            Long vaccineId,
+            Long scheduleId
+    );
 }

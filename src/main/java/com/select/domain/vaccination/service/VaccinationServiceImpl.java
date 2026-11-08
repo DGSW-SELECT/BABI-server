@@ -57,9 +57,10 @@ public class VaccinationServiceImpl implements VaccinationService {
             );
         }
 
-        // 2. 아기별 접근 권한 검증
-        // TODO: 나중에 로그인 사용 babyId 접근 권한 확인
-        // 이를 위해 인증 정보 및 권한 부여 서비스 필요
+        // 1. 아기 존재 여부 확인
+        if (!babyRepository.existsById(babyId)) {
+            throw new BusinessException(ErrorCode.BABY_NOT_FOUND);
+        }
 
         // 3. 일정 조회
         List<BabyVaccination> babyVaccinations =
@@ -222,6 +223,17 @@ public class VaccinationServiceImpl implements VaccinationService {
         // 해당 아기의 예방접종인지 확인
         if(!vaccination.getBabyId().equals(babyId)) {
             throw new BusinessException(ErrorCode.VACCINATION_SCHEDULE_NOT_FOUND);
+        }
+
+        boolean duplicated =
+                babyVaccinationRepository.existsByBabyIdAndVaccine_IdAndIdNot(
+                        babyId,
+                        request.vaccineId(),
+                        vaccinationScheduleId
+                );
+
+        if (duplicated) {
+            throw new BusinessException(ErrorCode.VACCINE_DUPLICATE);
         }
 
         // 변경할 백신 조회

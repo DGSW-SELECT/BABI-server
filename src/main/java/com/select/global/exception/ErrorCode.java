@@ -15,6 +15,7 @@ public enum ErrorCode {
     VACCINATION_SCHEDULE_NOT_FOUND(HttpStatus.NOT_FOUND, "접종 일정을 찾을 수 없습니다."),
     VACCINATION_ALREADY_COMPLETED(HttpStatus.CONFLICT, "이미 완료된 일정입니다."),
     BABY_NOT_FOUND(HttpStatus.NOT_FOUND, "아기를 찾을 수 없습니다."),
+    VACCINE_DUPLICATE(HttpStatus.MULTI_STATUS, "다른 접종과 중복될 수 없습니다."),
     ACCESS_DENIED(HttpStatus.FORBIDDEN, "해당 리소스에 접근할 권한이 없습니다."),
 
     EMAIL_CODE_MISMATCH(HttpStatus.BAD_REQUEST, "인증번호가 일치하지 않습니다."),

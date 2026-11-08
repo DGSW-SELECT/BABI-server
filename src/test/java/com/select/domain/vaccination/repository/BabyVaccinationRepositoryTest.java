@@ -1,11 +1,16 @@
 package com.select.domain.vaccination.repository;
 
+import com.select.domain.baby.entity.Baby;
+import com.select.domain.user.entity.User;
 import com.select.domain.vaccination.entity.BabyVaccination;
 import com.select.domain.vaccination.entity.Vaccine;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
+import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDate;
@@ -13,6 +18,8 @@ import java.time.LocalDate;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @DataJpaTest
+@ActiveProfiles("test")
+@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 class BabyVaccinationRepositoryTest {
 
     @Autowired
@@ -20,6 +27,40 @@ class BabyVaccinationRepositoryTest {
 
     @Autowired
     private TestEntityManager entityManager;
+
+    private Long babyId1;
+    private Long babyId2;
+
+    @BeforeEach
+    void setUp() {
+        User user = User.builder()
+                .email("test@test.com")
+                .passwordHash("test-password")
+                .nickname("테스트")
+                .build();
+
+        entityManager.persist(user);
+        entityManager.flush();
+
+        Baby baby1 = Baby.builder()
+                .name("아기1")
+                .birthDate(LocalDate.of(2025, 1, 1))
+                .createdByUserId(user.getId())
+                .build();
+
+        Baby baby2 = Baby.builder()
+                .name("아기2")
+                .birthDate(LocalDate.of(2025, 2, 1))
+                .createdByUserId(user.getId())
+                .build();
+
+        entityManager.persist(baby1);
+        entityManager.persist(baby2);
+        entityManager.flush();
+
+        babyId1 = baby1.getId();
+        babyId2 = baby2.getId();
+    }
 
     private BabyVaccination createVaccination(
             Long babyId,
@@ -49,9 +90,9 @@ class BabyVaccinationRepositoryTest {
         LocalDate from = LocalDate.of(2026, 1, 1);
         LocalDate to = LocalDate.of(2026, 12, 31);
 
-        createVaccination(1L, LocalDate.of(2026, 3, 1), "백신 A");
-        createVaccination(1L, LocalDate.of(2027, 1, 1), "백신 B");
-        createVaccination(2L, LocalDate.of(2026, 3, 1), "백신 C");
+        createVaccination(babyId1,LocalDate.of(2026, 3, 1), "백신 A");
+        createVaccination(babyId1, LocalDate.of(2027, 1, 1), "백신 B");
+        createVaccination(babyId2, LocalDate.of(2026, 3, 1), "백신 C");
 
         entityManager.flush();
         entityManager.clear();
@@ -60,7 +101,7 @@ class BabyVaccinationRepositoryTest {
         var result =
                 repository
                         .findByBabyIdAndScheduledDateBetweenOrderByScheduledDateAscIdAsc(
-                                1L, from, to);
+                                babyId1, from, to);
 
         // then
         assertThat(result).hasSize(1);
@@ -85,9 +126,9 @@ class BabyVaccinationRepositoryTest {
     @Test
     void FROM_DATE_ASC_SORTING() {
         // given
-        createVaccination(1L, LocalDate.of(2026, 6, 1), "백신 C");
-        createVaccination(1L, LocalDate.of(2026, 2, 1), "백신 A");
-        createVaccination(1L, LocalDate.of(2026, 4, 1), "백신 B");
+        createVaccination(babyId1, LocalDate.of(2026, 6, 1), "백신 C");
+        createVaccination(babyId1, LocalDate.of(2026, 2, 1), "백신 A");
+        createVaccination(babyId1, LocalDate.of(2026, 4, 1), "백신 B");
 
         entityManager.flush();
         entityManager.clear();
@@ -96,7 +137,7 @@ class BabyVaccinationRepositoryTest {
         var result =
                 repository
                         .findByBabyIdAndScheduledDateBetweenOrderByScheduledDateAscIdAsc(
-                                1L,
+                                babyId1,
                                 LocalDate.of(2026, 1, 1),
                                 LocalDate.of(2026, 12, 31));
 
@@ -112,7 +153,7 @@ class BabyVaccinationRepositoryTest {
     void EXISTS_BY_BABY_ID_AND_VACCINE_ID() {
         // given: 아기 1에게 백신 A의 일정이 존재함
         BabyVaccination vaccination = createVaccination(
-                1L,
+                babyId1,
                 LocalDate.of(2026, 3, 1),
                 "백신 A"
         );
@@ -124,7 +165,7 @@ class BabyVaccinationRepositoryTest {
 
         // when
         boolean result =
-                repository.existsByBabyIdAndVaccine_Id(1L, vaccineId);
+                repository.existsByBabyIdAndVaccine_Id(babyId1, vaccineId);
 
         // then
         assertThat(result).isTrue();
@@ -134,7 +175,7 @@ class BabyVaccinationRepositoryTest {
     void NOT_EXISTS_BY_BABY_ID_AND_VACCINE_ID() {
         // given
         BabyVaccination vaccination = createVaccination(
-                1L,
+                babyId1,
                 LocalDate.of(2026, 3, 1),
                 "백신 A"
         );
@@ -165,7 +206,7 @@ class BabyVaccinationRepositoryTest {
         entityManager.flush();
 
         BabyVaccination vaccination = BabyVaccination.create(
-                1L,
+                babyId1,
                 vaccine,
                 LocalDate.of(2026, 11, 1),
                 "병원명",
@@ -184,7 +225,7 @@ class BabyVaccinationRepositoryTest {
                 .orElseThrow();
 
         assertThat(found.getId()).isNotNull();
-        assertThat(found.getBabyId()).isEqualTo(1L);
+        assertThat(found.getBabyId()).isEqualTo(babyId1);
         assertThat(found.getScheduledDate())
                 .isEqualTo(LocalDate.of(2026, 11, 1));
         assertThat(found.getVaccine().getName()).isEqualTo("백신 A");
@@ -193,7 +234,7 @@ class BabyVaccinationRepositoryTest {
     @Test
     void DELETE_VACCINATION_SUCCESS() {
         // given
-        BabyVaccination vaccination = createVaccination(1L,LocalDate.of(2026,10,20),"백신 짱");
+        BabyVaccination vaccination = createVaccination(babyId1,LocalDate.of(2026,10,20),"백신 짱");
         BabyVaccination saved = repository.save(vaccination);
 
         Long id = saved.getId();

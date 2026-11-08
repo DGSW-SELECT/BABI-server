@@ -149,4 +149,46 @@ CREATE TABLE IF NOT EXISTS `daily_reports` (
         ON UPDATE NO ACTION ON DELETE NO ACTION
 );
 
+CREATE TABLE IF NOT EXISTS `vaccines` (
+    `id`                      BIGINT       NOT NULL AUTO_INCREMENT,
+    `vaccine_name`            VARCHAR(100) NOT NULL,
+    `dose_number`             INTEGER      NULL,
+    `recommended_start_month` INTEGER      NULL,
+    `recommended_end_month`   INTEGER      NULL,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_vaccine_dose` (`vaccine_name`, `dose_number`),
+    CONSTRAINT `chk_vaccine_months`
+    CHECK (`recommended_start_month` IS NULL
+           OR `recommended_end_month` IS NULL
+           OR `recommended_end_month` >= `recommended_start_month`)
+    );
+
+CREATE TABLE IF NOT EXISTS `baby_vaccinations` (
+    `id`             BIGINT       NOT NULL AUTO_INCREMENT,
+    `baby_id`        BIGINT       NOT NULL,
+    `vaccine_id`     BIGINT       NOT NULL,
+    `scheduled_date` DATE         NULL,
+    `completed_date` DATE         NULL,
+    `institution`    VARCHAR(255) NULL,
+    `memo`           VARCHAR(255) NULL,
+    `completed`      BOOLEAN      NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_baby_vaccine` (`baby_id`, `vaccine_id`),
+    KEY `idx_baby_vaccinations_vaccine` (`vaccine_id`),
+    KEY `idx_baby_vaccinations_schedule` (`baby_id`, `scheduled_date`),
+    -- 완료 여부와 완료일은 항상 함께 움직여야 함 (양방향 일관성)
+    --   완료 처리: UPDATE ... SET completed = TRUE,  completed_date = <날짜>  (한 문장으로)
+    --   완료 취소: UPDATE ... SET completed = FALSE, completed_date = NULL    (한 문장으로)
+    --   새 접종 일정 INSERT 시 completed_date 는 NULL (예정일은 scheduled_date 에)
+    CONSTRAINT `chk_vaccination_completed`
+    CHECK ((`completed` = TRUE  AND `completed_date` IS NOT NULL)
+    OR (`completed` = FALSE AND `completed_date` IS NULL)),
+    CONSTRAINT `fk_baby_vaccinations_baby`
+    FOREIGN KEY (`baby_id`) REFERENCES `babies` (`id`)
+    ON UPDATE NO ACTION ON DELETE NO ACTION,
+    CONSTRAINT `fk_baby_vaccinations_vaccine`
+    FOREIGN KEY (`vaccine_id`) REFERENCES `vaccines` (`id`)
+    ON UPDATE NO ACTION ON DELETE NO ACTION
+    );
+
 CREATE OR REPLACE VIEW active_baby_members AS SELECT id, baby_id, user_id, `role` FROM baby_members WHERE removed_at IS NULL;

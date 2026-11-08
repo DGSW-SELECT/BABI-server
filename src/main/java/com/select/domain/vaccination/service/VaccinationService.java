@@ -7,6 +7,9 @@ import com.select.domain.vaccination.dto.response.VaccinationHistoryResponse;
 import com.select.domain.vaccination.dto.response.VaccinationScheduleCreateResponse;
 import com.select.domain.vaccination.dto.response.VaccinationScheduleResponse;
 import com.select.domain.vaccination.dto.response.VaccinationScheduleUpdateResponse;
+import com.select.domain.vaccination.repository.BabyVaccinationRepository;
+import com.select.global.exception.BusinessException;
+import com.select.global.exception.ErrorCode;
 
 import java.time.LocalDate;
 
