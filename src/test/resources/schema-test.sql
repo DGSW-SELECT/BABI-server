@@ -192,3 +192,42 @@ CREATE TABLE IF NOT EXISTS `baby_vaccinations` (
     );
 
 CREATE OR REPLACE VIEW active_baby_members AS SELECT id, baby_id, user_id, `role` FROM baby_members WHERE removed_at IS NULL;
+
+-- H2-compatible subset of the final invitation schema; MySQL constraints are verified separately.
+CREATE TABLE IF NOT EXISTS allocated_baby_invitation_codes (
+    code VARCHAR(32) NOT NULL PRIMARY KEY,
+    allocated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS baby_invitation_codes (
+    id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    baby_id BIGINT NOT NULL,
+    code VARCHAR(32) NOT NULL UNIQUE,
+    role VARCHAR(30) NOT NULL,
+    created_by_member_id BIGINT NOT NULL,
+    max_uses INT NOT NULL DEFAULT 1,
+    used_count INT NOT NULL DEFAULT 0,
+    status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
+    expires_at DATETIME NOT NULL,
+    revoked_at DATETIME,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CHECK (max_uses >= 1 AND used_count >= 0 AND used_count <= max_uses),
+    FOREIGN KEY (baby_id) REFERENCES babies(id),
+    FOREIGN KEY (baby_id, created_by_member_id) REFERENCES baby_members(baby_id, id),
+    FOREIGN KEY (code) REFERENCES allocated_baby_invitation_codes(code)
+);
+CREATE TABLE IF NOT EXISTS baby_email_invitations (
+    id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    baby_id BIGINT NOT NULL,
+    invited_by_member_id BIGINT NOT NULL,
+    invited_email VARCHAR(320) NOT NULL,
+    role VARCHAR(30) NOT NULL,
+    token_hash CHAR(64) NOT NULL UNIQUE,
+    status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+    expires_at DATETIME NOT NULL,
+    accepted_user_id BIGINT,
+    responded_at DATETIME,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (baby_id) REFERENCES babies(id),
+    FOREIGN KEY (baby_id, invited_by_member_id) REFERENCES baby_members(baby_id, id),
+    FOREIGN KEY (accepted_user_id) REFERENCES users(id)
+);

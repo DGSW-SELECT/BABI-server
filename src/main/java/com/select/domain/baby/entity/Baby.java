@@ -14,6 +14,7 @@ import java.time.LocalDateTime;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Getter
 public class Baby {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -37,8 +38,7 @@ public class Baby {
         this.createdByUserId = createdByUserId;
     }
 
-
-    @PrePersist
+  @PrePersist
     public void setCreatedAt() {
         createdAt = LocalDateTime.now();
     }
