@@ -3,10 +3,14 @@ package com.select.domain.growth.entity;
 import com.select.domain.baby.entity.Baby;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.springframework.context.annotation.Bean;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Date;
 
 @Entity
@@ -33,12 +37,27 @@ public class GrowthRecord {
     private BigDecimal  weight;
 
     @Column(name = "measured_date", nullable = false)
-    private Date measuredDate;
+    private LocalDate measuredDate;
 
     @Column
     private String memo;
 
     @Column(name = "createdAt", insertable = false, updatable = false)
-    private Date createdAt;
+    private LocalDateTime createdAt;
 
+    public GrowthRecord(
+            Baby baby,
+            Long authorMemberId,
+            BigDecimal heightCm,
+            BigDecimal weightKg,
+            LocalDate measuredDate,
+            String memo
+    ) {
+        this.baby = baby;
+        this.authorMemberId = authorMemberId;
+        this.height = heightCm;
+        this.weight = weightKg;
+        this.measuredDate = measuredDate;
+        this.memo = memo;
+    }
 }

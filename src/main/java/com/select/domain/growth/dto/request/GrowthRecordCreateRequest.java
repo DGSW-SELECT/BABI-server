@@ -4,14 +4,17 @@ import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.Date;
 
 public record GrowthRecordCreateRequest(
 
         @NotNull
-        Date measuredDate,
+        LocalDate measuredDate,
 
         @DecimalMin("0.01")
         @Digits(integer = 3, fraction = 2)

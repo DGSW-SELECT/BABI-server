@@ -1,16 +1,16 @@
 package com.select.domain.growth.dto.response;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.Date;
 
 public record GrowthRecordCreateResponse(
         Long growthRecordId,
         Long babyId,
-        Long authorMemberId,
         BigDecimal height,
         BigDecimal weight,
-        Date measuredDate,
+        LocalDate measuredDate,
+        String memo,
         LocalDateTime createdAt
 ) {
 }
