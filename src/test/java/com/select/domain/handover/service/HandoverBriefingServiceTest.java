@@ -7,6 +7,9 @@ import com.select.domain.handover.exception.HandoverBriefingGenerationException;
 import com.select.domain.handover.exception.NoDailyCareRecordException;
 import com.select.domain.handover.repository.HandoverBriefingRepository;
 import com.select.domain.baby.repository.BabyMemberRepository;
+import com.select.domain.user.entity.User;
+import com.select.domain.user.repository.UserRepository;
+import org.springframework.security.access.AccessDeniedException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -31,6 +34,7 @@ class HandoverBriefingServiceTest {
     private DailyCareRecordProvider dailyCareRecordProvider;
     private HandoverBriefingGenerator handoverBriefingGenerator;
     private BabyMemberRepository babyMemberRepository;
+    private UserRepository userRepository;
     private HandoverBriefingService handoverBriefingService;
 
     @BeforeEach
@@ -39,12 +43,18 @@ class HandoverBriefingServiceTest {
         dailyCareRecordProvider = mock(DailyCareRecordProvider.class);
         handoverBriefingGenerator = mock(HandoverBriefingGenerator.class);
         babyMemberRepository = mock(BabyMemberRepository.class);
+        userRepository = mock(UserRepository.class);
+        User activeUser = mock(User.class);
+        when(activeUser.isActive()).thenReturn(true);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(activeUser));
+        when(userRepository.findById(99L)).thenReturn(Optional.of(activeUser));
         when(babyMemberRepository.hasCareAccess(2L, 1L)).thenReturn(true);
         handoverBriefingService = new HandoverBriefingService(
                 handoverBriefingRepository,
                 dailyCareRecordProvider,
                 handoverBriefingGenerator,
-                babyMemberRepository
+                babyMemberRepository,
+                userRepository
         );
     }
 
@@ -150,5 +160,33 @@ class HandoverBriefingServiceTest {
                 handoverBriefingGenerator,
                 handoverBriefingRepository
         );
+    }
+
+    @Test
+    void deniesInactiveUserBeforeCheckingBabyAccess() {
+        User inactiveUser = mock(User.class);
+        when(inactiveUser.isActive()).thenReturn(false);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(inactiveUser));
+
+        assertThrows(AccessDeniedException.class,
+                () -> handoverBriefingService.createBriefing(1L, 2L));
+        assertThrows(AccessDeniedException.class,
+                () -> handoverBriefingService.getLatestBriefing(1L, 2L));
+
+        verifyNoInteractions(babyMemberRepository, dailyCareRecordProvider,
+                handoverBriefingGenerator, handoverBriefingRepository);
+    }
+
+    @Test
+    void deniesMissingUserBeforeCheckingBabyAccess() {
+        when(userRepository.findById(1L)).thenReturn(Optional.empty());
+
+        assertThrows(AccessDeniedException.class,
+                () -> handoverBriefingService.createBriefing(1L, 2L));
+        assertThrows(AccessDeniedException.class,
+                () -> handoverBriefingService.getLatestBriefing(1L, 2L));
+
+        verifyNoInteractions(babyMemberRepository, dailyCareRecordProvider,
+                handoverBriefingGenerator, handoverBriefingRepository);
     }
 }

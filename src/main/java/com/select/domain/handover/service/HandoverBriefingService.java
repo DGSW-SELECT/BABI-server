@@ -8,6 +8,8 @@ import com.select.domain.handover.exception.NoDailyCareRecordException;
 import com.select.domain.handover.exception.HandoverBriefingUnavailableException;
 import com.select.domain.handover.repository.HandoverBriefingRepository;
 import com.select.domain.baby.repository.BabyMemberRepository;
+import com.select.domain.user.entity.User;
+import com.select.domain.user.repository.UserRepository;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,17 +29,20 @@ public class HandoverBriefingService {
     private final DailyCareRecordProvider dailyCareRecordProvider;
     private final HandoverBriefingGenerator handoverBriefingGenerator;
     private final BabyMemberRepository babyMemberRepository;
+    private final UserRepository userRepository;
 
     public HandoverBriefingService(
             HandoverBriefingRepository handoverBriefingRepository,
             DailyCareRecordProvider dailyCareRecordProvider,
             HandoverBriefingGenerator handoverBriefingGenerator,
-            BabyMemberRepository babyMemberRepository
+            BabyMemberRepository babyMemberRepository,
+            UserRepository userRepository
     ) {
         this.handoverBriefingRepository = handoverBriefingRepository;
         this.dailyCareRecordProvider = dailyCareRecordProvider;
         this.handoverBriefingGenerator = handoverBriefingGenerator;
         this.babyMemberRepository = babyMemberRepository;
+        this.userRepository = userRepository;
     }
 
     public HandoverBriefingResponse createBriefing(
@@ -89,6 +94,9 @@ public class HandoverBriefingService {
     }
 
     private void ensureBabyAccess(Long userId, Long babyId) {
+        if (!userRepository.findById(userId).map(User::isActive).orElse(false)) {
+            throw new AccessDeniedException("사용할 수 없는 계정입니다.");
+        }
         if (!babyMemberRepository.hasCareAccess(babyId, userId)) {
             throw new AccessDeniedException("아기 기록을 조회할 권한이 없습니다.");
         }
