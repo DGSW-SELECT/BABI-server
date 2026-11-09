@@ -34,13 +34,14 @@ class HandoverBriefingControllerTest {
 
     @Test
     void createsBriefingWithoutRequestBody() throws Exception {
-        when(handoverBriefingService.createBriefing(1L, 2L))
+        when(handoverBriefingService.createBriefing(10L, 2L))
                 .thenReturn(new HandoverBriefingResponse(
                         LocalDate.of(2026, 10, 27),
                         "오늘 수유 기록을 정리했습니다."
                 ));
 
-        mockMvc.perform(post("/groups/1/babies/2/handover-briefings")
+        mockMvc.perform(post("/babi/api/babies/2/handover-briefings")
+                        .requestAttr("userId", "10")
                         .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
@@ -51,13 +52,14 @@ class HandoverBriefingControllerTest {
 
     @Test
     void getsLatestBriefing() throws Exception {
-        when(handoverBriefingService.getLatestBriefing(1L, 2L))
+        when(handoverBriefingService.getLatestBriefing(10L, 2L))
                 .thenReturn(new HandoverBriefingResponse(
                         LocalDate.of(2026, 10, 27),
                         "저장된 최신 브리핑"
                 ));
 
-        mockMvc.perform(get("/groups/1/babies/2/handover-briefings/latest"))
+        mockMvc.perform(get("/babi/api/babies/2/handover-briefings/latest")
+                        .requestAttr("userId", "10"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.briefingDate").value("2026-10-27"))
                 .andExpect(jsonPath("$.data.summary").value("저장된 최신 브리핑"));

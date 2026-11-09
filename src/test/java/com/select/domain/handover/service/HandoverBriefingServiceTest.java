@@ -6,6 +6,7 @@ import com.select.domain.handover.exception.HandoverBriefingNotFoundException;
 import com.select.domain.handover.exception.HandoverBriefingGenerationException;
 import com.select.domain.handover.exception.NoDailyCareRecordException;
 import com.select.domain.handover.repository.HandoverBriefingRepository;
+import com.select.domain.baby.repository.BabyMemberRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -28,6 +29,7 @@ class HandoverBriefingServiceTest {
     private HandoverBriefingRepository handoverBriefingRepository;
     private DailyCareRecordProvider dailyCareRecordProvider;
     private HandoverBriefingGenerator handoverBriefingGenerator;
+    private BabyMemberRepository babyMemberRepository;
     private HandoverBriefingService handoverBriefingService;
 
     @BeforeEach
@@ -35,10 +37,13 @@ class HandoverBriefingServiceTest {
         handoverBriefingRepository = mock(HandoverBriefingRepository.class);
         dailyCareRecordProvider = mock(DailyCareRecordProvider.class);
         handoverBriefingGenerator = mock(HandoverBriefingGenerator.class);
+        babyMemberRepository = mock(BabyMemberRepository.class);
+        when(babyMemberRepository.existsByBabyIdAndUserId(2L, 1L)).thenReturn(true);
         handoverBriefingService = new HandoverBriefingService(
                 handoverBriefingRepository,
                 dailyCareRecordProvider,
-                handoverBriefingGenerator
+                handoverBriefingGenerator,
+                babyMemberRepository
         );
     }
 
@@ -47,7 +52,9 @@ class HandoverBriefingServiceTest {
         LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
         List<String> records = List.of("수유 120ml", "낮잠 1시간");
         HandoverBriefing savedBriefing = new HandoverBriefing(
-                1L,
+                null,
+                null,
+                "COMPLETED",
                 2L,
                 today,
                 "오늘 수유와 낮잠을 정리했습니다.",
@@ -97,14 +104,16 @@ class HandoverBriefingServiceTest {
     @Test
     void returnsLatestSavedBriefing() {
         HandoverBriefing savedBriefing = new HandoverBriefing(
-                1L,
+                null,
+                null,
+                "COMPLETED",
                 2L,
                 LocalDate.of(2026, 10, 27),
                 "저장된 브리핑",
                 LocalDateTime.of(2026, 10, 27, 18, 0)
         );
         when(handoverBriefingRepository
-                .findTopByGroupIdAndBabyIdOrderByCreatedAtDesc(1L, 2L))
+                .findTopByBabyIdOrderByGeneratedAtDesc(2L))
                 .thenReturn(Optional.of(savedBriefing));
 
         HandoverBriefingResponse response =
@@ -117,7 +126,7 @@ class HandoverBriefingServiceTest {
     @Test
     void throwsWhenLatestBriefingDoesNotExist() {
         when(handoverBriefingRepository
-                .findTopByGroupIdAndBabyIdOrderByCreatedAtDesc(1L, 2L))
+                .findTopByBabyIdOrderByGeneratedAtDesc(2L))
                 .thenReturn(Optional.empty());
 
         assertThrows(

@@ -20,35 +20,45 @@ public class HandoverBriefing {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false)
-    private Long groupId;
+    @Column(name = "period_start")
+    private LocalDateTime periodStart;
 
-    @Column(nullable = false)
+    @Column(name = "period_end")
+    private LocalDateTime periodEnd;
+
+    @Column(nullable = false, length = 20)
+    private String status;
+
+    @Column(name = "generated_at", nullable = false)
+    private LocalDateTime generatedAt;
+
+    @Column(name = "baby_id", nullable = false)
     private Long babyId;
 
-    @Column(nullable = false)
+    @Column(name = "briefing_date", nullable = false)
     private LocalDate briefingDate;
 
     @Column(nullable = false, columnDefinition = "TEXT")
     private String summary;
 
-    @Column(nullable = false)
-    private LocalDateTime createdAt;
-
     protected HandoverBriefing() {
     }
 
     public HandoverBriefing(
-            Long groupId,
+            LocalDateTime periodStart,
+            LocalDateTime periodEnd,
+            String status,
             Long babyId,
             LocalDate briefingDate,
             String summary,
-            LocalDateTime createdAt
+            LocalDateTime generatedAt
     ) {
-        this.groupId = groupId;
+        this.periodStart = periodStart;
+        this.periodEnd = periodEnd;
+        this.status = status;
         this.babyId = babyId;
         this.briefingDate = briefingDate;
         this.summary = summary;
-        this.createdAt = createdAt;
+        this.generatedAt = generatedAt;
     }
 }
