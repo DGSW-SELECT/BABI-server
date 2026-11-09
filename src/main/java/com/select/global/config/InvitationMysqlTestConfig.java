@@ -10,7 +10,6 @@ import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.serializer.RedisSerializer;
 import org.springframework.data.redis.serializer.SerializationException;
-import org.springframework.mail.MailSendException;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -63,7 +62,7 @@ public class InvitationMysqlTestConfig {
                         PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rw-------")));
                 Files.writeString(file, "To: " + to + "\nSubject: " + subject + "\n\n" + body);
             } catch (IOException e) {
-                throw new MailSendException("Cannot save isolated test mail.");
+                throw new IllegalStateException("Cannot save isolated test mail.");
             }
         };
     }

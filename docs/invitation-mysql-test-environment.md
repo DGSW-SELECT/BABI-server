@@ -65,7 +65,7 @@ python3 scripts/invitation_mysql.py constraints
 - `work/invitation-mysql-mail/*.txt`: 테스트 발송의 수신 주소·제목·본문. 디렉터리 700, 파일 600. 콘솔에 인증번호·초대 코드·이메일 본문을 출력하지 않는다.
 - `work/invitation-mysql-smoke.json`: 합성 계정 이메일과 테스트 아기 ID, baseUrl. JWT나 비밀번호는 저장하지 않는다.
 
-`@Primary` 테스트 EmailSender가 실제 GmailEmailSender 대신 사용된다. SMTP 설정도 127.0.0.1:1로 고정하므로 정상 SMTP 서버로 발송하지 않는다. 이 환경의 발송 성공은 로컬 파일 저장 성공이며 실제 SMTP 전달 테스트가 아니다. 원본 `.env`나 Gmail 계정 설정은 읽거나 수정하지 않는다.
+`@Primary` 테스트 EmailSender가 Discord 발송기 대신 사용된다. 이 환경의 발송 성공은 로컬 파일 저장 성공이며 실제 Discord 전송 테스트가 아니다. 원본 `.env`나 Webhook 설정은 읽거나 수정하지 않는다.
 
 Redis 키 직렬화기는 일반 명령뿐 아니라 Lua의 KEYS에도 접두사를 적용한다. 인증 이메일의 email:*와 초대의 baby:invite:* 로직은 수정하지 않았다. 값 직렬화는 기존 문자열 그대로 유지한다. 논리 DB 15에서도 접두사 없는 기존 키는 건드리지 않는다. FLUSHDB/FLUSHALL은 사용하지 않는다.
 
