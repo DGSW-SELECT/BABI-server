@@ -12,7 +12,7 @@ import java.util.Arrays;
 
 /** Require a dedicated demo database before creating a datasource or enabling Discord delivery. */
 @Configuration(proxyBeanMethods = false)
-@Profile("!test & !invitation-mysql")
+@Profile("discord-demo")
 public class DiscordDemoIsolation {
     @Bean
     static BeanFactoryPostProcessor validateDemoEnvironment(Environment env) {
@@ -32,13 +32,13 @@ public class DiscordDemoIsolation {
                 demoDb = uri.getHost() != null && "/babi_discord_demo".equals(uri.getPath()) && uri.getUserInfo() == null;
             }
         } catch (IllegalArgumentException ignored) { }
-        if (profiles.size() != 1 || (!profiles.contains("local") && !profiles.contains("aws"))
+        if (profiles.size() != 2 || !profiles.contains("discord-demo") || (!profiles.contains("local") && !profiles.contains("aws"))
                 || !"true".equals(env.getProperty("BABI_DISCORD_DEMO_ENABLED", "")) || !demoDb
                 || !env.getProperty("spring.datasource.jndi-name", "").isEmpty()
                 || !"never".equals(env.getProperty("spring.sql.init.mode", "never"))
                 || !"validate".equals(env.getProperty("spring.jpa.hibernate.ddl-auto", ""))
                 || env.getProperty("spring.data.redis.host", "").isBlank()
-                || !port.matches("[0-9]{2,5}") || Integer.parseInt(port) == 6379 || Integer.parseInt(port) > 65535
+                || !port.matches("[1-9][0-9]{0,4}") || Integer.parseInt(port) == 6379 || Integer.parseInt(port) > 65535
                 || password.length() < 24 || !"0".equals(env.getProperty("spring.data.redis.database", "0"))
                 || !env.getProperty("spring.data.redis.url", "").isEmpty()
                 || !env.getProperty("spring.data.redis.sentinel.master", "").isEmpty()

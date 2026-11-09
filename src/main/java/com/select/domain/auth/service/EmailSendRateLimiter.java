@@ -19,6 +19,11 @@ import java.util.List;
 public class EmailSendRateLimiter {
     private static final int WINDOW_SECONDS = 60;
     private static final DefaultRedisScript<Long> LIMIT = new DefaultRedisScript<>("""
+            for _, key in ipairs(KEYS) do
+                if redis.call('TTL', key) == -1 then
+                    redis.call('EXPIRE', key, ARGV[1])
+                end
+            end
             for i, key in ipairs(KEYS) do
                 if tonumber(redis.call('GET', key) or '0') >= tonumber(ARGV[i + 1]) then
                     return 0

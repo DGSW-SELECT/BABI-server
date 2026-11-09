@@ -11,7 +11,7 @@ class DiscordDemoIsolationTest {
     private static final String MARKER = "a".repeat(48);
     private MockEnvironment environment() {
         var env = new MockEnvironment();
-        env.setActiveProfiles("local");
+        env.setActiveProfiles("local", "discord-demo");
         env.setProperty("spring.datasource.url", "jdbc:mysql://127.0.0.1:13308/babi_discord_demo");
         env.setProperty("spring.sql.init.mode", "never");
         env.setProperty("spring.jpa.hibernate.ddl-auto", "validate");
@@ -38,12 +38,14 @@ class DiscordDemoIsolationTest {
         assertThrows(IllegalStateException.class, () -> new DiscordDemoIsolation(env, redis, MARKER));
         var shared = environment(); shared.setProperty("spring.data.redis.port", "6379");
         assertThrows(IllegalStateException.class, () -> new DiscordDemoIsolation(shared, redis, MARKER));
+        var zero = environment(); zero.setProperty("spring.data.redis.port", "00");
+        assertThrows(IllegalStateException.class, () -> new DiscordDemoIsolation(zero, redis, MARKER));
         var mysql = environment(); mysql.setProperty("spring.datasource.url", "jdbc:mysql://localhost:3307/babi");
         assertThrows(IllegalStateException.class, () -> new DiscordDemoIsolation(mysql, redis, MARKER));
         verifyNoInteractions(redis);
     }
     @Test void dedicatedAwsDemoAllowedButProductionProfileRejected() {
-        var aws = environment(); aws.setActiveProfiles("aws");
+        var aws = environment(); aws.setActiveProfiles("aws", "discord-demo");
         assertDoesNotThrow(() -> DiscordDemoIsolation.validateEnvironment(aws));
         aws.setActiveProfiles("aws", "prod");
         assertThrows(IllegalStateException.class, () -> DiscordDemoIsolation.validateEnvironment(aws));

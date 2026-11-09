@@ -36,7 +36,7 @@ class DiscordWebhookEmailSenderTest {
         assertEquals(0, json.path("allowed_mentions").path("parse").size());
         assertEquals(java.time.Duration.ofSeconds(5), sent.get().timeout().orElseThrow());
         assertFalse(payload.contains("test@example.invalid"));
-        assertThrows(IllegalArgumentException.class, () -> sender.send("real@example.com", "[BABI] 이메일 인증번호 안내", BODY));
+        assertThrows(com.select.domain.auth.exception.EmailVerificationException.class, () -> sender.send("real@example.com", "[BABI] 이메일 인증번호 안내", BODY));
         verify(client, times(1)).send(any(), any(HttpResponse.BodyHandler.class));
     }
     @SuppressWarnings("unchecked")

@@ -10,7 +10,7 @@ BABI 서비스의 Spring Boot 백엔드 프로젝트입니다.
 
 ## Discord 시연 환경과 로컬 실행
 
-Gmail SMTP는 제거되었습니다. 이 인증은 이메일 소유권을 증명하지 **않는 시연 전용**이며, `@example.invalid` 주소만 허용합니다. 실제 사용자 계정이나 데이터로 운영하지 말고 접근이 제한된 비공개 Discord 채널을 사용하세요. 채널의 인증번호와 초대 코드를 볼 수 있는 사람은 이를 사용할 수 있습니다. Discord에는 주소와 초대 링크를 보내지 않습니다.
+기본 `local`/`aws` 프로필은 기존 Gmail SMTP 발송을 사용합니다. Discord는 `local,discord-demo` 또는 `aws,discord-demo` 프로필을 명시한 경우에만 활성화됩니다. Discord 인증은 이메일 소유권을 증명하지 **않는 시연 전용**이며, `@example.invalid` 주소만 허용합니다. 실제 사용자 계정이나 데이터로 운영하지 말고 접근이 제한된 비공개 Discord 채널을 사용하세요. 채널의 인증번호와 초대 코드를 볼 수 있는 사람은 이를 사용할 수 있습니다. Discord에는 주소와 초대 링크를 보내지 않습니다.
 
 기존 Compose의 `babi` DB와 Redis에는 연결하지 마세요. 별도의 MySQL 8.4 인스턴스에 `babi_discord_demo` DB와 `babi_user` 계정을 준비하고, 최종 스키마를 그 전용 DB에만 별도로 적용하세요. 서버는 `schema.sql`을 자동 실행하지 않으며(`spring.sql.init.mode: never`) Hibernate `validate`만 수행합니다. 공유 DB를 초기화하지 않습니다. 별도의 인증된 Redis 인스턴스도 필요합니다.
 
@@ -63,7 +63,7 @@ docker port babi-discord-demo-redis 6379
 프로젝트 루트에서 실행합니다. IntelliJ에서는 같은 작업 디렉터리와 `local` 프로필을 지정하세요.
 
 ```bash
-./gradlew bootRun --args='--spring.profiles.active=local'
+./gradlew bootRun --args='--spring.profiles.active=local,discord-demo'
 ```
 
 실행 후 Swagger UI(`/swagger-ui.html`)에서 다음 순서로 테스트합니다. 실제 호출은 테스트 전용 서버에서만 하세요.
@@ -86,7 +86,7 @@ Discord 연결은 최대 3초, 요청은 최대 5초로 제한합니다. 응답 
 
 ## AWS 시연 배포 준비
 
-현재 AWS 연결과 배포는 검증되지 않았습니다. 팀원이 기존 AWS 설정을 확인하고 **전용 시연 MySQL과 Redis**를 별도 준비해야 합니다. `aws` 프로필은 `SPRING_DATASOURCE_URL`을 `babi_discord_demo`로 명시하고 전용 DB 계정, 위의 Discord·Redis·비밀 환경변수를 제공해야만 시작합니다. 기존 `babi` 기본값으로는 안전 검증에 실패합니다. HTTPS 아웃바운드와 비공개 Discord 채널, 환경변수 전달, Redis 확인값, DB 스키마를 배포 전에 확인하세요. 세부 사항은 [AWS 운영 문서](docs/aws-runtime.md)를 참조하세요. 실제 사용자 인증에는 사용할 수 없습니다.
+현재 AWS 연결과 배포는 검증되지 않았습니다. 기존 `deploy/babi-server.service`는 `aws`만 활성화하므로 Discord가 자동으로 켜지지 않습니다. 시연 배포는 별도의 승인된 서비스 설정으로 `aws,discord-demo`를 명시해야 합니다. 팀원이 기존 AWS 설정을 확인하고 **전용 시연 MySQL과 Redis**를 별도 준비해야 합니다. `aws,discord-demo` 프로필은 `SPRING_DATASOURCE_URL`을 `babi_discord_demo`로 명시하고 전용 DB 계정, 위의 Discord·Redis·비밀 환경변수를 제공해야만 시작합니다. 기존 `babi` 기본값으로는 안전 검증에 실패합니다. HTTPS 아웃바운드와 비공개 Discord 채널, 환경변수 전달, Redis 확인값, DB 스키마를 배포 전에 확인하세요. 세부 사항은 [AWS 운영 문서](docs/aws-runtime.md)를 참조하세요. 실제 사용자 인증에는 사용할 수 없습니다.
 
 ## 일일 리포트 API
 

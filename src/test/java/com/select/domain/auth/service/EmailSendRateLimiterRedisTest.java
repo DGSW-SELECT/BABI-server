@@ -77,6 +77,7 @@ class EmailSendRateLimiterRedisTest {
         httpSend(mvc, "127.0.0.1", "three@example.invalid", 429);
         verify(service).sendVerificationCode("one@example.invalid");
         verify(service).sendVerificationCode("two@example.invalid");
+        verify(service, times(3)).validateRecipient(anyString());
         verifyNoMoreInteractions(service);
     }
     @Test void sourceLimitBlocksHttpSendWithoutBlockingOtherSources() throws Exception {
@@ -107,6 +108,14 @@ class EmailSendRateLimiterRedisTest {
         var request = request("192.0.2.1", null); limiter.check(request); blocked(limiter, request);
         redis.expire(GLOBAL, Duration.ofMillis(50)); redis.expire(sourceKey("192.0.2.1"), Duration.ofMillis(50));
         Thread.sleep(120); assertDoesNotThrow(() -> limiter.check(request));
+    }
+    @Test void repairsMissingTtlEvenWhenLimitAlreadyExceeded() {
+        var limiter = new EmailSendRateLimiter(redis, 1, 1, "none");
+        redis.opsForValue().set(GLOBAL, "1");
+        redis.opsForValue().set(sourceKey("192.0.2.1"), "1");
+        blocked(limiter, request("192.0.2.1", null));
+        assertTrue(redis.getExpire(GLOBAL) > 0);
+        assertTrue(redis.getExpire(sourceKey("192.0.2.1")) > 0);
     }
     @Test void concurrentRequestsCannotExceedLimit() throws Exception {
         var limiter = new EmailSendRateLimiter(redis, 7, 7, "none");

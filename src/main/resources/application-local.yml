@@ -4,7 +4,7 @@ spring:
       on-profile: local
     import: optional:file:./.env[.properties]
   datasource:
-    url: ${BABI_DEMO_DB_URL:jdbc:mysql://localhost:3307/babi}
+    url: jdbc:mysql://localhost:3307/babi
     username: babi_user
     password: ${MYSQL_PASSWORD}
   jpa:
@@ -12,15 +12,39 @@ spring:
       ddl-auto: validate
   data:
     redis:
-      host: ${BABI_DEMO_REDIS_HOST:localhost}
-      port: ${BABI_DEMO_REDIS_PORT:6379}
-      password: ${BABI_DEMO_REDIS_PASSWORD:}
-
+      host: localhost
+      port: 6379
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: ${MAIL_USERNAME}
+    password: ${MAIL_PASSWORD}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
 email:
   verification:
     secret: ${EMAIL_VERIFICATION_SECRET}
 jwt:
   secret: ${JWT_SECRET}
-
 server:
   forward-headers-strategy: none
+
+---
+spring:
+  config:
+    activate:
+      on-profile: discord-demo
+  datasource:
+    url: ${BABI_DEMO_DB_URL:}
+  mail:
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+  data:
+    redis:
+      host: ${BABI_DEMO_REDIS_HOST:}
+      port: ${BABI_DEMO_REDIS_PORT:0}
+      password: ${BABI_DEMO_REDIS_PASSWORD:}

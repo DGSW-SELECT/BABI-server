@@ -24,6 +24,7 @@ public class EmailVerificationController {
 
     @PostMapping("/send")
     public ApiResponse<Void> send(@Valid @RequestBody EmailSendRequest request, HttpServletRequest servletRequest) {
+        emailVerificationService.validateRecipient(request.email());
         rateLimiter.check(servletRequest);
         emailVerificationService.sendVerificationCode(request.email());
         return new ApiResponse<>(true,"인증번호가 발송되었습니다.",null);

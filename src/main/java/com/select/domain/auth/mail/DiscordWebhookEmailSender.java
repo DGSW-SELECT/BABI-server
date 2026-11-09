@@ -16,11 +16,12 @@ import java.util.regex.Pattern;
 
 /** Demo-only transport: never forward addresses, links or arbitrary email content. */
 @Component
-@Profile("!test & !invitation-mysql")
+@Profile("discord-demo")
 public class DiscordWebhookEmailSender implements EmailSender {
     private static final Pattern TEST_ADDRESS = Pattern.compile("[a-zA-Z0-9._%+\\-]+@example\\.invalid", Pattern.CASE_INSENSITIVE);
     private static final Pattern VERIFY = Pattern.compile("\\ABABI 이메일 인증번호는 ([0-9]{6})입니다\\.\\n인증번호는 5분 동안 유효합니다\\.\\z");
-    private static final Pattern INVITE = Pattern.compile("\\ABABI 아기 보호자로 초대되었습니다\\.\\n초대 코드: ([A-Z0-9]{6})\\n초대 링크: [^\\n]+\\n이메일 초대 유효기간: [^\\n]+\\n로그인한 후 초대 코드를 입력해 주세요\\.\\z");
+    private static final Pattern INVITE = Pattern.compile("\\ABABI 아기 보호자로 초대되었습니다\\.\\n초대 코드: ([A-Z0-9]{6})\\n초대 링크: [^\\n]+\\n이메일 초대 유효기간: ([0-9TZ:.-]+)\\n로그인한 후 초대 코드를 입력해 주세요\\.\\z");
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(DiscordWebhookEmailSender.class);
     private final URI webhook;
     private final HttpClient client;
     private final ObjectMapper json;
@@ -57,15 +58,21 @@ public class DiscordWebhookEmailSender implements EmailSender {
     }
 
     @Override
+    public void validateRecipient(String to) {
+        if (to == null || !TEST_ADDRESS.matcher(to).matches())
+            throw new com.select.domain.auth.exception.EmailVerificationException(com.select.global.exception.ErrorCode.EMAIL_DEMO_ADDRESS_REQUIRED);
+    }
+
+    @Override
     public void send(String to, String subject, String body) {
-        if (to == null || !TEST_ADDRESS.matcher(to).matches()) throw new IllegalArgumentException("Demo sender only accepts example.invalid addresses");
+        validateRecipient(to);
         String message;
         var verify = VERIFY.matcher(body == null ? "" : body);
         var invite = INVITE.matcher(body == null ? "" : body);
         if ("[BABI] 이메일 인증번호 안내".equals(subject) && verify.matches()) {
             message = "[BABI 회원가입 인증]\n인증번호: " + verify.group(1) + "\n유효기간: 5분\n시연 전용";
         } else if ("[BABI] 아기 보호자 초대".equals(subject) && invite.matches()) {
-            message = "[BABI 보호자 초대]\n초대 코드: " + invite.group(1) + "\n유효기간: 발급 후 14일\n시연 전용";
+            message = "[BABI 보호자 초대]\n초대 코드: " + invite.group(1) + "\n이메일 초대 만료 시각: " + invite.group(2) + "\n시연 전용";
         } else throw new IllegalArgumentException("Unsupported demo message");
         int status;
         try {
@@ -80,12 +87,15 @@ public class DiscordWebhookEmailSender implements EmailSender {
             }
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
+            log.warn("Discord delivery interrupted");
             throw new IllegalStateException("Discord delivery interrupted");
         } catch (Exception ex) {
             // Neither exception messages, URLs, nor request/response contents are logged or propagated.
+            log.warn("Discord delivery failed (transport error)");
             throw new IllegalStateException("Discord delivery failed");
         }
         if (status < 200 || status >= 300) {
+            log.warn("Discord delivery failed (HTTP status {})", status);
             throw new IllegalStateException(status == 429 ? "Discord rate limited" : "Discord delivery failed");
         }
     }

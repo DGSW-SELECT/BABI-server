@@ -16,6 +16,7 @@ public enum ErrorCode {
     INVITATION_SEND_FAILED(HttpStatus.SERVICE_UNAVAILABLE, "보호자 초대 이메일 발송에 실패했습니다."),
 
     EMAIL_CODE_MISMATCH(HttpStatus.BAD_REQUEST, "인증번호가 일치하지 않습니다."),
+    EMAIL_DEMO_ADDRESS_REQUIRED(HttpStatus.BAD_REQUEST, "시연 환경에서는 example.invalid 이메일만 사용할 수 있습니다."),
     EMAIL_CODE_EXPIRED(HttpStatus.BAD_REQUEST, "인증번호가 없거나 만료되었습니다."),
     EMAIL_ATTEMPTS_EXCEEDED(HttpStatus.TOO_MANY_REQUESTS, "인증번호 입력 횟수를 초과했습니다."),
     EMAIL_SEND_RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "인증번호 발송 요청 횟수를 초과했습니다."),

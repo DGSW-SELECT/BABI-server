@@ -18,11 +18,20 @@ spring:
       mode: never
   data:
     redis:
-      host: ${BABI_DEMO_REDIS_HOST:127.0.0.1}
-      port: ${BABI_DEMO_REDIS_PORT:6379}
-      password: ${BABI_DEMO_REDIS_PASSWORD:}
+      host: 127.0.0.1
+      port: 6379
       timeout: 2s
-
+  mail:
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
 email:
   verification:
     secret: ${EMAIL_VERIFICATION_SECRET}
@@ -32,3 +41,14 @@ server:
   address: 127.0.0.1
   port: 8080
   forward-headers-strategy: native
+
+---
+spring:
+  config:
+    activate:
+      on-profile: discord-demo
+  data:
+    redis:
+      host: ${BABI_DEMO_REDIS_HOST:}
+      port: ${BABI_DEMO_REDIS_PORT:0}
+      password: ${BABI_DEMO_REDIS_PASSWORD:}
