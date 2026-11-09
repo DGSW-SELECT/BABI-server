@@ -13,7 +13,7 @@ import java.time.LocalDateTime;
 
 @Entity
 @Getter
-@Table(name = "handover_briefings")
+@Table(name = "handoff_briefings")
 public class HandoverBriefing {
 
     @Id
