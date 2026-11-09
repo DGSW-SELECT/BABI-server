@@ -8,7 +8,6 @@ spring:
     properties:
       mail:
         smtp:
-          # Milliseconds per SMTP connect, read and write operation.
           connectiontimeout: 5000
           timeout: 5000
           writetimeout: 5000
