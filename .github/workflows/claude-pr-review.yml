@@ -97,6 +97,15 @@ jobs:
           path: .review-target
           persist-credentials: false
 
+      - name: Prepare the exact PR diff
+        if: needs.context.outputs.mode == 'review' && steps.claude_auth.outputs.claude_enabled == 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ needs.context.outputs.number }}
+          EXPECTED_HEAD: ${{ needs.context.outputs.head }}
+        run: python3 -m scripts.ai_pr_review diff
+
       - uses: anthropics/claude-code-action@61a9c274fa7110a66dfafc1bbbced03833eb25fe # v1
         id: claude
         if: needs.context.outputs.mode == 'review' && steps.claude_auth.outputs.claude_enabled == 'true'
@@ -110,9 +119,13 @@ jobs:
             PR NUMBER: ${{ needs.context.outputs.number }}
             REVIEW COMMIT: ${{ needs.context.outputs.head }}
             PR FILES: .review-target/ (이 디렉터리가 검토 commit의 실제 파일이다)
+            PR DIFF: .review-diff.patch (GitHub API로 받은 실제 PR 변경 파일이다)
             REPOSITORY PRIVATE: ${{ github.event.repository.private }}
 
             이 PR을 리뷰해줘. AGENTS.md의 규칙을 기준으로 삼아.
+            먼저 Read 도구로 .review-diff.patch 전체를 읽어 변경 파일 목록과 diff를 확인해.
+            이어서 변경된 파일과 테스트를 .review-target/ 아래에서 Read 도구로 읽어.
+            git diff·git log는 실행하지 마. shallow clone이어도 제공된 diff로 전체 변경을 확인할 수 있어.
             확인 항목: 버그/로직 오류, 보안(인증·권한·SQL injection·secret 노출),
             Spring Boot 계층 구조(domain/controller·service·repository) 준수,
             예외 처리, 성능, 테스트 누락, 커밋/브랜치 컨벤션.

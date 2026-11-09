@@ -132,6 +132,20 @@ def retire_approvals(env):
     raise ValueError("Review list exceeds the invalidation limit")
 
 
+def prepare_diff(env):
+    repository, head, number = env["REPOSITORY"], env["EXPECTED_HEAD"], env["PR_NUMBER"]
+    if not valid_context(repository, head, number):
+        raise ValueError("Invalid review diff context")
+    token, pull_path = env["GITHUB_TOKEN"], f"repos/{repository}/pulls/{number}"
+    diff = request_text("https://api.github.com/" + pull_path, token, accept="application/vnd.github.diff")
+    pull = github(pull_path, token)
+    if pull.get("state") != "open" or pull.get("draft") or pull.get("head", {}).get("sha") != head:
+        raise ValueError("PR closed, drafted, or changed before diff preparation")
+    if not diff.strip():
+        raise ValueError("PR diff is empty; no complete review can be performed")
+    Path(".review-diff.patch").write_text(diff)
+
+
 def deepseek_review(diff, instructions, head, key, model):
     if len(diff) > MAX_DIFF:
         raise ValueError("Diff exceeds the fallback review limit")
@@ -268,5 +282,7 @@ if __name__ == "__main__":
             report("SKIPPED", "Event is not an eligible review request; no model called.", os.environ)
     elif sys.argv[1:] == ["invalidate"]:
         retire_approvals(os.environ)
+    elif sys.argv[1:] == ["diff"]:
+        prepare_diff(os.environ)
     else:
         main(os.environ)
