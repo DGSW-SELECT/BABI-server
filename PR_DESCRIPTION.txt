@@ -1,0 +1,85 @@
+제목: feat: 인수인계 브리핑 MVP 구현
+
+## 1. 작업 내용
+
+- 인수인계 브리핑 생성 API 구현
+- 최신 인수인계 브리핑 조회 API 구현
+- 당일 육아 기록이 없을 때 예외 처리
+- 브리핑 생성 실패 시 예외 처리
+- 인수인계 브리핑 Entity 및 Repository 구현
+- 공통 예외 처리에 브리핑 오류 코드 추가
+- 사용하지 않는 요청 DTO 및 테스트 정리
+
+## 2. 구현 상세
+
+- `Asia/Seoul` 기준으로 당일 날짜를 계산합니다.
+- 당일 육아 기록을 조회한 뒤 기록이 없으면 브리핑을 생성하지 않습니다.
+- 현재는 `FakeDailyCareRecordProvider`를 사용합니다.
+- 현재는 `FakeHandoverBriefingGenerator`를 사용합니다.
+- 실제 육아 기록 및 AI 서비스 연동은 후속 작업입니다.
+- 응답은 프로젝트 공통 `ApiResponse` 형식을 사용합니다.
+
+## 3. API 변경 내역
+
+| Method | Endpoint | Description |
+|---|---|---|
+| POST | `/babi/api/babies/{babyId}/handover-briefings` | 인수인계 브리핑 생성 |
+| GET | `/babi/api/babies/{babyId}/handover-briefings/latest` | 최신 브리핑 조회 |
+
+### 응답 예시
+
+```json
+{
+  "success": true,
+  "message": "인수인계 브리핑이 생성되었습니다.",
+  "data": {
+    "briefingDate": "2026-11-09",
+    "summary": "학습용 가짜 AI 브리핑입니다. 오늘의 기록 3건을 정리했습니다."
+  },
+  "error": null
+}
+```
+
+## 4. 데이터 및 인프라 영향
+
+- `HandoverBriefing` Entity의 테이블명을 `handoff_briefings`로 수정했습니다.
+- 별도 DB 마이그레이션 파일은 추가하지 않았습니다.
+- 환경변수 및 의존성 변경은 없습니다.
+
+## 5. 테스트 결과
+
+| 테스트 항목 | 결과 |
+|---|---|
+| Build | 통과 |
+| Unit Test | 통과 |
+| Handover Briefing Test | 통과 |
+| Integration Test | 미실행 |
+| API Test | 미실행 |
+
+실행 명령어:
+
+```bash
+./gradlew test --tests '*HandoverBriefing*'
+```
+
+## 6. 리뷰 포인트
+
+- 현재 육아 기록 조회는 가짜 구현입니다.
+- 현재 AI 브리핑 생성은 가짜 구현입니다.
+- JWT 필터에서 전달된 사용자 ID와 활성 아기 구성원 여부를 확인합니다.
+- 세부 permission 값별 검사는 후속 권한 정책 확정 후 보완합니다.
+- 실제 DB의 `handoff_briefings` 운영 테이블 적용 여부 확인이 필요합니다.
+- 배포 Swagger에 인수인계 브리핑 API가 아직 등록되어 있지 않아 실제 배포 반영 후 문서를 확인해야 합니다.
+
+## 7. 관련 이슈
+
+- Related to TS-39
+
+## Merge Checklist
+
+- [x] 요구사항에 맞게 구현했습니다.
+- [x] 예외 처리 및 오류 응답을 확인했습니다.
+- [ ] 인증·인가를 확인했습니다.
+- [x] 테스트 및 빌드 결과를 확인했습니다.
+- [ ] 실제 DB 연동을 확인했습니다.
+- [x] 불필요한 코드와 디버깅 로그를 제거했습니다.
