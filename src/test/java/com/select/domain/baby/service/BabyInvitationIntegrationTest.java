@@ -18,7 +18,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.mail.MailSendException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -394,7 +393,7 @@ class BabyInvitationIntegrationTest {
 
     @Test
     void firstMailFailurePreservesCommittedInvitationAndCode() {
-        doThrow(new MailSendException("private address and body")).when(sender).send(anyString(), anyString(), anyString());
+        doThrow(new IllegalStateException("private address and body")).when(sender).send(anyString(), anyString(), anyString());
         var error = assertThrows(BabyInvitationException.class, () -> workflow.send(babyId, ownerId, email));
         assertEquals(ErrorCode.INVITATION_SEND_FAILED, error.getErrorCode());
         assertNull(error.getCause());
@@ -414,7 +413,7 @@ class BabyInvitationIntegrationTest {
         String value = workflow.getCode(babyId, ownerId).code();
         expireInvitation();
         Instant previousExpiry = invitation().getExpiresAt();
-        doThrow(new MailSendException("test failure")).when(sender).send(anyString(), anyString(), anyString());
+        doThrow(new IllegalStateException("test failure")).when(sender).send(anyString(), anyString(), anyString());
         assertThrows(BabyInvitationException.class, () -> workflow.send(babyId, ownerId, email));
         assertTrue(invitation().getExpiresAt().isAfter(previousExpiry));
         assertEquals(BabyEmailInvitation.Status.PENDING, invitation().getStatus());
@@ -680,7 +679,7 @@ class BabyInvitationIntegrationTest {
         doThrow(new BabyInvitationException(ErrorCode.INVITATION_RATE_LIMITED)).when(limiter).lookup(guestId);
         assertError(request("POST", "/babies/invitations/check", guestId, "{\"code\":\"AbC123\"}"),
                 429, "INVITATION_RATE_LIMITED");
-        doThrow(new MailSendException(email + " secret-code")).when(sender).send(anyString(), anyString(), anyString());
+        doThrow(new IllegalStateException(email + " secret-code")).when(sender).send(anyString(), anyString(), anyString());
         var failed = request("POST", "/babies/" + babyId + "/invitations", ownerId,
                 mapper.writeValueAsString(Map.of("email", email)));
         assertError(failed, 503, "INVITATION_SEND_FAILED");

@@ -11,6 +11,7 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Component;
 
 @Component
+@org.springframework.context.annotation.Profile("!discord-demo & !test & !invitation-mysql")
 public class GmailEmailSender implements EmailSender {
 
     private static final Logger log = LoggerFactory.getLogger(GmailEmailSender.class);
