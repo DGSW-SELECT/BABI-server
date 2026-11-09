@@ -7,6 +7,7 @@ import subprocess
 import sys
 import time
 import uuid
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 
@@ -70,7 +71,17 @@ def main():
                        BABI_ISOLATED_MYSQL_PASSWORD=user_password, BABI_ISOLATED_MYSQL_MARKER=marker)
             run('./gradlew', '--no-daemon', 'test', '--rerun-tasks', '--tests',
                 'com.select.domain.baby.service.BabyInvitationMySqlIntegrationTest',
+                '--tests', 'com.select.domain.care.CareRecordMySqlIntegrationTest',
+                '--tests', 'com.select.domain.report.DailyReportGenerationMySqlIntegrationTest',
                 cwd=Path(__file__).resolve().parents[1], env=env)
+            results = Path(__file__).resolve().parents[1] / 'build/test-results/test'
+            for test_class in ['com.select.domain.baby.service.BabyInvitationMySqlIntegrationTest',
+                               'com.select.domain.care.CareRecordMySqlIntegrationTest',
+                               'com.select.domain.report.DailyReportGenerationMySqlIntegrationTest']:
+                suite = ET.parse(results / ('TEST-' + test_class + '.xml')).getroot()
+                if int(suite.get('tests', '0')) == 0 or any(int(suite.get(key, '0')) for key in ['skipped', 'errors', 'failures']):
+                    raise RuntimeError('Isolated MySQL suite did not run cleanly: ' + test_class)
+                print('Verified MySQL suite:', test_class, suite.get('tests'), 'tests, no skips')
     finally:
         if container:
             subprocess.run(['docker', 'stop', container], stdout=subprocess.DEVNULL, check=False)
