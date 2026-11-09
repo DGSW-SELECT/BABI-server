@@ -11,7 +11,10 @@ import com.select.domain.care.repository.CareRecordRepository;
 import com.select.global.exception.ErrorCode;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDate;
 
@@ -20,22 +23,28 @@ public class CareRecordService {
     private final BabyAccessRepository access;
     private final BabyRepository babies;
     private final CareRecordRepository records;
+    private final TransactionTemplate transactions;
 
-    public CareRecordService(BabyAccessRepository access, BabyRepository babies, CareRecordRepository records) {
+    public CareRecordService(BabyAccessRepository access, BabyRepository babies, CareRecordRepository records,
+                             PlatformTransactionManager transactionManager) {
         this.access = access;
         this.babies = babies;
         this.records = records;
+        this.transactions = new TransactionTemplate(transactionManager);
     }
 
-    @Transactional
+    @Transactional(propagation = Propagation.NEVER)
     public CareRecordResponse create(Long babyId, Long userId, CreateCareRecordRequest request) {
         if (!request.isValidForType()) throw new CareRecordException(ErrorCode.INVALID_CARE_RECORD);
-        babies.findByIdForUpdate(babyId);
-        Long memberId = requireMember(userId, babyId, "CARE_WRITE", true);
-        if (request.voiceInputId() != null && !records.ownsVoiceInput(babyId, memberId, request.voiceInputId())) {
-            throw new CareRecordException(ErrorCode.INVALID_CARE_RECORD);
-        }
-        return records.save(babyId, memberId, request);
+        requireMember(userId, babyId, "CARE_WRITE", true);
+        return transactions.execute(status -> {
+            babies.findByIdForUpdate(babyId);
+            Long memberId = requireMember(userId, babyId, "CARE_WRITE", true);
+            if (request.voiceInputId() != null && !records.ownsVoiceInput(babyId, memberId, request.voiceInputId())) {
+                throw new CareRecordException(ErrorCode.INVALID_CARE_RECORD);
+            }
+            return records.save(babyId, memberId, request);
+        });
     }
 
     @Transactional(readOnly = true)

@@ -3,6 +3,7 @@ package com.select.domain.report;
 import com.select.domain.baby.entity.BabyMember;
 import com.select.domain.baby.entity.BabyRole;
 import com.select.domain.baby.repository.BabyMemberRepository;
+import com.select.domain.baby.repository.BabyAccessRepository;
 import com.select.domain.baby.request.BabyCreateRequest;
 import com.select.domain.baby.service.BabyService;
 import com.select.domain.report.dto.response.DailyReportFacts;
@@ -20,6 +21,9 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import tools.jackson.databind.ObjectMapper;
 
@@ -59,6 +63,8 @@ public class DailyReportGenerationIntegrationTest {
     @Autowired private JwtProvider jwt;
     @Autowired private ObjectMapper mapper;
     @Autowired private DataSource dataSource;
+    @Autowired private PlatformTransactionManager transactionManager;
+    @MockitoSpyBean private BabyAccessRepository access;
     @MockitoBean private OpenAiDailyReportGenerator generator;
     private Long ownerId, outsiderId, babyId;
     private final HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build();
@@ -175,6 +181,76 @@ public class DailyReportGenerationIntegrationTest {
             assertEquals(201, first.get(5, TimeUnit.SECONDS).statusCode());
         }
         verify(generator, times(1)).generate(any());
+    }
+
+    @Test
+    void unauthorizedWritesNeverWaitForAnotherUsersBabyLock() throws Exception {
+        var locked = new CountDownLatch(1);
+        var release = new CountDownLatch(1);
+        try (var executor = Executors.newFixedThreadPool(6)) {
+            var holder = executor.submit(() -> new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+                jdbc.queryForObject("SELECT id FROM babies WHERE id=? FOR UPDATE", Long.class, babyId);
+                locked.countDown();
+                await(release);
+            }));
+            try {
+                assertTrue(locked.await(5, TimeUnit.SECONDS));
+                var requests = java.util.List.of(
+                        executor.submit(() -> generate(outsiderId).statusCode()),
+                        executor.submit(() -> request("POST", base(), outsiderId, "{\"reportDate\":\"2026-11-08\",\"summary\":\"manual\"}").statusCode()),
+                        executor.submit(() -> request("PATCH", base() + "/2026-11-08", outsiderId, "{\"summary\":\"manual\"}").statusCode()),
+                        executor.submit(() -> request("DELETE", base() + "/2026-11-08", outsiderId, null).statusCode()),
+                        executor.submit(() -> request("POST", "/api/v1/babies/" + babyId + "/feedings", outsiderId,
+                                "{\"occurredAt\":\"2026-11-08T12:00:00\",\"feedingType\":\"FORMULA\"}").statusCode()));
+                for (var response : requests) assertEquals(403, response.get(3, TimeUnit.SECONDS));
+            } finally {
+                release.countDown();
+            }
+            holder.get(5, TimeUnit.SECONDS);
+        }
+        verifyNoInteractions(generator);
+    }
+
+    @Test
+    void membershipRevokedAfterPrecheckIsRejectedAfterAcquiringTheLock() throws Exception {
+        for (boolean careRecord : new boolean[]{false, true}) {
+            Long guardian = user();
+            Long member = members.saveAndFlush(BabyMember.builder().babyId(babyId).userId(guardian).role(BabyRole.GUARDIAN).build()).getId();
+            jdbc.update("INSERT INTO baby_permissions(baby_id,baby_member_id,permission) VALUES (?,?,'CARE_ALL')", babyId, member);
+            var locked = new CountDownLatch(1);
+            var checked = new CountDownLatch(1);
+            doAnswer(invocation -> {
+                Object result = invocation.callRealMethod();
+                checked.countDown();
+                return result;
+            }).when(access).findMemberId(eq(guardian), eq(babyId), anyString(), eq(true));
+            try (var executor = Executors.newSingleThreadExecutor()) {
+                var revocation = executor.submit(() -> new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+                    jdbc.queryForObject("SELECT id FROM babies WHERE id=? FOR UPDATE", Long.class, babyId);
+                    locked.countDown();
+                    await(checked);
+                    jdbc.update("UPDATE baby_members SET removed_at=CURRENT_TIMESTAMP WHERE id=?", member);
+                }));
+                assertTrue(locked.await(5, TimeUnit.SECONDS));
+                var response = careRecord
+                        ? request("POST", "/api/v1/babies/" + babyId + "/feedings", guardian,
+                                "{\"occurredAt\":\"2026-11-08T12:00:00\",\"feedingType\":\"FORMULA\"}")
+                        : request("POST", base(), guardian, "{\"reportDate\":\"2026-11-08\",\"summary\":\"manual\"}");
+                assertEquals(403, response.statusCode(), response.body());
+                revocation.get(5, TimeUnit.SECONDS);
+            }
+        }
+        assertEquals(0L, jdbc.queryForObject("SELECT COUNT(*) FROM daily_reports WHERE baby_id=?", Long.class, babyId));
+        assertEquals(0L, jdbc.queryForObject("SELECT COUNT(*) FROM feeding_records WHERE baby_id=?", Long.class, babyId));
+    }
+
+    private void await(CountDownLatch latch) {
+        try {
+            assertTrue(latch.await(10, TimeUnit.SECONDS));
+        } catch (InterruptedException error) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError(error);
+        }
     }
 
     @Test
