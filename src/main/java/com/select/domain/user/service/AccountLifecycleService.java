@@ -31,12 +31,13 @@ public class AccountLifecycleService {
     private final RefreshSessionService sessions;
     private final TokenRevocationService revocations;
     private final EntityManager entityManager;
+    private final WithdrawalRateLimiter withdrawalRateLimiter;
 
     public AccountLifecycleService(UserRepository users, BabyMemberRepository members, BabyPermissionRepository permissions,
             BabyRepository babies, PasswordEncoder passwords, AccountInvitationCleanupRepository invitations, JwtProvider jwt, TokenRevocationService revocations,
-            EntityManager entityManager, RefreshSessionService sessions) {
+            EntityManager entityManager, RefreshSessionService sessions, WithdrawalRateLimiter withdrawalRateLimiter) {
         this.users = users; this.members = members; this.permissions = permissions; this.babies = babies;
-        this.passwords = passwords; this.invitations = invitations; this.jwt = jwt; this.revocations = revocations; this.entityManager = entityManager; this.sessions = sessions;
+        this.passwords = passwords; this.invitations = invitations; this.jwt = jwt; this.revocations = revocations; this.entityManager = entityManager; this.sessions = sessions; this.withdrawalRateLimiter = withdrawalRateLimiter;
     }
 
     public void logout(String accessToken, String refreshToken) {
@@ -56,6 +57,7 @@ public class AccountLifecycleService {
 
     @Transactional
     public void withdraw(Long userId, String password) {
+        withdrawalRateLimiter.check(userId);
         var user = users.findByIdForUpdate(userId).filter(u -> u.isActive()).orElseThrow(InvalidCredentialsException::new);
         if (!passwords.matches(password, user.getPasswordHash())) throw new InvalidCredentialsException();
         var activeMembers = members.findByUserId(userId);

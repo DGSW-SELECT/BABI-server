@@ -58,6 +58,8 @@ class BabyInvitationMySqlIntegrationTest extends BabyInvitationIntegrationTest {
         registry.add("spring.sql.init.mode", () -> "never");
     }
 
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    private com.select.domain.user.service.WithdrawalRateLimiter withdrawalRateLimiter;
     @Autowired private JdbcTemplate mysqlJdbc;
     @Autowired private BabyAccessRepository reportAccess;
     @Autowired private UserRepository mysqlUsers;
