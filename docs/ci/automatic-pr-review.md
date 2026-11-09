@@ -25,7 +25,7 @@
 - GitHub Variable `DEEPSEEK_MODEL`: 선택, 기본 `deepseek-flash`.
 - GitHub Actions의 `Allow GitHub Actions to create and approve pull requests` 허용이 있어야 정식 APPROVE를 생성할 수 있다. 거부되면 COMMENT만 등록한다. 기본 token 권한은 read를 유지하고 job에서 필요한 read·pull-request write 권한만 선언한다.
 
-기존 develop/main 승인 개수와 마지막 push 승인 조건은 유지한다. 자동 merge는 수행하지 않는다.
+사용자가 조직·저장소의 Actions APPROVE 권한과 자동 승인을 허용했다. 봇의 정식 APPROVE도 기존 필수 승인 수(main 2개, develop 1개)에 포함된다. main에 봇 승인 하나만 있으면 추가 승인이 필요하다. 기존 승인 개수·마지막 push 승인 조건은 변경하지 않으며 자동 merge는 수행하지 않는다.
 
 DeepSeek는 [공식 Chat Completions API](https://api-docs.deepseek.com/)와 [JSON mode](https://api-docs.deepseek.com/guides/json_mode/)를 사용한다. `DEEPSEEK_API_KEY` 등록은 이 저장소의 PR diff와 base AGENTS.md를 외부 DeepSeek API로 전송하는 fallback을 활성화한다. 비공개 코드도 동일하게 전송되므로 저장소 관리자가 전송 대상을 확인한 뒤 키를 등록해야 한다. 인증키는 prompt에 넣지 않는다. API 요청 45초·응답 2MB·diff 120,000자·출력 4,096 토큰 상한, 재시도 없음. 유료 API 키를 등록하면 fallback 호출은 해당 계정에 과금될 수 있다.
 
