@@ -10,7 +10,6 @@ import org.springframework.stereotype.Component;
 
 import java.security.SecureRandom;
 import java.time.Duration;
-import java.util.Base64;
 
 @Component
 public class AuthCookies {
@@ -37,7 +36,7 @@ public class AuthCookies {
         random.nextBytes(bytes);
         add(response, ACCESS, access, accessLifetime, true);
         add(response, REFRESH, refresh, RefreshSessionService.LIFETIME, true);
-        add(response, CSRF, Base64.getUrlEncoder().withoutPadding().encodeToString(bytes), RefreshSessionService.LIFETIME, false);
+        add(response, CSRF, CsrfToken.create(refresh, bytes), RefreshSessionService.LIFETIME, false);
         response.setHeader(HttpHeaders.CACHE_CONTROL, "no-store");
     }
 

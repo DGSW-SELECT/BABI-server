@@ -36,13 +36,29 @@ class AuthCookieSecurityTest {
         verify(errors).writeErrorResponse(eq(response), any());
         assertNull(chain.getRequest());
 
+        String signed = CsrfToken.create("token", new byte[32]);
         var valid = new MockHttpServletRequest("POST", "/auth/refresh");
         valid.setServletPath("/auth/refresh");
-        valid.setCookies(new Cookie(AuthCookies.REFRESH, "token"), new Cookie(AuthCookies.CSRF, "csrf"));
-        valid.addHeader("X-CSRF-Token", "csrf");
+        valid.setCookies(new Cookie(AuthCookies.REFRESH, "token"), new Cookie(AuthCookies.CSRF, signed));
+        valid.addHeader("X-CSRF-Token", signed);
         var allowed = new MockFilterChain();
         filter.doFilter(valid, new MockHttpServletResponse(), allowed);
         assertNotNull(allowed.getRequest());
+    }
+
+    @Test
+    void attackerChosenMatchingCookieAndHeaderAreRejected() throws Exception {
+        var errors = mock(SecurityErrorResponseWriter.class);
+        var request = new MockHttpServletRequest("POST", "/auth/refresh");
+        request.setServletPath("/auth/refresh");
+        String forged = CsrfToken.create("attacker-refresh", new byte[32]);
+        assertFalse(CsrfToken.valid("", forged));
+        request.setCookies(new Cookie(AuthCookies.REFRESH, "victim-refresh"), new Cookie(AuthCookies.CSRF, forged));
+        request.addHeader("X-CSRF-Token", forged);
+        var chain = new MockFilterChain();
+        new CookieCsrfFilter(errors).doFilter(request, new MockHttpServletResponse(), chain);
+        assertNull(chain.getRequest());
+        verify(errors).writeErrorResponse(any(), any());
     }
 
     @Test

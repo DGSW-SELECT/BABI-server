@@ -13,7 +13,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.Set;
 
-/** Double-submit CSRF protection for requests authenticated by browser cookies. */
+/** Session-bound signed double-submit protection for browser cookie requests. */
 public class CookieCsrfFilter extends OncePerRequestFilter {
     private final SecurityErrorResponseWriter errors;
     public CookieCsrfFilter(SecurityErrorResponseWriter errors) { this.errors = errors; }
@@ -30,7 +30,9 @@ public class CookieCsrfFilter extends OncePerRequestFilter {
         if (!safe && cookieSession && !bearer && !request.getServletPath().equals("/auth/login")) {
             String cookie = AuthCookies.get(request, AuthCookies.CSRF);
             String header = request.getHeader("X-CSRF-Token");
-            if (cookie == null || header == null || !MessageDigest.isEqual(cookie.getBytes(StandardCharsets.UTF_8), header.getBytes(StandardCharsets.UTF_8))) {
+            String refresh = AuthCookies.get(request, AuthCookies.REFRESH);
+            if (cookie == null || header == null || !MessageDigest.isEqual(cookie.getBytes(StandardCharsets.UTF_8), header.getBytes(StandardCharsets.UTF_8))
+                    || !CsrfToken.valid(refresh, cookie)) {
                 errors.writeErrorResponse(response, ErrorCode.FORBIDDEN);
                 return;
             }

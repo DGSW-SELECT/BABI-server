@@ -63,6 +63,14 @@ class UserControllerTest {
     }
 
     @Test
+    void loginRejectsSimpleCrossSiteFormContentType() throws Exception {
+        mockMvc.perform(post(LOGIN_URL).contentType(MediaType.TEXT_PLAIN)
+                        .content("{\"email\":\"attacker@example.invalid\",\"password\":\"x\"}"))
+                .andExpect(status().isUnsupportedMediaType());
+        verifyNoInteractions(userService);
+    }
+
+    @Test
     void malformedJsonReturnsBadRequestWithoutInternalDetails() throws Exception {
         mockMvc.perform(post(SIGNUP_URL)
                         .contentType(MediaType.APPLICATION_JSON)

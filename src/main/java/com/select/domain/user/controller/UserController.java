@@ -85,7 +85,7 @@ public class UserController {
         return new ApiResponse<>(true, "회원가입이 완료되었습니다.", response);
     }
 
-    @PostMapping("/login")
+    @PostMapping(value = "/login", consumes = org.springframework.http.MediaType.APPLICATION_JSON_VALUE)
     public ApiResponse<LoginResponse> login(@Valid @RequestBody LoginRequest request, HttpServletResponse httpResponse) {
         var tokens = sessions.login(request);
         cookies.set(httpResponse, tokens.access(), tokens.refresh());
