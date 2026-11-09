@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import re
+import sys
 import time
 import urllib.error
 import urllib.request
@@ -12,6 +13,7 @@ from scripts.claude_review_diagnostics import normalize_token
 
 MAX_RESPONSE = 2_000_000
 MAX_DIFF = 120_000
+REVIEW_MARKER = "<!-- babi-auto-review -->"
 
 
 def credentials(claude, deepseek):
@@ -45,8 +47,9 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
         return None
 
 
-def request_text(url, token, payload=None, accept="application/json"):
+def request_text(url, token, payload=None, accept="application/json", method=None):
     request = urllib.request.Request(url, data=None if payload is None else json.dumps(payload).encode(),
+                                     method=method,
                                      headers={"Authorization": "Bearer " + token, "Accept": accept,
                                               "Content-Type": "application/json", "User-Agent": "babi-pr-review"})
     try:
@@ -60,8 +63,73 @@ def request_text(url, token, payload=None, accept="application/json"):
     return body.decode("utf-8")
 
 
-def github(path, token, payload=None):
-    return json.loads(request_text("https://api.github.com/" + path, token, payload))
+def github(path, token, payload=None, method=None):
+    return json.loads(request_text("https://api.github.com/" + path, token, payload, method=method))
+
+
+def valid_context(repository, head, number):
+    return (re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository)
+            and re.fullmatch(r"[0-9a-f]{40}", head) and number.isdigit() and int(number) > 0)
+
+
+def event_context(event, env):
+    name, action = env["GITHUB_EVENT_NAME"], event.get("action")
+    if name == "pull_request" and action in ("opened", "ready_for_review", "synchronize"):
+        number = event.get("pull_request", {}).get("number")
+        mode = "invalidate" if action == "synchronize" else "review"
+    elif name in ("issue_comment", "pull_request_review_comment") and action == "created":
+        if not re.search(r"(?<![\w@])@claude\b(?![\w-])", event.get("comment", {}).get("body", ""), re.IGNORECASE):
+            return {}
+        if name == "issue_comment" and not event.get("issue", {}).get("pull_request"):
+            return {}
+        number = event.get("pull_request", event.get("issue", {})).get("number")
+        mode = "review"
+    else:
+        return {}
+    repository, token, actor = env["REPOSITORY"], env["GITHUB_TOKEN"], env["ACTOR"]
+    if (not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository)
+            or not isinstance(number, int) or isinstance(number, bool) or number < 1):
+        raise ValueError("Invalid PR event context")
+    if mode == "review":
+        if event.get("sender", {}).get("type") != "User" or not re.fullmatch(r"[A-Za-z0-9-]+", actor):
+            return {}
+        permission = github(f"repos/{repository}/collaborators/{actor}/permission", token)
+        if permission.get("permission") not in ("write", "maintain", "admin"):
+            return {}
+    pull = github(f"repos/{repository}/pulls/{number}", token)
+    head = pull.get("head", {}).get("sha", "")
+    if (pull.get("state") != "open" or pull.get("head", {}).get("repo", {}).get("full_name") != repository
+            or not re.fullmatch(r"[0-9a-f]{40}", head) or (mode == "review" and pull.get("draft"))):
+        return {}
+    if name == "pull_request" and event.get("pull_request", {}).get("head", {}).get("sha") != head:
+        return {}
+    return {"mode": mode, "number": str(number), "head": head,
+            "required_check": {"main": "build", "develop": "test"}.get(pull.get("base", {}).get("ref"), "")}
+
+
+def retire_approvals(env):
+    repository, head, number = env["REPOSITORY"], env["EXPECTED_HEAD"], env["PR_NUMBER"]
+    if not valid_context(repository, head, number):
+        raise ValueError("Invalid approval invalidation context")
+    token, pull_path = env["GITHUB_TOKEN"], f"repos/{repository}/pulls/{number}"
+    pull = github(pull_path, token)
+    if pull.get("state") != "open" or pull.get("head", {}).get("sha") != head:
+        raise ValueError("PR closed or changed before approval invalidation")
+    retired = 0
+    for page in range(1, 11):
+        reviews = github(pull_path + f"/reviews?per_page=100&page={page}", token)
+        if not isinstance(reviews, list):
+            raise ValueError("Invalid review list")
+        for review in reviews:
+            body = review.get("body") or ""
+            ours = REVIEW_MARKER in body or (body.startswith("### Claude 리뷰\n") and "검토 commit:" in body)
+            if review.get("user", {}).get("login") == "github-actions[bot]" and review.get("state") == "APPROVED" and ours:
+                github(pull_path + f"/reviews/{int(review['id'])}/dismissals", token,
+                       {"message": "새 push 또는 재리뷰 요청: 이전 자동 승인을 취소합니다."}, method="PUT")
+                retired += 1
+        if len(reviews) < 100:
+            return report("INVALIDATED", f"{retired} previous automatic approval(s) dismissed; no model called.", env)
+    raise ValueError("Review list exceeds the invalidation limit")
 
 
 def deepseek_review(diff, instructions, head, key, model):
@@ -98,7 +166,9 @@ def report(state, message, env):
     return state
 
 
-def ci_passed(repository, head, token, timeout=180):
+def ci_passed(repository, head, token, required_check="build", timeout=180):
+    if not required_check:
+        return False
     deadline = time.monotonic() + timeout
     while True:
         result = github(f"repos/{repository}/commits/{head}/check-runs?per_page=100", token)
@@ -108,8 +178,9 @@ def ci_passed(repository, head, token, timeout=180):
         checks = [check for check in checks if check.get("name") != "review"]
         if any(check.get("status") == "completed" and check.get("conclusion") not in ("success", "neutral", "skipped") for check in checks):
             return False
-        if all(check.get("status") == "completed" for check in checks):
-            return True
+        required = [check for check in checks if check.get("name") == required_check]
+        if required and all(check.get("status") == "completed" for check in checks):
+            return all(check.get("conclusion") == "success" for check in required)
         if time.monotonic() >= deadline:
             return False
         time.sleep(10)
@@ -130,7 +201,7 @@ def main(env):
 
     repository, head, actor = env.get("REPOSITORY", ""), env.get("EXPECTED_HEAD", ""), env.get("ACTOR", "")
     number = env.get("PR_NUMBER", "")
-    if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository) or not re.fullmatch(r"[0-9a-f]{40}", head) or not number.isdigit() or int(number) < 1:
+    if not valid_context(repository, head, number):
         raise ValueError("Invalid PR context")
     if not re.fullmatch(r"[A-Za-z0-9-]+", actor):
         return report("SKIPPED", "Actor is not an eligible human repository writer. No approval created.", env)
@@ -140,7 +211,7 @@ def main(env):
     if permission.get("permission") not in ("write", "maintain", "admin"):
         return report("SKIPPED", "Actor lacks write permission. No review or approval created.", env)
     pull = github(pull_path, token)
-    if pull.get("draft") or pull.get("head", {}).get("repo", {}).get("full_name") != repository or pull.get("head", {}).get("sha") != head:
+    if pull.get("state") != "open" or pull.get("draft") or pull.get("head", {}).get("repo", {}).get("full_name") != repository or pull.get("head", {}).get("sha") != head:
         return report("SKIPPED", "Draft, fork, or changed PR head. No approval created.", env)
 
     if review is None:
@@ -159,12 +230,13 @@ def main(env):
     approve = engine == "Claude" and review["decision"] == "APPROVE" and not review["findings"]
     if approve:
         try:
-            approve = ci_passed(repository, head, token)
+            approve = ci_passed(repository, head, token, env.get("REQUIRED_CI_CHECK", ""))
         except (OSError, ValueError, TypeError):
             approve = False
-    if github(pull_path, token).get("head", {}).get("sha") != head:
-        return report("SKIPPED", "PR head changed during review. No approval created.", env)
-    body = f"### {engine} 리뷰\n\n{review['summary']}"
+    latest = github(pull_path, token)
+    if latest.get("state") != "open" or latest.get("draft") or latest.get("head", {}).get("sha") != head:
+        return report("SKIPPED", "PR closed, drafted, or changed during review. No approval created.", env)
+    body = f"{REVIEW_MARKER}\n### {engine} 리뷰\n\n{review['summary']}"
     if review["findings"]:
         body += "\n\n" + "\n".join("- " + item for item in review["findings"])
     body += f"\n\n검토 commit: `{head}`"
@@ -188,4 +260,13 @@ def main(env):
 
 
 if __name__ == "__main__":
-    main(os.environ)
+    if sys.argv[1:] == ["context"]:
+        context = event_context(json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text()), os.environ)
+        with Path(os.environ["GITHUB_OUTPUT"]).open("a") as output:
+            output.write("".join(f"{key}={value}\n" for key, value in context.items()))
+        if not context:
+            report("SKIPPED", "Event is not an eligible review request; no model called.", os.environ)
+    elif sys.argv[1:] == ["invalidate"]:
+        retire_approvals(os.environ)
+    else:
+        main(os.environ)
