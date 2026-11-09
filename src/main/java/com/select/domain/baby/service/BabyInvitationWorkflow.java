@@ -157,6 +157,8 @@ public class BabyInvitationWorkflow {
         limiter.accept(userId);
         Long babyId = resolveBaby(value);
         return transact(() -> {
+            if (users.findByIdForUpdate(userId).filter(User::isActive).isEmpty())
+                throw new BabyInvitationException(ErrorCode.UNAUTHORIZED);
             Baby baby = lockBaby(babyId);
             Instant now = Instant.now();
             var code = eligibleCode(babyId, value, userId, now);

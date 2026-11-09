@@ -145,3 +145,11 @@ com.select
 ```
 
 새 핵심 기능은 `domain` 아래에 같은 계층으로 추가합니다.
+
+### 로그인 쿠키와 토큰 갱신
+
+로그인에 성공하면 Access Token과 일회용 Refresh Token이 각각 `babi_access`, `babi_refresh` HttpOnly 쿠키로 발급됩니다. 기존 Bearer 헤더 및 로그인 응답의 `accessToken`도 호환을 위해 유지합니다. Refresh Token은 Redis에 해시로 저장되며, `POST /auth/refresh` 성공 시 교체됩니다. Redis에 장애가 발생하면 발급과 갱신은 실패합니다.
+
+쿠키를 사용하는 쓰기 요청에는 `X-CSRF-Token` 헤더가 필요합니다. 로그인 후 `GET /auth/csrf` 응답의 `data.token`을 읽어 헤더에 넣고, 갱신 후에는 새 토큰을 다시 조회하세요. 브라우저에서는 쿠키 전송을 위해 `credentials: 'include'`를 사용하세요. 로그아웃은 `POST /auth/logout`이며 해당 세션의 Refresh Token을 폐기합니다. Access Token이 만료된 뒤에는 먼저 갱신한 다음 로그아웃하세요.
+
+쿠키는 기본적으로 `Secure`, `SameSite=Lax`입니다. 로컬 HTTP 개발에 한해 `AUTH_COOKIES_SECURE=false`와 `local` 프로필을 함께 사용할 수 있습니다. 서로 다른 출처를 사용한다면 `AUTH_CORS_ALLOWED_ORIGINS=https://프론트엔드주소`에 신뢰할 수 있는 정확한 출처만 쉼표로 구분해 설정하세요. 미설정 시 `local`·`test` 프로필은 기존 `http://localhost:5173`을 허용하고, 다른 환경은 교차 출처를 허용하지 않습니다. 서로 다른 최상위 사이트 간 쿠키 사용은 현재 지원하지 않으므로 배포 주소가 확정되면 별도 검토가 필요합니다.

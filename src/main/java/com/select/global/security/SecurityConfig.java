@@ -1,6 +1,10 @@
 package com.select.global.security;
 
+import com.select.domain.user.repository.UserRepository;
 import com.select.global.exception.ErrorCode;
+import com.select.global.security.jwt.CookieCsrfFilter;
+import com.select.global.security.jwt.RefreshSessionService;
+import com.select.global.security.jwt.TokenRevocationService;
 import com.select.global.security.jwt.JwtAuthenticationFilter;
 import com.select.global.security.jwt.JwtProvider;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
@@ -36,6 +40,9 @@ public class SecurityConfig {
             auth.requestMatchers(request -> SecurityPaths.isDocumentationPath(request.getServletPath())).permitAll();
             auth.requestMatchers(
                     SecurityPaths.LOGIN,
+                    "/auth/refresh",
+                    "/auth/logout",
+                    "/auth/csrf",
                     SecurityPaths.SIGNUP,
                     SecurityPaths.EMAIL_SEND,
                     SecurityPaths.EMAIL_VERIFY).permitAll().anyRequest().authenticated();
@@ -55,15 +62,19 @@ public class SecurityConfig {
             });
         });
         http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+        http.addFilterBefore(new CookieCsrfFilter(securityErrorResponseWriter), JwtAuthenticationFilter.class);
         return http.build();
     }
 
     @Bean
     public JwtAuthenticationFilter jwtAuthenticationFilter(
             JwtProvider jwtProvider,
-            SecurityErrorResponseWriter securityErrorResponseWriter
+            SecurityErrorResponseWriter securityErrorResponseWriter,
+            TokenRevocationService revocations,
+            UserRepository users,
+            RefreshSessionService sessions
     ) {
-        return new JwtAuthenticationFilter(jwtProvider,securityErrorResponseWriter);
+        return new JwtAuthenticationFilter(jwtProvider,securityErrorResponseWriter, revocations, users, sessions);
     }
 
     @Bean

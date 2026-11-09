@@ -60,6 +60,7 @@ class BabyInvitationIntegrationTest {
     @Autowired private ObjectMapper mapper;
     @Autowired private JdbcTemplate jdbc;
     @MockitoBean private EmailSender sender;
+    @MockitoBean private com.select.global.security.jwt.TokenRevocationService tokenRevocationService;
     @MockitoBean private InvitationRateLimiter limiter;
     @MockitoSpyBean private InvitationCodeGenerator generator;
 

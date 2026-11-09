@@ -36,15 +36,30 @@ public class JwtProvider {
     }
 
     public String createAccessToken(String id) {
+        return createAccessToken(id, null);
+    }
+
+    public String createAccessToken(String id, String sessionId) {
         Instant now = Instant.now();
         Instant end = now.plus(accessTokenExpirationMinutes, ChronoUnit.MINUTES);
 
-        return Jwts.builder()
+        var builder = Jwts.builder()
                 .subject(id)
+                .id(java.util.UUID.randomUUID().toString())
                 .issuedAt(Date.from(now))
-                .expiration(Date.from(end))
-                .signWith(secretKey)
-                .compact();
+                .expiration(Date.from(end));
+        if (sessionId != null) builder.claim("sid", sessionId);
+        return builder.signWith(secretKey).compact();
+    }
+
+    public String getSessionId(String token) {
+        return Jwts.parser().verifyWith(secretKey).build().parseSignedClaims(token).getPayload().get("sid", String.class);
+    }
+
+    public java.time.Duration remainingLifetime(String token) {
+        Date expiry = Jwts.parser().verifyWith(secretKey).build().parseSignedClaims(token).getPayload().getExpiration();
+        if (expiry == null) throw new JwtException("만료 시간이 없습니다.");
+        return java.time.Duration.between(Instant.now(), expiry.toInstant());
     }
 
     public String getUserId(String token) {

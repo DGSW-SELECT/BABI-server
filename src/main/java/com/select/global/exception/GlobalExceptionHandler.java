@@ -4,6 +4,7 @@ import com.select.domain.auth.exception.EmailVerificationException;
 import com.select.domain.baby.exception.BabyNotFoundException;
 import com.select.domain.baby.exception.BabyInvitationException;
 import com.select.domain.baby.exception.InvalidOwnershipTransferException;
+import com.select.domain.user.exception.AccountLifecycleException;
 import com.select.domain.user.exception.DuplicateEmailException;
 import com.select.domain.user.exception.InvalidCredentialsException;
 import com.select.domain.user.exception.PasswordMismatchException;
@@ -36,6 +37,11 @@ import java.util.List;
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+    @ExceptionHandler(AccountLifecycleException.class)
+    public ResponseEntity<ApiResponse<Void>> handleAccountLifecycle(AccountLifecycleException e) {
+        return createErrorResponse(e.getErrorCode(), List.of());
+    }
 
     @ExceptionHandler(BabyInvitationException.class)
     public ResponseEntity<ApiResponse<Void>> handleBabyInvitation(BabyInvitationException e) {

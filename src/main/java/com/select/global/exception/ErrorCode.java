@@ -11,6 +11,7 @@ public enum ErrorCode {
     INVITATION_CODE_EXHAUSTED(HttpStatus.CONFLICT, "초대 코드의 사용 횟수를 모두 사용했습니다. 소유자가 재발급해야 합니다."),
     INVITATION_SELF(HttpStatus.BAD_REQUEST, "자기 자신을 초대할 수 없습니다."),
     INVITATION_ALREADY_MEMBER(HttpStatus.CONFLICT, "이미 해당 아기의 보호자입니다."),
+    ACCOUNT_WITHDRAWAL_RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "회원 탈퇴 시도 횟수를 초과했습니다."),
     INVITATION_RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "초대 요청 횟수를 초과했습니다."),
     INVITATION_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "보호자 초대 서비스를 일시적으로 사용할 수 없습니다."),
     INVITATION_SEND_FAILED(HttpStatus.SERVICE_UNAVAILABLE, "보호자 초대 이메일 발송에 실패했습니다."),
@@ -28,6 +29,8 @@ public enum ErrorCode {
 
     DUPLICATE_EMAIL(HttpStatus.CONFLICT, "이미 가입된 이메일입니다."),
     PASSWORD_MISMATCH(HttpStatus.BAD_REQUEST, "비밀번호가 일치하지 않습니다."),
+    AUTH_SERVICE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "인증 서비스를 일시적으로 사용할 수 없습니다."),
+    ACCOUNT_OWNER_TRANSFER_REQUIRED(HttpStatus.CONFLICT, "회원 탈퇴 전에 아기의 관리자 권한을 이전해 주세요."),
     UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "인증이 필요합니다."),
     FORBIDDEN(HttpStatus.FORBIDDEN, "접근 권한이 없습니다."),
     REQUEST_ERROR(HttpStatus.BAD_REQUEST, "요청을 처리할 수 없습니다."),
