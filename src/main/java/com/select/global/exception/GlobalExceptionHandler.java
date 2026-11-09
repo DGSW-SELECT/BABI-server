@@ -11,6 +11,7 @@ import com.select.domain.handover.exception.HandoverBriefingNotFoundException;
 import com.select.domain.handover.exception.NoDailyCareRecordException;
 import com.select.domain.handover.exception.HandoverBriefingGenerationException;
 import com.select.domain.handover.exception.HandoverBriefingUnavailableException;
+import com.select.domain.handover.exception.HandoverBriefingRateLimitedException;
 import com.select.global.response.ApiError;
 import com.select.global.response.ApiResponse;
 import com.select.global.response.ErrorDetail;
@@ -40,6 +41,15 @@ import java.util.List;
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+    @ExceptionHandler(HandoverBriefingRateLimitedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleHandoverBriefingRateLimited(
+            HandoverBriefingRateLimitedException exception
+    ) {
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header(HttpHeaders.RETRY_AFTER, Integer.toString(exception.getRetryAfterSeconds()))
+                .body(createErrorResponseBody(ErrorCode.HANDOVER_BRIEFING_RATE_LIMITED, List.of()));
+    }
 
     @ExceptionHandler(BabyInvitationException.class)
     public ResponseEntity<ApiResponse<Void>> handleBabyInvitation(BabyInvitationException e) {

@@ -30,19 +30,22 @@ public class HandoverBriefingService {
     private final HandoverBriefingGenerator handoverBriefingGenerator;
     private final BabyMemberRepository babyMemberRepository;
     private final UserRepository userRepository;
+    private final HandoverBriefingRateLimiter rateLimiter;
 
     public HandoverBriefingService(
             HandoverBriefingRepository handoverBriefingRepository,
             DailyCareRecordProvider dailyCareRecordProvider,
             HandoverBriefingGenerator handoverBriefingGenerator,
             BabyMemberRepository babyMemberRepository,
-            UserRepository userRepository
+            UserRepository userRepository,
+            HandoverBriefingRateLimiter rateLimiter
     ) {
         this.handoverBriefingRepository = handoverBriefingRepository;
         this.dailyCareRecordProvider = dailyCareRecordProvider;
         this.handoverBriefingGenerator = handoverBriefingGenerator;
         this.babyMemberRepository = babyMemberRepository;
         this.userRepository = userRepository;
+        this.rateLimiter = rateLimiter;
     }
 
     public HandoverBriefingResponse createBriefing(
@@ -50,6 +53,7 @@ public class HandoverBriefingService {
             Long babyId
     ) {
         ensureBabyAccess(userId, babyId);
+        rateLimiter.check(babyId);
         LocalDate today = LocalDate.now(SEOUL_ZONE);
         List<String> careRecords;
         try {

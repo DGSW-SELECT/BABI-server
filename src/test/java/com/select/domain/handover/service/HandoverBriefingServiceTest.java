@@ -35,6 +35,7 @@ class HandoverBriefingServiceTest {
     private HandoverBriefingGenerator handoverBriefingGenerator;
     private BabyMemberRepository babyMemberRepository;
     private UserRepository userRepository;
+    private HandoverBriefingRateLimiter rateLimiter;
     private HandoverBriefingService handoverBriefingService;
 
     @BeforeEach
@@ -44,6 +45,7 @@ class HandoverBriefingServiceTest {
         handoverBriefingGenerator = mock(HandoverBriefingGenerator.class);
         babyMemberRepository = mock(BabyMemberRepository.class);
         userRepository = mock(UserRepository.class);
+        rateLimiter = mock(HandoverBriefingRateLimiter.class);
         User activeUser = mock(User.class);
         when(activeUser.isActive()).thenReturn(true);
         when(userRepository.findById(1L)).thenReturn(Optional.of(activeUser));
@@ -54,7 +56,8 @@ class HandoverBriefingServiceTest {
                 dailyCareRecordProvider,
                 handoverBriefingGenerator,
                 babyMemberRepository,
-                userRepository
+                userRepository,
+                rateLimiter
         );
     }
 
@@ -132,6 +135,7 @@ class HandoverBriefingServiceTest {
 
         assertEquals(LocalDate.of(2026, 10, 27), response.briefingDate());
         assertEquals("저장된 브리핑", response.summary());
+        verifyNoInteractions(rateLimiter);
     }
 
     @Test
@@ -156,6 +160,7 @@ class HandoverBriefingServiceTest {
         );
 
         verifyNoInteractions(
+                rateLimiter,
                 dailyCareRecordProvider,
                 handoverBriefingGenerator,
                 handoverBriefingRepository
@@ -173,7 +178,7 @@ class HandoverBriefingServiceTest {
         assertThrows(AccessDeniedException.class,
                 () -> handoverBriefingService.getLatestBriefing(1L, 2L));
 
-        verifyNoInteractions(babyMemberRepository, dailyCareRecordProvider,
+        verifyNoInteractions(rateLimiter, babyMemberRepository, dailyCareRecordProvider,
                 handoverBriefingGenerator, handoverBriefingRepository);
     }
 
@@ -186,7 +191,19 @@ class HandoverBriefingServiceTest {
         assertThrows(AccessDeniedException.class,
                 () -> handoverBriefingService.getLatestBriefing(1L, 2L));
 
-        verifyNoInteractions(babyMemberRepository, dailyCareRecordProvider,
+        verifyNoInteractions(rateLimiter, babyMemberRepository, dailyCareRecordProvider,
                 handoverBriefingGenerator, handoverBriefingRepository);
+    }
+
+    @Test
+    void rateLimitStopsRecordLookupGenerationAndStorage() {
+        org.mockito.Mockito.doThrow(
+                new com.select.domain.handover.exception.HandoverBriefingRateLimitedException(60))
+                .when(rateLimiter).check(2L);
+
+        assertThrows(com.select.domain.handover.exception.HandoverBriefingRateLimitedException.class,
+                () -> handoverBriefingService.createBriefing(1L, 2L));
+
+        verifyNoInteractions(dailyCareRecordProvider, handoverBriefingGenerator, handoverBriefingRepository);
     }
 }

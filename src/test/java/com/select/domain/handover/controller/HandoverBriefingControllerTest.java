@@ -2,6 +2,8 @@ package com.select.domain.handover.controller;
 
 import com.select.domain.handover.dto.response.HandoverBriefingResponse;
 import com.select.domain.handover.service.HandoverBriefingService;
+import com.select.domain.handover.exception.HandoverBriefingRateLimitedException;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import com.select.global.exception.GlobalExceptionHandler;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -63,5 +65,18 @@ class HandoverBriefingControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.briefingDate").value("2026-10-27"))
                 .andExpect(jsonPath("$.data.summary").value("저장된 최신 브리핑"));
+    }
+
+    @Test
+    void repeatedGenerationReturns429AndRetryAfter() throws Exception {
+        when(handoverBriefingService.createBriefing(10L, 2L))
+                .thenThrow(new HandoverBriefingRateLimitedException(60));
+
+        mockMvc.perform(post("/babi/api/babies/2/handover-briefings")
+                        .requestAttr("userId", "10"))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(header().string("Retry-After", "60"))
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code").value("HANDOVER_BRIEFING_RATE_LIMITED"));
     }
 }
