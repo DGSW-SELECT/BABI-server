@@ -61,6 +61,13 @@ class JwtAuthenticationIntegrationTest {
     @MockitoBean
     private EmailVerificationService emailVerificationService;
 
+    @MockitoSpyBean private com.select.domain.user.repository.UserRepository users;
+    @org.junit.jupiter.api.BeforeEach void activeSyntheticUsers() {
+        var active = com.select.domain.user.entity.User.builder().email("test@example.invalid").nickname("test").passwordHash("test").build();
+        org.mockito.Mockito.doReturn(java.util.Optional.of(active)).when(users).findById(42L);
+        org.mockito.Mockito.doReturn(java.util.Optional.of(active)).when(users).findById(43L);
+    }
+
     @LocalServerPort
     private int port;
 
@@ -162,13 +169,13 @@ class JwtAuthenticationIntegrationTest {
 
     @Test
     void validRequestParsesJwtOnlyOnce() throws Exception {
-        String token = jwtProvider.createAccessToken("single-pass-user");
+        String token = jwtProvider.createAccessToken("43");
         var response = client.send(request("/test/auth")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token).GET().build(),
                 HttpResponse.BodyHandlers.ofString());
 
         assertEquals(200, response.statusCode());
-        assertEquals("인증된 사용자 ID: single-pass-user", response.body());
+        assertEquals("인증된 사용자 ID: 43", response.body());
         verify(jwtProvider, times(1)).getUserId(token);
         verify(jwtAuthenticationFilter, times(1)).doFilter(any(), any(), any());
     }

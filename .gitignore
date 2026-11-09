@@ -22,3 +22,6 @@ outputs/
 babi-backup-before-schema-restore.sql
 
 __pycache__/
+
+# Local copy of the retired invitation test fixture
+/src/test/resources/mysql/invitation-base.sql

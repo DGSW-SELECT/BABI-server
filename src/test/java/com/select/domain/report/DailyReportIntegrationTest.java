@@ -169,7 +169,7 @@ class DailyReportIntegrationTest {
 
         assertEquals(400, send("POST", "/auth/login", null,
                 objectMapper.writeValueAsString(java.util.Map.of("email", owner.getEmail(), "password", PASSWORD))).statusCode());
-        assertEquals(403, reportRequest("GET", token, null).statusCode());
+        assertEquals(401, reportRequest("GET", token, null).statusCode());
     }
 
     private User createUser(String email) {

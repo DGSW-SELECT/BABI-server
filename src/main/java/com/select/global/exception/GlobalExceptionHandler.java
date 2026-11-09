@@ -1,6 +1,10 @@
 package com.select.global.exception;
 
 import com.select.domain.auth.exception.EmailVerificationException;
+import com.select.domain.baby.exception.BabyNotFoundException;
+import com.select.domain.baby.exception.BabyInvitationException;
+import com.select.domain.baby.exception.InvalidOwnershipTransferException;
+import com.select.domain.user.exception.AccountLifecycleException;
 import com.select.domain.user.exception.DuplicateEmailException;
 import com.select.domain.user.exception.InvalidCredentialsException;
 import com.select.domain.user.exception.PasswordMismatchException;
@@ -20,6 +24,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 import com.select.domain.report.exception.DailyReportAlreadyExistsException;
 import com.select.domain.report.exception.DailyReportNotFoundException;
@@ -32,6 +37,16 @@ import java.util.List;
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+    @ExceptionHandler(AccountLifecycleException.class)
+    public ResponseEntity<ApiResponse<Void>> handleAccountLifecycle(AccountLifecycleException e) {
+        return createErrorResponse(e.getErrorCode(), List.of());
+    }
+
+    @ExceptionHandler(BabyInvitationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleBabyInvitation(BabyInvitationException e) {
+        return createErrorResponse(e.getErrorCode(), List.of());
+    }
 
     @ExceptionHandler(DailyReportAlreadyExistsException.class)
     public ResponseEntity<ApiResponse<Void>> handleDailyReportAlreadyExists(
@@ -88,6 +103,39 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     ) {
         return createErrorResponse(
                 ErrorCode.FORBIDDEN,
+                List.of()
+        );
+    }
+
+    @ExceptionHandler(BabyNotFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> handleBabyNotFound(
+            BabyNotFoundException e
+    ) {
+        return createErrorResponse(
+                ErrorCode.NOT_FOUND,
+                List.of()
+        );
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ApiResponse<Void>> handleTypeMismatch(
+            MethodArgumentTypeMismatchException e
+    ) {
+        return createErrorResponse(
+                ErrorCode.VALIDATION_ERROR,
+                List.of(new ErrorDetail(
+                        e.getName(),
+                        "요청한 값의 형식이 올바르지 않습니다.")
+                )
+        );
+    }
+
+    @ExceptionHandler(InvalidOwnershipTransferException.class)
+    public ResponseEntity<ApiResponse<Void>> handleInvalidOwnershipTransfer(
+            InvalidOwnershipTransferException e
+    ) {
+        return createErrorResponse(
+                ErrorCode.VALIDATION_ERROR,
                 List.of()
         );
     }

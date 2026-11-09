@@ -7,10 +7,8 @@ spring:
       ddl-auto: validate
   sql:
     init:
+      mode: always
       schema-locations: classpath:schema-test.sql
-  mail:
-    host: localhost
-    username: test@babi.local
 email:
   verification:
     secret: test-only-email-verification-secret
@@ -18,3 +16,7 @@ email:
 jwt:
   secret: "${random.uuid}${random.uuid}"
   access-token-expiration-minutes: 30
+
+# The rate-limiter has dedicated isolated Redis tests.
+BABI_EMAIL_SEND_GLOBAL_PER_MINUTE: 10000
+BABI_EMAIL_SEND_SOURCE_PER_MINUTE: 10000
