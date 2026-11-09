@@ -23,8 +23,8 @@ class ReviewPolicyTest(unittest.TestCase):
     def setUp(self):
         self.env = {"CLAUDE_AVAILABLE": "true", "CLAUDE_OUTCOME": "success", "CLAUDE_RESULT": json.dumps(result()),
                     "REPOSITORY": "owner/repo", "EXPECTED_HEAD": HEAD, "PR_NUMBER": "7", "ACTOR": "maintainer",
-                    "GITHUB_TOKEN": "github-test-secret", "DEEPSEEK_API_KEY": ""}
-        self.pull = {"draft": False, "head": {"sha": HEAD, "repo": {"full_name": "owner/repo"}}, "base": {"sha": BASE}}
+                    "GITHUB_TOKEN": "github-test-secret", "DEEPSEEK_API_KEY": "", "REQUIRED_CI_CHECK": "build"}
+        self.pull = {"state": "open", "draft": False, "head": {"sha": HEAD, "repo": {"full_name": "owner/repo"}}, "base": {"sha": BASE}}
         self.posts = []
         self.permission = "write"
         self.forbidden = False
@@ -69,6 +69,7 @@ class ReviewPolicyTest(unittest.TestCase):
         self.assertEqual("REVIEWED", review.main(self.env))
         self.assertEqual("APPROVE", self.posts[0]["event"])
         self.assertEqual(HEAD, self.posts[0]["commit_id"])
+        self.assertIn(review.REVIEW_MARKER, self.posts[0]["body"])
         self.checks.assert_called_once()
         self.provider.assert_not_called()
 
@@ -96,6 +97,15 @@ class ReviewPolicyTest(unittest.TestCase):
             return True
         self.checks.side_effect = changed
         self.assertEqual("SKIPPED", review.main(self.env))
+        self.assertEqual([], self.posts)
+
+    def test_closed_or_drafted_during_review_cannot_be_approved(self):
+        for update in ({"state": "closed"}, {"draft": True}):
+            with self.subTest(update=update):
+                original = copy.deepcopy(self.pull)
+                self.checks.side_effect = lambda *args: self.pull.update(update) or True
+                self.assertEqual("SKIPPED", review.main(self.env))
+                self.pull = original
         self.assertEqual([], self.posts)
 
     def test_wrong_commit_or_malformed_claude_output_cannot_approve(self):
@@ -176,6 +186,17 @@ class ProviderContractTest(unittest.TestCase):
         self.assertEqual(("", "deepseek-key"), review.credentials("invalid", " deepseek-\nkey "))
         self.assertEqual(("sk-ant-oat01-test", ""), review.credentials("sk-ant-oat01-\ntest", "bad\x00key"))
 
+    def test_wrapped_oauth_tokens_are_normalized_before_http_headers(self):
+        token = "sk-ant-oat01-" + "test-only-credential_" * 5
+        for wrapped in (token, " \n" + token + "\r\n", token[:103] + "\n" + token[103:], token[:30] + "\r\n\t" + token[30:]):
+            with self.subTest(length=len(wrapped)):
+                self.assertEqual((token, ""), review.credentials(wrapped, ""))
+
+    def test_missing_or_malformed_oauth_is_disabled_without_echoing_it(self):
+        for malformed in ("", " \r\n", "private-secret", "sk-ant-oat01-secret\x00", "sk-ant-oat01-secret漢"):
+            with self.subTest(malformed=malformed):
+                self.assertEqual(("", ""), review.credentials(malformed, ""))
+
     def test_deepseek_request_is_bounded_json_mode_and_does_not_embed_credentials(self):
         response = {"choices": [{"finish_reason": "stop", "message": {"content": json.dumps(result())}}]}
         with patch.object(review, "request_text", return_value=json.dumps(response)) as request:
@@ -226,8 +247,197 @@ class ProviderContractTest(unittest.TestCase):
             with self.assertRaises(ValueError): review.request_text("https://api.deepseek.com/", "private-key")
         self.assertIsNone(review.NoRedirect().redirect_request(None, None, 302, "redirect", {}, "https://outside.invalid"))
 
+    def test_github_dismissal_uses_put_with_json_body(self):
+        response = MagicMock()
+        response.__enter__.return_value = response
+        response.read.return_value = b'{"state":"DISMISSED"}'
+        with patch.object(review.urllib.request, "build_opener") as build:
+            build.return_value.open.return_value = response
+            self.assertEqual({"state": "DISMISSED"}, review.github("repos/owner/repo/pulls/7/reviews/3/dismissals",
+                             "token", {"message": "new review"}, method="PUT"))
+            request = build.return_value.open.call_args.args[0]
+            self.assertEqual("PUT", request.get_method())
+            self.assertEqual({"message": "new review"}, json.loads(request.data))
+
+
+class ReviewEventTest(unittest.TestCase):
+    def setUp(self):
+        self.env = {"GITHUB_EVENT_NAME": "pull_request", "REPOSITORY": "owner/repo", "GITHUB_TOKEN": "token", "ACTOR": "writer"}
+        self.pull = {"state": "open", "draft": False, "head": {"sha": HEAD, "repo": {"full_name": "owner/repo"}},
+                     "base": {"ref": "develop"}}
+        self.event = {"action": "opened", "sender": {"type": "User"}, "pull_request": {"number": 7, "head": {"sha": HEAD}}}
+        self.permission = "write"
+        self.api = patch.object(review, "github", side_effect=lambda path, token: {"permission": self.permission}
+                               if "/collaborators/" in path else self.pull).start()
+        self.addCleanup(patch.stopall)
+
+    def test_initial_and_draft_ready_events_review_the_current_head(self):
+        for action in ("opened", "ready_for_review"):
+            with self.subTest(action=action):
+                self.event["action"] = action
+                self.assertEqual({"mode": "review", "number": "7", "head": HEAD, "required_check": "test"},
+                                 review.event_context(self.event, self.env))
+
+    def test_push_only_invalidates_even_for_draft_or_bot(self):
+        self.event.update(action="synchronize", sender={"type": "Bot"})
+        self.env["ACTOR"] = "github-actions[bot]"
+        self.pull["draft"] = True
+        self.assertEqual("invalidate", review.event_context(self.event, self.env)["mode"])
+        self.api.assert_called_once_with("repos/owner/repo/pulls/7", "token")
+
+    def test_only_new_exact_mentions_on_pr_comments_request_a_review(self):
+        self.env["GITHUB_EVENT_NAME"] = "issue_comment"
+        self.event = {"action": "created", "sender": {"type": "User"}, "issue": {"number": 7, "pull_request": {}},
+                      "comment": {"body": "@claude"}}
+        self.event["issue"]["pull_request"] = {"url": "https://api.github.com/repos/owner/repo/pulls/7"}
+        for body in ("@claude 다시 리뷰", "확인 부탁 @Claude", "@claude\nreview"):
+            with self.subTest(body=body):
+                self.event["comment"]["body"] = body
+                self.assertEqual("review", review.event_context(self.event, self.env)["mode"])
+        self.api.reset_mock()
+        for body in ("thanks", "email@claude.com", "@claude-code", "@claudebot", "@@claude"):
+            with self.subTest(body=body):
+                self.event["comment"]["body"] = body
+                self.assertEqual({}, review.event_context(self.event, self.env))
+        self.api.assert_not_called()
+
+    def test_inline_mentions_work_but_issue_comments_edits_and_reopen_do_not(self):
+        self.env["GITHUB_EVENT_NAME"] = "pull_request_review_comment"
+        self.event.update(action="created", comment={"body": "@claude 재검토"})
+        self.assertEqual("review", review.event_context(self.event, self.env)["mode"])
+        self.env["GITHUB_EVENT_NAME"] = "issue_comment"
+        self.event.pop("pull_request")
+        self.event["issue"] = {"number": 7}
+        self.assertEqual({}, review.event_context(self.event, self.env))
+        self.env["GITHUB_EVENT_NAME"] = "pull_request_review_comment"
+        self.event["action"] = "edited"
+        self.assertEqual({}, review.event_context(self.event, self.env))
+        self.env["GITHUB_EVENT_NAME"] = "pull_request"
+        self.event["action"] = "reopened"
+        self.assertEqual({}, review.event_context(self.event, self.env))
+
+    def test_read_only_bot_fork_draft_closed_and_stale_events_never_review(self):
+        self.permission = "read"
+        self.assertEqual({}, review.event_context(self.event, self.env))
+        self.permission = "write"
+        for field, value in (("draft", True), ("state", "closed"),
+                             ("head", {"sha": HEAD, "repo": {"full_name": "outside/repo"}}),
+                             ("head", {"sha": BASE, "repo": {"full_name": "owner/repo"}})):
+            with self.subTest(field=field, value=value):
+                original = copy.deepcopy(self.pull)
+                self.pull[field] = value
+                self.assertEqual({}, review.event_context(self.event, self.env))
+                self.pull = original
+        self.event["sender"]["type"] = "Bot"
+        self.assertEqual({}, review.event_context(self.event, self.env))
+
+
+class ApprovalInvalidationTest(unittest.TestCase):
+    def setUp(self):
+        self.env = {"REPOSITORY": "owner/repo", "EXPECTED_HEAD": HEAD, "PR_NUMBER": "7", "GITHUB_TOKEN": "token"}
+        self.pull = {"state": "open", "head": {"sha": HEAD}}
+        self.reviews = []
+        self.dismissed = []
+        self.api = patch.object(review, "github", side_effect=self.github).start()
+        patch("builtins.print").start()
+        self.addCleanup(patch.stopall)
+
+    def github(self, path, token, payload=None, method=None):
+        if path.endswith("/dismissals"):
+            self.assertEqual("PUT", method)
+            self.dismissed.append(path)
+            return {"state": "DISMISSED"}
+        if "/reviews?" in path:
+            return self.reviews
+        return self.pull
+
+    def test_only_our_bot_approvals_are_dismissed(self):
+        own = {"id": 1, "user": {"login": "github-actions[bot]"}, "state": "APPROVED", "body": review.REVIEW_MARKER}
+        self.reviews = [own, own | {"id": 2, "user": {"login": "human"}}, own | {"id": 3, "body": "other automation"},
+                        own | {"id": 4, "state": "COMMENTED"}, own | {"id": 5, "state": "DISMISSED"},
+                        own | {"id": 6, "body": "### Claude 리뷰\n\n리뷰 완료\n검토 commit: old"}]
+        self.assertEqual("INVALIDATED", review.retire_approvals(self.env))
+        self.assertEqual(["repos/owner/repo/pulls/7/reviews/1/dismissals", "repos/owner/repo/pulls/7/reviews/6/dismissals"], self.dismissed)
+
+    def test_no_approval_is_a_successful_noop_without_any_provider(self):
+        with patch.object(review, "deepseek_review") as provider:
+            self.assertEqual("INVALIDATED", review.retire_approvals(self.env))
+            provider.assert_not_called()
+        self.assertEqual([], self.dismissed)
+
+    def test_old_workflow_cannot_invalidate_a_new_heads_approval(self):
+        self.pull["head"]["sha"] = BASE
+        with self.assertRaises(ValueError): review.retire_approvals(self.env)
+        self.api.assert_called_once()
+
+    def test_pagination_finds_later_approvals_and_limit_fails_closed(self):
+        irrelevant = [{"body": "", "state": "COMMENTED"}] * 100
+        own = {"id": 1, "user": {"login": "github-actions[bot]"}, "state": "APPROVED", "body": review.REVIEW_MARKER}
+        self.api.side_effect = [self.pull, irrelevant, [own], {"state": "DISMISSED"}]
+        self.assertEqual("INVALIDATED", review.retire_approvals(self.env))
+        self.assertIn("page=2", self.api.call_args_list[2].args[0])
+        self.api.side_effect = [self.pull] + [irrelevant] * 10
+        with self.assertRaises(ValueError): review.retire_approvals(self.env)
+
+    def test_dismissal_errors_stop_new_review_instead_of_leaving_stale_approval(self):
+        error = urllib.error.HTTPError("https://api.github.com/", 403, "Forbidden", {}, None)
+        self.addCleanup(error.close)
+        self.api.side_effect = [self.pull, [{"id": 1, "user": {"login": "github-actions[bot]"},
+                                           "state": "APPROVED", "body": review.REVIEW_MARKER}],
+                                error]
+        with self.assertRaises(urllib.error.HTTPError): review.retire_approvals(self.env)
+
+
+class ReviewDiffTest(unittest.TestCase):
+    def setUp(self):
+        self.env = {"REPOSITORY": "owner/repo", "EXPECTED_HEAD": HEAD, "PR_NUMBER": "7", "GITHUB_TOKEN": "token"}
+        self.pull = {"state": "open", "draft": False, "head": {"sha": HEAD}}
+
+    def test_api_diff_is_available_as_a_real_file_without_git_history(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "pr.diff"
+            with patch.object(review, "Path", return_value=path), patch.object(review, "github", return_value=self.pull), \
+                    patch.object(review, "request_text", return_value="diff --git a/test b/test") as request:
+                review.prepare_diff(self.env)
+            self.assertEqual("diff --git a/test b/test", path.read_text())
+            self.assertEqual("application/vnd.github.diff", request.call_args.kwargs["accept"])
+
+    def test_closed_draft_or_changed_head_cannot_supply_a_stale_diff(self):
+        for change in ({"state": "closed"}, {"draft": True}, {"head": {"sha": BASE}}):
+            with self.subTest(change=change), patch.object(review, "github", return_value=self.pull | change), \
+                    patch.object(review, "request_text", return_value="diff"), patch.object(review.Path, "write_text") as write:
+                with self.assertRaises(ValueError): review.prepare_diff(self.env)
+                write.assert_not_called()
+
+    def test_empty_diff_does_not_start_an_incomplete_review(self):
+        with patch.object(review, "github", return_value=self.pull), patch.object(review, "request_text", return_value=""), \
+                patch.object(review.Path, "write_text") as write:
+            with self.assertRaises(ValueError): review.prepare_diff(self.env)
+            write.assert_not_called()
+
 
 class CiGateTest(unittest.TestCase):
+    def test_skipped_or_neutral_required_ci_cannot_approve(self):
+        for conclusion in ("skipped", "neutral"):
+            checks = {"total_count": 1, "check_runs": [{"name": "build", "status": "completed", "conclusion": conclusion}]}
+            with self.subTest(conclusion=conclusion), patch.object(review, "github", return_value=checks):
+                self.assertFalse(review.ci_passed("owner/repo", HEAD, "token", timeout=0))
+
+    def test_empty_or_review_only_ci_list_cannot_be_approved(self):
+        for checks in ({"total_count": 0, "check_runs": []},
+                       {"total_count": 1, "check_runs": [{"name": "review", "status": "in_progress"}]},
+                       {"total_count": 1, "check_runs": [{"name": "test", "status": "completed", "conclusion": "success"}]}):
+            with self.subTest(checks=checks), patch.object(review, "github", return_value=checks):
+                self.assertFalse(review.ci_passed("owner/repo", HEAD, "token", timeout=0))
+
+    def test_approval_waits_until_the_required_check_is_created(self):
+        pending = {"total_count": 1, "check_runs": [{"name": "review", "status": "in_progress"}]}
+        ready = {"total_count": 1, "check_runs": [{"name": "build", "status": "completed", "conclusion": "success"}]}
+        with patch.object(review, "github", side_effect=[pending, ready]) as api, patch.object(review.time, "sleep") as sleep:
+            self.assertTrue(review.ci_passed("owner/repo", HEAD, "token"))
+            self.assertEqual(2, api.call_count)
+            sleep.assert_called_once_with(10)
+
     def test_green_build_ignores_its_own_review_job(self):
         checks = {"total_count": 2, "check_runs": [{"name": "review", "status": "in_progress"},
                                                  {"name": "build", "status": "completed", "conclusion": "success"}]}
