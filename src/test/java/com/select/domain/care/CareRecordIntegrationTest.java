@@ -127,6 +127,13 @@ public class CareRecordIntegrationTest {
     }
 
     @Test
+    void feedingShortcutRejectsDatesOutsideTheDatabaseRange() throws Exception {
+        assertStatus(400, request("POST", "/api/v1/babies/" + babyId + "/feedings", ownerId,
+                "{\"occurredAt\":\"0000-11-08T08:00:00\",\"feedingType\":\"FORMULA\",\"amountMl\":90}"));
+        assertEquals(0L, jdbc.queryForObject("SELECT COUNT(*) FROM feeding_records WHERE baby_id=?", Long.class, babyId));
+    }
+
+    @Test
     void voiceLinkMustBelongToSameBabyAndAuthenticatedAuthor() throws Exception {
         jdbc.update("INSERT INTO voice_inputs(baby_id,baby_member_id,transcript,parse_status) VALUES (?,?,'test','PARSED')",babyId,ownerMemberId);
         Long voiceId=jdbc.queryForObject("SELECT id FROM voice_inputs WHERE baby_id=?",Long.class,babyId);

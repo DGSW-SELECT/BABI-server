@@ -29,6 +29,7 @@ public class CareRecordService {
 
     @Transactional
     public CareRecordResponse create(Long babyId, Long userId, CreateCareRecordRequest request) {
+        if (!request.isValidForType()) throw new CareRecordException(ErrorCode.INVALID_CARE_RECORD);
         babies.findByIdForUpdate(babyId);
         Long memberId = requireMember(userId, babyId, "CARE_WRITE", true);
         if (request.voiceInputId() != null && !records.ownsVoiceInput(babyId, memberId, request.voiceInputId())) {
