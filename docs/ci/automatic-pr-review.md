@@ -6,7 +6,7 @@
 
 동일 저장소의 열린 non-draft PR과 write 권한이 있는 사람의 요청만 리뷰한다. fork·bot·일반 issue·권한 없는 요청은 모델 호출 전에 제외한다. 승인 취소는 draft 또는 bot의 push에도 실행한다. 일반 댓글 이벤트는 [GitHub 기본 branch의 workflow](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#issue_comment)를 사용하므로 이 workflow를 main에 merge해야 멘션 기능이 활성화된다.
 
-새 push와 재리뷰 시작 시 이 workflow가 남긴 `github-actions[bot]`의 APPROVED 리뷰만 DISMISSED로 바꾼다. 사람이나 다른 자동화의 승인은 변경하지 않는다. 취소에 실패하면 오류를 숨기거나 새 승인을 추가하지 않는다. main의 기존 stale approval 규칙도 유지한다. 권한 확인을 마친 요청만 동일 PR의 이전 리뷰를 취소할 수 있다. 멘션 리뷰도 고정된 PR head의 파일을 별도 checkout하여 읽는다.
+새 push와 재리뷰 시작 시 이 workflow가 남긴 `github-actions[bot]`의 APPROVED 리뷰만 DISMISSED로 바꾼다. 사람이나 다른 자동화의 승인은 변경하지 않는다. 취소에 실패하면 오류를 숨기거나 새 승인을 추가하지 않는다. main의 기존 stale approval 규칙도 유지한다. 권한 확인을 마친 요청만 동일 PR의 이전 리뷰를 취소할 수 있다. 멘션 리뷰도 고정된 PR head의 파일을 별도 checkout하여 읽는다. GitHub API에서 실제 PR diff를 `.review-diff.patch`로 제공하므로 shallow clone의 git 이력에 의존하지 않는다.
 
 | 조건 | 결과 | 자동 APPROVE |
 |---|---|---|

@@ -377,6 +377,34 @@ class ApprovalInvalidationTest(unittest.TestCase):
         with self.assertRaises(urllib.error.HTTPError): review.retire_approvals(self.env)
 
 
+class ReviewDiffTest(unittest.TestCase):
+    def setUp(self):
+        self.env = {"REPOSITORY": "owner/repo", "EXPECTED_HEAD": HEAD, "PR_NUMBER": "7", "GITHUB_TOKEN": "token"}
+        self.pull = {"state": "open", "draft": False, "head": {"sha": HEAD}}
+
+    def test_api_diff_is_available_as_a_real_file_without_git_history(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "pr.diff"
+            with patch.object(review, "Path", return_value=path), patch.object(review, "github", return_value=self.pull), \
+                    patch.object(review, "request_text", return_value="diff --git a/test b/test") as request:
+                review.prepare_diff(self.env)
+            self.assertEqual("diff --git a/test b/test", path.read_text())
+            self.assertEqual("application/vnd.github.diff", request.call_args.kwargs["accept"])
+
+    def test_closed_draft_or_changed_head_cannot_supply_a_stale_diff(self):
+        for change in ({"state": "closed"}, {"draft": True}, {"head": {"sha": BASE}}):
+            with self.subTest(change=change), patch.object(review, "github", return_value=self.pull | change), \
+                    patch.object(review, "request_text", return_value="diff"), patch.object(review.Path, "write_text") as write:
+                with self.assertRaises(ValueError): review.prepare_diff(self.env)
+                write.assert_not_called()
+
+    def test_empty_diff_does_not_start_an_incomplete_review(self):
+        with patch.object(review, "github", return_value=self.pull), patch.object(review, "request_text", return_value=""), \
+                patch.object(review.Path, "write_text") as write:
+            with self.assertRaises(ValueError): review.prepare_diff(self.env)
+            write.assert_not_called()
+
+
 class CiGateTest(unittest.TestCase):
     def test_skipped_or_neutral_required_ci_cannot_approve(self):
         for conclusion in ("skipped", "neutral"):
