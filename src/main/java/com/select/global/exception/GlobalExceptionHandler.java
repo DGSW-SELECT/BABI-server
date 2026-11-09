@@ -37,6 +37,11 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
+    @ExceptionHandler(com.select.domain.user.exception.AccountLifecycleException.class)
+    public ResponseEntity<ApiResponse<Void>> handleAccountLifecycle(com.select.domain.user.exception.AccountLifecycleException e) {
+        return createErrorResponse(e.getErrorCode(), List.of());
+    }
+
     @ExceptionHandler(BabyInvitationException.class)
     public ResponseEntity<ApiResponse<Void>> handleBabyInvitation(BabyInvitationException e) {
         return createErrorResponse(e.getErrorCode(), List.of());

@@ -36,6 +36,8 @@ public class SecurityConfig {
             auth.requestMatchers(request -> SecurityPaths.isDocumentationPath(request.getServletPath())).permitAll();
             auth.requestMatchers(
                     SecurityPaths.LOGIN,
+                    "/auth/refresh",
+                    "/auth/csrf",
                     SecurityPaths.SIGNUP,
                     SecurityPaths.EMAIL_SEND,
                     SecurityPaths.EMAIL_VERIFY).permitAll().anyRequest().authenticated();
@@ -55,15 +57,19 @@ public class SecurityConfig {
             });
         });
         http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+        http.addFilterBefore(new com.select.global.security.jwt.CookieCsrfFilter(securityErrorResponseWriter), JwtAuthenticationFilter.class);
         return http.build();
     }
 
     @Bean
     public JwtAuthenticationFilter jwtAuthenticationFilter(
             JwtProvider jwtProvider,
-            SecurityErrorResponseWriter securityErrorResponseWriter
+            SecurityErrorResponseWriter securityErrorResponseWriter,
+            com.select.global.security.jwt.TokenRevocationService revocations,
+            com.select.domain.user.repository.UserRepository users,
+            com.select.global.security.jwt.RefreshSessionService sessions
     ) {
-        return new JwtAuthenticationFilter(jwtProvider,securityErrorResponseWriter);
+        return new JwtAuthenticationFilter(jwtProvider,securityErrorResponseWriter, revocations, users, sessions);
     }
 
     @Bean

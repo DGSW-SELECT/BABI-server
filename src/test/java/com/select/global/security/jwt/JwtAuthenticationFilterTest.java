@@ -49,7 +49,10 @@ class JwtAuthenticationFilterTest {
         String secret = Base64.getEncoder().encodeToString(Jwts.SIG.HS256.key().build().getEncoded());
         signingKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
         jwtProvider = new JwtProvider(secret, 30);
-        filter = new JwtAuthenticationFilter(jwtProvider, new SecurityErrorResponseWriter(objectMapper));
+        var users = mock(com.select.domain.user.repository.UserRepository.class);
+        org.mockito.Mockito.when(users.findById(org.mockito.ArgumentMatchers.anyLong())).thenReturn(java.util.Optional.of(
+                com.select.domain.user.entity.User.builder().email("test@example.invalid").nickname("test").passwordHash("test").build()));
+        filter = new JwtAuthenticationFilter(jwtProvider, new SecurityErrorResponseWriter(objectMapper), mock(TokenRevocationService.class), users, mock(RefreshSessionService.class));
         request = new MockHttpServletRequest("GET", "/test/auth");
         request.setServletPath("/test/auth");
         response = new MockHttpServletResponse();

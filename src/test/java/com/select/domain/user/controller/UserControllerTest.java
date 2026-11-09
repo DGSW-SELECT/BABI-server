@@ -51,8 +51,13 @@ class UserControllerTest {
     @BeforeEach
     void setUp() {
         userService = mock(UserService.class);
+        var sessions = mock(com.select.global.security.jwt.RefreshSessionService.class);
+        var jwt = mock(JwtProvider.class);
+        when(jwt.getUserId(any())).thenReturn("1");
+        when(jwt.createAccessToken(any(), any())).thenReturn("test-access-token");
+        when(sessions.create(any())).thenReturn("a".repeat(43) + "." + "b".repeat(43));
         mockMvc = MockMvcBuilders
-                .standaloneSetup(new UserController(userService))
+                .standaloneSetup(new UserController(userService, mock(com.select.domain.user.service.AccountLifecycleService.class), sessions, mock(com.select.global.security.jwt.AuthCookies.class), jwt, mock(UserRepository.class)))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
     }
@@ -155,7 +160,7 @@ class UserControllerTest {
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         MockMvc signupMockMvc = MockMvcBuilders
-                .standaloneSetup(new UserController(new UserService(userRepository, passwordEncoder, mock(JwtProvider.class), mock(EmailVerificationService.class))))
+                .standaloneSetup(new UserController(new UserService(userRepository, passwordEncoder, mock(JwtProvider.class), mock(EmailVerificationService.class)), mock(com.select.domain.user.service.AccountLifecycleService.class), mock(com.select.global.security.jwt.RefreshSessionService.class), mock(com.select.global.security.jwt.AuthCookies.class), mock(JwtProvider.class), mock(UserRepository.class)))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
 

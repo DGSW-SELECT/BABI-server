@@ -65,6 +65,8 @@ class BabyInvitationMySqlIntegrationTest extends BabyInvitationIntegrationTest {
     @Autowired private BabyService mysqlBabies;
     @Autowired private BabyInvitationWorkflow mysqlInvitations;
     @Autowired private PlatformTransactionManager mysqlTransactions;
+    @Autowired private com.select.domain.user.service.AccountLifecycleService mysqlAccounts;
+    @Autowired private org.springframework.security.crypto.password.PasswordEncoder passwords;
     @Autowired private EmailSender mysqlSender;
 
     @Test
@@ -142,6 +144,24 @@ class BabyInvitationMySqlIntegrationTest extends BabyInvitationIntegrationTest {
         assertEquals(BabyRole.OWNER, mysqlMembers.findByBabyIdAndUserId(fixture.babyId, fixture.memberId).orElseThrow().getRole());
         assertEquals(1, mysqlJdbc.queryForObject("SELECT COUNT(*) FROM baby_email_invitations WHERE baby_id = ? AND status = 'PENDING'", Integer.class, fixture.babyId));
         assertEquals(BabyRole.GUARDIAN, mysqlMembers.findByBabyIdAndUserId(fixture.babyId, fixture.ownerId).orElseThrow().getRole());
+    }
+
+    @Test
+    void withdrawalUsesFinalSchemaAndPreservesMembershipHistory() {
+        var account = mysqlUsers.saveAndFlush(User.builder().email(UUID.randomUUID() + "@example.invalid")
+                .passwordHash(passwords.encode("Test1234!")).nickname("withdrawal-test").build());
+        var owner = user();
+        long baby = mysqlBabies.createBaby(new BabyCreateRequest("MySQL withdrawal", LocalDate.of(2025, 1, 1)), owner).babyId();
+        mysqlInvitations.send(baby, owner, account.getEmail());
+        var membership = mysqlMembers.saveAndFlush(BabyMember.builder().babyId(baby).userId(account.getId()).role(BabyRole.GUARDIAN).build());
+        mysqlJdbc.update("INSERT INTO baby_permissions (baby_id, baby_member_id, permission) VALUES (?, ?, ?)", baby, membership.getId(), "CARE_ALL");
+        String originalEmail = account.getEmail();
+        mysqlAccounts.withdraw(account.getId(), "Test1234!");
+        assertFalse(mysqlUsers.findById(account.getId()).orElseThrow().isActive());
+        assertFalse(mysqlUsers.existsByEmail(originalEmail));
+        assertNotNull(mysqlMembers.findIncludingRemoved(baby, account.getId()).orElseThrow().getRemovedAt());
+        assertEquals(0, mysqlJdbc.queryForObject("SELECT COUNT(*) FROM baby_permissions WHERE baby_id = ? AND baby_member_id = ?", Integer.class, baby, membership.getId()));
+        assertEquals(0, mysqlJdbc.queryForObject("SELECT COUNT(*) FROM baby_email_invitations WHERE invited_email = ?", Integer.class, originalEmail));
     }
 
     private Fixture fixture() {
