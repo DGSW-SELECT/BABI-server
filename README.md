@@ -74,6 +74,8 @@ AWS 프로필·Redis·SMTP 미설정 데모 운영과 `main` 자동 배포는 [A
 
 ## 일일 리포트 API
 
+공동육아 기록 등록·조회·권한과 OpenAI 리포트 생성 계약은 [공동육아 기록과 데일리 리포트](docs/api/shared-care-and-reports.md)를 참고합니다.
+
 `POST /auth/login`에서 받은 `accessToken`을 `Authorization: Bearer <token>`으로 전달합니다.
 모든 리포트 API는 활성 계정이며 `active_baby_members`에 남아 있는 소유자 또는 `baby_permissions`가 부여된 멤버만 사용할 수 있습니다. 아기 생성자라도 멤버에서 제거되면 접근할 수 없습니다.
 

@@ -1,5 +1,7 @@
 package com.select.global.exception;
 
+import com.select.domain.care.exception.CareRecordException;
+import com.select.domain.report.exception.DailyReportGenerationException;
 import com.select.domain.auth.exception.EmailVerificationException;
 import com.select.domain.baby.exception.BabyNotFoundException;
 import com.select.domain.baby.exception.BabyInvitationException;
@@ -34,6 +36,16 @@ import java.util.List;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
+
+    @ExceptionHandler(DailyReportGenerationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleDailyReportGeneration(DailyReportGenerationException e) {
+        return createErrorResponse(e.getErrorCode(), List.of());
+    }
+
+    @ExceptionHandler(CareRecordException.class)
+    public ResponseEntity<ApiResponse<Void>> handleCareRecord(CareRecordException e) {
+        return createErrorResponse(e.getErrorCode(), List.of());
+    }
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 

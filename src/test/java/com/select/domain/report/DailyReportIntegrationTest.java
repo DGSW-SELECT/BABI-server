@@ -131,7 +131,7 @@ class DailyReportIntegrationTest {
         String token = loginToken(member.getEmail());
         assertEquals(403, reportRequest("POST", token, CREATE_REQUEST).statusCode());
 
-        jdbcTemplate.update("INSERT INTO baby_permissions (baby_id, baby_member_id, permission) VALUES (?, 201, 'REPORT_READ')",
+        jdbcTemplate.update("INSERT INTO baby_permissions (baby_id, baby_member_id, permission) VALUES (?, 201, 'CARE_ALL')",
                 BABY_ID);
         assertEquals(201, reportRequest("POST", token, CREATE_REQUEST).statusCode());
         assertEquals(200, reportRequest("GET", token, null).statusCode());
@@ -170,6 +170,32 @@ class DailyReportIntegrationTest {
         assertEquals(400, send("POST", "/auth/login", null,
                 objectMapper.writeValueAsString(java.util.Map.of("email", owner.getEmail(), "password", PASSWORD))).statusCode());
         assertEquals(403, reportRequest("GET", token, null).statusCode());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"POST", "PATCH", "DELETE"})
+    void reportReadPermissionDoesNotAllowWriting(String method) throws Exception {
+        User owner = createUser("owner@example.com");
+        createBaby(owner.getId());
+        assertEquals(201, reportRequest("POST", loginToken(owner.getEmail()), CREATE_REQUEST).statusCode());
+        User reader = createUser("reader@example.com");
+        jdbcTemplate.update("INSERT INTO baby_members (id,baby_id,user_id,`role`) VALUES (201,?,?,'VIEWER')",
+                BABY_ID, reader.getId());
+        jdbcTemplate.update("INSERT INTO baby_permissions (baby_id,baby_member_id,permission) VALUES (?,201,'REPORT_READ')", BABY_ID);
+        String token = loginToken(reader.getEmail());
+        assertEquals(200, reportRequest("GET", token, null).statusCode());
+        assertEquals(403, reportRequest(method, token, requestBody(method)).statusCode());
+    }
+
+    @Test
+    void unrelatedPermissionDoesNotGrantReportAccess() throws Exception {
+        User owner = createUser("owner@example.com");
+        createBaby(owner.getId());
+        assertEquals(201, reportRequest("POST", loginToken(owner.getEmail()), CREATE_REQUEST).statusCode());
+        User reader = createUser("reader@example.com");
+        jdbcTemplate.update("INSERT INTO baby_members (id,baby_id,user_id,`role`) VALUES (201,?,?,'GUARDIAN')", BABY_ID, reader.getId());
+        jdbcTemplate.update("INSERT INTO baby_permissions (baby_id,baby_member_id,permission) VALUES (?,201,'GROWTH_READ')", BABY_ID);
+        assertEquals(403, reportRequest("GET", loginToken(reader.getEmail()), null).statusCode());
     }
 
     private User createUser(String email) {

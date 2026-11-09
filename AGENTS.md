@@ -19,6 +19,8 @@
 - Read relevant code before edits. Reuse existing layers and conventions.
 - Keep changes scoped; no unrelated refactors or changes to others' work.
 - Preserve existing Java formatting, constructor injection, validation, and API response conventions.
+- Shared care records live in `domain/care` and reuse the five existing record tables. Keep JWT-derived author membership, action-specific permissions, VIEWER read-only access, and active account/membership checks. Reuse `domain/baby/repository/BabyAccessRepository` across records and reports.
+- AI daily reports use OpenAI Responses with anonymous numeric facts only; never send names, IDs, notes, or transcripts. Keep `OPENAI_API_KEY` outside Git, bounded timeouts/output, no automatic retries, and explicit failure when unconfigured. Tests must mock OpenAI, not make billable calls.
 - Reproduce bugs and run relevant tests and actual startup/API checks.
 - Keep secrets out of tracked files; use environment variables for external database credentials.
 - AWS resources must use account `380536267838`, region `ap-northeast-3`. Never create or hardcode access keys; any future AWS SDK integration must use the default credentials chain and an execution IAM role.

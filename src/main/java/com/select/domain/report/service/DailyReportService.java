@@ -6,7 +6,10 @@ import com.select.domain.report.dto.response.DailyReportResponse;
 import com.select.domain.report.entity.DailyReport;
 import com.select.domain.report.exception.DailyReportAlreadyExistsException;
 import com.select.domain.report.exception.DailyReportNotFoundException;
-import com.select.domain.report.repository.BabyAccessRepository;
+import com.select.domain.baby.repository.BabyAccessRepository;
+import com.select.domain.baby.repository.BabyRepository;
+import com.select.domain.report.exception.DailyReportGenerationException;
+import com.select.global.exception.ErrorCode;
 import com.select.domain.report.repository.DailyReportRepository;
 import com.select.domain.report.repository.DailyReportStatisticsRepository;
 import org.hibernate.exception.ConstraintViolationException;
@@ -25,20 +28,40 @@ public class DailyReportService {
     private final DailyReportRepository dailyReportRepository;
     private final BabyAccessRepository babyAccessRepository;
     private final DailyReportStatisticsRepository statisticsRepository;
+    private final BabyRepository babyRepository;
+    private final OpenAiDailyReportGenerator generator;
 
     public DailyReportService(
             DailyReportRepository dailyReportRepository,
             BabyAccessRepository babyAccessRepository,
-            DailyReportStatisticsRepository statisticsRepository
+            DailyReportStatisticsRepository statisticsRepository,
+            BabyRepository babyRepository,
+            OpenAiDailyReportGenerator generator
     ) {
         this.dailyReportRepository = dailyReportRepository;
         this.babyAccessRepository = babyAccessRepository;
         this.statisticsRepository = statisticsRepository;
+        this.babyRepository = babyRepository;
+        this.generator = generator;
+    }
+
+    @Transactional
+    public DailyReportResponse generate(Long userId, Long babyId, java.time.LocalDate date) {
+        if (date.getYear() < 1000 || date.isAfter(java.time.LocalDate.of(9999, 12, 30))) {
+            throw new DailyReportGenerationException(ErrorCode.VALIDATION_ERROR);
+        }
+        verifyWriteAccess(userId, babyId);
+        if (dailyReportRepository.existsByBabyIdAndReportDate(babyId, date)) {
+            throw new DailyReportAlreadyExistsException();
+        }
+        var facts = statisticsRepository.findDailyFacts(babyId, date);
+        if (!facts.hasRecords()) throw new DailyReportGenerationException(ErrorCode.DAILY_REPORT_NO_RECORDS);
+        return create(userId, babyId, new CreateDailyReportRequest(date, generator.generate(facts)));
     }
 
     @Transactional
     public DailyReportResponse create(Long userId, Long babyId, CreateDailyReportRequest request) {
-        verifyBabyAccess(userId, babyId);
+        verifyWriteAccess(userId, babyId);
         if (dailyReportRepository.existsByBabyIdAndReportDate(babyId, request.reportDate())) {
             throw new DailyReportAlreadyExistsException();
         }
@@ -69,7 +92,7 @@ public class DailyReportService {
             java.time.LocalDate reportDate,
             UpdateDailyReportRequest request
     ) {
-        verifyBabyAccess(userId, babyId);
+        verifyWriteAccess(userId, babyId);
         DailyReport report = findReport(babyId, reportDate);
         report.updateSummary(request.summary());
         return toResponse(report);
@@ -77,13 +100,20 @@ public class DailyReportService {
 
     @Transactional
     public void delete(Long userId, Long babyId, java.time.LocalDate reportDate) {
-        verifyBabyAccess(userId, babyId);
+        verifyWriteAccess(userId, babyId);
         dailyReportRepository.delete(findReport(babyId, reportDate));
     }
 
     private void verifyBabyAccess(Long userId, Long babyId) {
         if (!babyAccessRepository.hasAccess(userId, babyId)) {
             throw new AccessDeniedException("아기에 대한 접근 권한이 없습니다.");
+        }
+    }
+
+    private void verifyWriteAccess(Long userId, Long babyId) {
+        babyRepository.findByIdForUpdate(babyId);
+        if (!babyAccessRepository.hasWriteAccess(userId, babyId)) {
+            throw new AccessDeniedException("리포트 작성 권한이 없습니다.");
         }
     }
 
