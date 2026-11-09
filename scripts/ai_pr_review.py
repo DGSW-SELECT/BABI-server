@@ -9,17 +9,14 @@ import time
 import urllib.error
 import urllib.request
 
-from scripts.claude_review_diagnostics import normalize_token
-
 MAX_RESPONSE = 2_000_000
 MAX_DIFF = 120_000
 REVIEW_MARKER = "<!-- babi-auto-review -->"
 
 
 def credentials(claude, deepseek):
-    try:
-        oauth = normalize_token(claude)
-    except ValueError:
+    oauth = "".join(claude.split())
+    if not re.fullmatch(r"sk-ant-oat01-[A-Za-z0-9_-]+", oauth):
         oauth = ""
     key = "".join(deepseek.split())
     if not re.fullmatch(r"[A-Za-z0-9._~+/-]+=*", key):

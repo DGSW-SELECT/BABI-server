@@ -186,6 +186,17 @@ class ProviderContractTest(unittest.TestCase):
         self.assertEqual(("", "deepseek-key"), review.credentials("invalid", " deepseek-\nkey "))
         self.assertEqual(("sk-ant-oat01-test", ""), review.credentials("sk-ant-oat01-\ntest", "bad\x00key"))
 
+    def test_wrapped_oauth_tokens_are_normalized_before_http_headers(self):
+        token = "sk-ant-oat01-" + "test-only-credential_" * 5
+        for wrapped in (token, " \n" + token + "\r\n", token[:103] + "\n" + token[103:], token[:30] + "\r\n\t" + token[30:]):
+            with self.subTest(length=len(wrapped)):
+                self.assertEqual((token, ""), review.credentials(wrapped, ""))
+
+    def test_missing_or_malformed_oauth_is_disabled_without_echoing_it(self):
+        for malformed in ("", " \r\n", "private-secret", "sk-ant-oat01-secret\x00", "sk-ant-oat01-secret漢"):
+            with self.subTest(malformed=malformed):
+                self.assertEqual(("", ""), review.credentials(malformed, ""))
+
     def test_deepseek_request_is_bounded_json_mode_and_does_not_embed_credentials(self):
         response = {"choices": [{"finish_reason": "stop", "message": {"content": json.dumps(result())}}]}
         with patch.object(review, "request_text", return_value=json.dumps(response)) as request:
