@@ -22,20 +22,30 @@ jobs:
           fetch-depth: 1
 
       - name: Check Claude configuration and diagnostics
+        id: claude_auth
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
         run: |
-          if [ -z "$CLAUDE_CODE_OAUTH_TOKEN" ]; then
-            echo "::error::CLAUDE_CODE_OAUTH_TOKEN is missing. Set the repository secret using claude setup-token."
-            exit 1
-          fi
           python3 -m unittest discover -s scripts -p 'test_claude_review_diagnostics.py'
+          python3 - <<'PY'
+          import os
+          import sys
+          from scripts.claude_review_diagnostics import normalize_token
+          try:
+              token = normalize_token(os.environ['CLAUDE_CODE_OAUTH_TOKEN'])
+          except ValueError as error:
+              print('::error::' + str(error))
+              sys.exit(1)
+          print('::add-mask::' + token, flush=True)
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write('oauth_token=' + token + '\n')
+          PY
 
       - uses: anthropics/claude-code-action@61a9c274fa7110a66dfafc1bbbced03833eb25fe # v1
         id: claude
         with:
           github_token: ${{ github.token }}
-          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_code_oauth_token: ${{ steps.claude_auth.outputs.oauth_token }}
           track_progress: true
           prompt: |
             REPO: ${{ github.repository }}

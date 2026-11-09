@@ -3,10 +3,23 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from claude_review_diagnostics import failure_message
+from claude_review_diagnostics import failure_message, normalize_token
 
 
 class ClaudeReviewDiagnosticsTest(unittest.TestCase):
+    def test_normalizes_wrapped_oauth_tokens_before_they_reach_http_headers(self):
+        token = "sk-ant-oat01-" + "test-only-credential_" * 5
+        for wrapped in (token, " \n" + token + "\r\n", token[:103] + "\n" + token[103:], token[:30] + "\r\n\t" + token[30:]):
+            with self.subTest(length=len(wrapped)):
+                self.assertEqual(token, normalize_token(wrapped))
+
+    def test_rejects_missing_or_malformed_tokens_without_echoing_them(self):
+        for malformed in ("", " \r\n", "private-secret", "sk-ant-oat01-secret\x00", "sk-ant-oat01-secret漢"):
+            with self.subTest():
+                with self.assertRaises(ValueError) as error:
+                    normalize_token(malformed)
+                self.assertNotIn("private-secret", str(error.exception))
+
     def result(self, text, secrets=()):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "execution.json"
