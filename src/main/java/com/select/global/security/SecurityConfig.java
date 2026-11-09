@@ -1,6 +1,10 @@
 package com.select.global.security;
 
+import com.select.domain.user.repository.UserRepository;
 import com.select.global.exception.ErrorCode;
+import com.select.global.security.jwt.CookieCsrfFilter;
+import com.select.global.security.jwt.RefreshSessionService;
+import com.select.global.security.jwt.TokenRevocationService;
 import com.select.global.security.jwt.JwtAuthenticationFilter;
 import com.select.global.security.jwt.JwtProvider;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
@@ -58,7 +62,7 @@ public class SecurityConfig {
             });
         });
         http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
-        http.addFilterBefore(new com.select.global.security.jwt.CookieCsrfFilter(securityErrorResponseWriter), JwtAuthenticationFilter.class);
+        http.addFilterBefore(new CookieCsrfFilter(securityErrorResponseWriter), JwtAuthenticationFilter.class);
         return http.build();
     }
 
@@ -66,9 +70,9 @@ public class SecurityConfig {
     public JwtAuthenticationFilter jwtAuthenticationFilter(
             JwtProvider jwtProvider,
             SecurityErrorResponseWriter securityErrorResponseWriter,
-            com.select.global.security.jwt.TokenRevocationService revocations,
-            com.select.domain.user.repository.UserRepository users,
-            com.select.global.security.jwt.RefreshSessionService sessions
+            TokenRevocationService revocations,
+            UserRepository users,
+            RefreshSessionService sessions
     ) {
         return new JwtAuthenticationFilter(jwtProvider,securityErrorResponseWriter, revocations, users, sessions);
     }
