@@ -5,6 +5,7 @@ import com.select.domain.handover.entity.HandoverBriefing;
 import com.select.domain.handover.exception.HandoverBriefingNotFoundException;
 import com.select.domain.handover.exception.HandoverBriefingGenerationException;
 import com.select.domain.handover.exception.NoDailyCareRecordException;
+import com.select.domain.handover.exception.HandoverBriefingUnavailableException;
 import com.select.domain.handover.repository.HandoverBriefingRepository;
 import com.select.domain.baby.repository.BabyMemberRepository;
 import org.springframework.security.access.AccessDeniedException;
@@ -45,7 +46,12 @@ public class HandoverBriefingService {
     ) {
         ensureBabyAccess(userId, babyId);
         LocalDate today = LocalDate.now(SEOUL_ZONE);
-        List<String> careRecords = dailyCareRecordProvider.findToday(babyId, today);
+        List<String> careRecords;
+        try {
+            careRecords = dailyCareRecordProvider.findToday(babyId, today);
+        } catch (UnsupportedOperationException e) {
+            throw new HandoverBriefingUnavailableException(e);
+        }
 
         if (careRecords.isEmpty()) {
             throw new NoDailyCareRecordException();

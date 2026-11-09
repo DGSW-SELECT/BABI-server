@@ -35,6 +35,7 @@ public enum ErrorCode {
     NO_DAILY_CARE_RECORD(HttpStatus.NOT_FOUND, "오늘은 브리핑을 생성할 기록이 없습니다."),
     HANDOVER_BRIEFING_NOT_FOUND(HttpStatus.NOT_FOUND, "최신 인수인계 브리핑을 찾을 수 없습니다."),
     HANDOVER_BRIEFING_GENERATION_FAILED(HttpStatus.SERVICE_UNAVAILABLE, "AI 브리핑 생성에 실패했습니다. 잠시 후 다시 시도해 주세요."),
+    HANDOVER_BRIEFING_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "인수인계 브리핑 서비스를 아직 사용할 수 없습니다."),
     INVALID_CREDENTIALS(HttpStatus.BAD_REQUEST, "이메일 또는 비밀번호가 올바르지 않습니다."),
     METHOD_NOT_ALLOWED(HttpStatus.METHOD_NOT_ALLOWED, "지원하지 않는 HTTP 메서드 입니다."),
     NOT_FOUND(HttpStatus.NOT_FOUND, "요청한 리소스를 찾을 수 없습니다."),

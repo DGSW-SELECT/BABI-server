@@ -12,6 +12,6 @@ public class UnavailableDailyCareRecordProvider implements DailyCareRecordProvid
 
     @Override
     public List<String> findToday(Long babyId, LocalDate date) {
-        return List.of();
+        throw new UnsupportedOperationException("실제 육아 기록 조회기가 아직 연결되지 않았습니다.");
     }
 }

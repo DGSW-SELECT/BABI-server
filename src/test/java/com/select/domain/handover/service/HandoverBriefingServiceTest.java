@@ -22,6 +22,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class HandoverBriefingServiceTest {
@@ -132,6 +133,22 @@ class HandoverBriefingServiceTest {
         assertThrows(
                 HandoverBriefingNotFoundException.class,
                 () -> handoverBriefingService.getLatestBriefing(1L, 2L)
+        );
+    }
+
+    @Test
+    void deniesUserWithoutBabyMembership() {
+        when(babyMemberRepository.existsByBabyIdAndUserId(2L, 99L)).thenReturn(false);
+
+        assertThrows(
+                org.springframework.security.access.AccessDeniedException.class,
+                () -> handoverBriefingService.createBriefing(99L, 2L)
+        );
+
+        verifyNoInteractions(
+                dailyCareRecordProvider,
+                handoverBriefingGenerator,
+                handoverBriefingRepository
         );
     }
 }

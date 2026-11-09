@@ -10,6 +10,7 @@ import com.select.domain.user.exception.PasswordMismatchException;
 import com.select.domain.handover.exception.HandoverBriefingNotFoundException;
 import com.select.domain.handover.exception.NoDailyCareRecordException;
 import com.select.domain.handover.exception.HandoverBriefingGenerationException;
+import com.select.domain.handover.exception.HandoverBriefingUnavailableException;
 import com.select.global.response.ApiError;
 import com.select.global.response.ApiResponse;
 import com.select.global.response.ErrorDetail;
@@ -133,6 +134,13 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             HandoverBriefingGenerationException e
     ) {
         return createErrorResponse(ErrorCode.HANDOVER_BRIEFING_GENERATION_FAILED, List.of());
+    }
+
+    @ExceptionHandler(HandoverBriefingUnavailableException.class)
+    public ResponseEntity<ApiResponse<Void>> handleHandoverBriefingUnavailable(
+            HandoverBriefingUnavailableException e
+    ) {
+        return createErrorResponse(ErrorCode.HANDOVER_BRIEFING_UNAVAILABLE, List.of());
     }
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
