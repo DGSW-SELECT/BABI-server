@@ -39,7 +39,7 @@ class HandoverBriefingServiceTest {
         dailyCareRecordProvider = mock(DailyCareRecordProvider.class);
         handoverBriefingGenerator = mock(HandoverBriefingGenerator.class);
         babyMemberRepository = mock(BabyMemberRepository.class);
-        when(babyMemberRepository.existsByBabyIdAndUserId(2L, 1L)).thenReturn(true);
+        when(babyMemberRepository.hasCareAccess(2L, 1L)).thenReturn(true);
         handoverBriefingService = new HandoverBriefingService(
                 handoverBriefingRepository,
                 dailyCareRecordProvider,
@@ -138,7 +138,7 @@ class HandoverBriefingServiceTest {
 
     @Test
     void deniesUserWithoutBabyMembership() {
-        when(babyMemberRepository.existsByBabyIdAndUserId(2L, 99L)).thenReturn(false);
+        when(babyMemberRepository.hasCareAccess(2L, 99L)).thenReturn(false);
 
         assertThrows(
                 org.springframework.security.access.AccessDeniedException.class,

@@ -24,6 +24,28 @@ public interface BabyMemberRepository extends JpaRepository<BabyMember, Long> {
             @Param("userId") Long userId
     );
 
+    @Query("""
+            select (count(m) > 0)
+            from BabyMember m
+            where m.babyId = :babyId
+              and m.userId = :userId
+              and m.removedAt is null
+              and (
+                    m.role = com.select.domain.baby.entity.BabyRole.OWNER
+                    or exists (
+                        select p
+                        from BabyPermission p
+                        where p.babyId = m.babyId
+                          and p.babyMemberId = m.id
+                          and p.permission = com.select.domain.baby.entity.BabyPermission.CARE_ALL
+                    )
+              )
+            """)
+    boolean hasCareAccess(
+            @Param("babyId") Long babyId,
+            @Param("userId") Long userId
+    );
+
     @Query("select m from BabyMember m where m.userId = :userId and m.removedAt is null")
     List<BabyMember> findByUserId(
             @Param("userId") Long userId

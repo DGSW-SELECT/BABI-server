@@ -89,7 +89,7 @@ public class HandoverBriefingService {
     }
 
     private void ensureBabyAccess(Long userId, Long babyId) {
-        if (!babyMemberRepository.existsByBabyIdAndUserId(babyId, userId)) {
+        if (!babyMemberRepository.hasCareAccess(babyId, userId)) {
             throw new AccessDeniedException("아기 기록을 조회할 권한이 없습니다.");
         }
     }
