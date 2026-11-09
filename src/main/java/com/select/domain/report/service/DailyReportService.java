@@ -3,6 +3,7 @@ package com.select.domain.report.service;
 import com.select.domain.report.dto.request.CreateDailyReportRequest;
 import com.select.domain.report.dto.request.UpdateDailyReportRequest;
 import com.select.domain.report.dto.response.DailyReportResponse;
+import com.select.domain.report.dto.response.DailyReportFacts;
 import com.select.domain.report.entity.DailyReport;
 import com.select.domain.report.exception.DailyReportAlreadyExistsException;
 import com.select.domain.report.exception.DailyReportNotFoundException;
@@ -16,8 +17,12 @@ import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
+import java.time.LocalDateTime;
 import java.util.Locale;
 
 @Service
@@ -30,34 +35,67 @@ public class DailyReportService {
     private final DailyReportStatisticsRepository statisticsRepository;
     private final BabyRepository babyRepository;
     private final OpenAiDailyReportGenerator generator;
+    private final TransactionTemplate transactions;
 
     public DailyReportService(
             DailyReportRepository dailyReportRepository,
             BabyAccessRepository babyAccessRepository,
             DailyReportStatisticsRepository statisticsRepository,
             BabyRepository babyRepository,
-            OpenAiDailyReportGenerator generator
+            OpenAiDailyReportGenerator generator,
+            PlatformTransactionManager transactionManager
     ) {
         this.dailyReportRepository = dailyReportRepository;
         this.babyAccessRepository = babyAccessRepository;
         this.statisticsRepository = statisticsRepository;
         this.babyRepository = babyRepository;
         this.generator = generator;
+        this.transactions = new TransactionTemplate(transactionManager);
     }
 
-    @Transactional
+    @Transactional(propagation = Propagation.NEVER)
     public DailyReportResponse generate(Long userId, Long babyId, java.time.LocalDate date) {
         if (date.getYear() < 1000 || date.isAfter(java.time.LocalDate.of(9999, 12, 30))) {
             throw new DailyReportGenerationException(ErrorCode.VALIDATION_ERROR);
         }
-        verifyWriteAccess(userId, babyId);
-        if (dailyReportRepository.existsByBabyIdAndReportDate(babyId, date)) {
-            throw new DailyReportAlreadyExistsException();
+        Generation generation = transactions.execute(status -> reserveGeneration(userId, babyId, date));
+        try {
+            String summary = generator.generate(generation.facts());
+            return transactions.execute(status -> {
+                verifyWriteAccess(userId, babyId);
+                DailyReport report = dailyReportRepository.findByBabyIdAndReportDate(babyId, date)
+                        .filter(current -> current.getId().equals(generation.reportId()) && current.isPending())
+                        .orElseThrow(() -> new DailyReportGenerationException(ErrorCode.DAILY_REPORT_GENERATION_UNAVAILABLE));
+                report.completeGeneration(summary);
+                return toResponse(report);
+            });
+        } catch (RuntimeException | Error failure) {
+            try {
+                transactions.executeWithoutResult(status -> dailyReportRepository.deletePendingById(generation.reportId()));
+            } catch (RuntimeException cleanupFailure) {
+                failure.addSuppressed(cleanupFailure);
+            }
+            throw failure;
         }
+    }
+
+    private Generation reserveGeneration(Long userId, Long babyId, java.time.LocalDate date) {
+        verifyWriteAccess(userId, babyId);
+        dailyReportRepository.findByBabyIdAndReportDate(babyId, date).ifPresent(existing -> {
+            // Recover abandoned claims after five minutes; a new row ID fences out the old caller.
+            if (!existing.isPending() || !existing.getGeneratedAt().isBefore(LocalDateTime.now().minusMinutes(5))) {
+                throw new DailyReportAlreadyExistsException();
+            }
+            dailyReportRepository.delete(existing);
+            dailyReportRepository.flush();
+        });
         var facts = statisticsRepository.findDailyFacts(babyId, date);
         if (!facts.hasRecords()) throw new DailyReportGenerationException(ErrorCode.DAILY_REPORT_NO_RECORDS);
-        return create(userId, babyId, new CreateDailyReportRequest(date, generator.generate(facts)));
+        var report = dailyReportRepository.saveAndFlush(DailyReport.pending(babyId, date));
+        return new Generation(report.getId(), facts);
     }
+
+    private record Generation(Long reportId, DailyReportFacts facts) { }
 
     @Transactional
     public DailyReportResponse create(Long userId, Long babyId, CreateDailyReportRequest request) {
@@ -119,6 +157,7 @@ public class DailyReportService {
 
     private DailyReport findReport(Long babyId, java.time.LocalDate reportDate) {
         return dailyReportRepository.findByBabyIdAndReportDate(babyId, reportDate)
+                .filter(report -> !report.isPending())
                 .orElseThrow(DailyReportNotFoundException::new);
     }
 

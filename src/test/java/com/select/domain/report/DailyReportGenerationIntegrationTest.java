@@ -20,18 +20,24 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import tools.jackson.databind.ObjectMapper;
 
+import javax.sql.DataSource;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.sql.Timestamp;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.IntStream;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -39,7 +45,10 @@ import static org.mockito.Mockito.*;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
         "spring.datasource.url=jdbc:h2:mem:report-generation;MODE=MySQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE;LOCK_TIMEOUT=10000",
-        "spring.jpa.hibernate.ddl-auto=validate"
+        "spring.jpa.hibernate.ddl-auto=validate",
+        "spring.datasource.hikari.maximum-pool-size=5",
+        "spring.datasource.hikari.minimum-idle=1",
+        "spring.datasource.hikari.connection-timeout=1000"
 })
 public class DailyReportGenerationIntegrationTest {
     @LocalServerPort private int port;
@@ -49,6 +58,7 @@ public class DailyReportGenerationIntegrationTest {
     @Autowired private JdbcTemplate jdbc;
     @Autowired private JwtProvider jwt;
     @Autowired private ObjectMapper mapper;
+    @Autowired private DataSource dataSource;
     @MockitoBean private OpenAiDailyReportGenerator generator;
     private Long ownerId, outsiderId, babyId;
     private final HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build();
@@ -127,6 +137,119 @@ public class DailyReportGenerationIntegrationTest {
         }
         verify(generator, times(1)).generate(any());
         assertEquals(1L, jdbc.queryForObject("SELECT COUNT(*) FROM daily_reports WHERE baby_id=?", Long.class, babyId));
+    }
+
+    @Test
+    void slowProviderReleasesConnectionsAndDuplicateRequestsDoNotBlockOtherBabies() throws Exception {
+        seed();
+        Long otherBaby = babies.createBaby(new BabyCreateRequest("다른 아기", LocalDate.of(2026, 1, 1)), ownerId).babyId();
+        var entered = new CountDownLatch(1);
+        var release = new CountDownLatch(1);
+        when(generator.generate(any())).thenAnswer(invocation -> {
+            assertFalse(TransactionSynchronizationManager.isActualTransactionActive(), "Provider must run outside a transaction");
+            entered.countDown();
+            assertTrue(release.await(15, TimeUnit.SECONDS));
+            return "수유 기록 요약";
+        });
+        try (var executor = Executors.newFixedThreadPool(6)) {
+            var first = executor.submit(() -> generate(ownerId));
+            try {
+                assertTrue(entered.await(5, TimeUnit.SECONDS), "Provider did not start outside a transaction");
+                var pool = dataSource.unwrap(com.zaxxer.hikari.HikariDataSource.class).getHikariPoolMXBean();
+                assertEquals(0, pool.getActiveConnections(), "Provider must not hold a DB connection");
+                var duplicates = IntStream.range(0, 5)
+                        .mapToObj(i -> executor.submit(() -> generate(ownerId).statusCode())).toList();
+                for (var duplicate : duplicates) assertEquals(409, duplicate.get(3, TimeUnit.SECONDS));
+                assertEquals(404, request("GET", base() + "/2026-11-08", ownerId, null).statusCode());
+                assertEquals(404, request("PATCH", base() + "/2026-11-08", ownerId, "{\"summary\":\"manual\"}").statusCode());
+                assertEquals(404, request("DELETE", base() + "/2026-11-08", ownerId, null).statusCode());
+                assertEquals(409, request("POST", base(), ownerId,
+                        "{\"reportDate\":\"2026-11-08\",\"summary\":\"manual\"}").statusCode());
+                assertEquals(200, request("GET", "/api/v1/babies/" + otherBaby + "/records?date=2026-11-08", ownerId, null).statusCode());
+                assertEquals(201, request("POST", "/api/v1/babies/" + babyId + "/feedings", ownerId,
+                        "{\"occurredAt\":\"2026-11-08T12:00:00\",\"feedingType\":\"FORMULA\",\"amountMl\":100}").statusCode());
+                assertEquals(0, pool.getActiveConnections());
+            } finally {
+                release.countDown();
+            }
+            assertEquals(201, first.get(5, TimeUnit.SECONDS).statusCode());
+        }
+        verify(generator, times(1)).generate(any());
+    }
+
+    @Test
+    void failedGenerationReleasesItsReservationForRetry() throws Exception {
+        seed();
+        when(generator.generate(any())).thenThrow(new DailyReportGenerationException(ErrorCode.DAILY_REPORT_GENERATION_UNAVAILABLE))
+                .thenReturn("재시도 요약");
+        assertEquals(503, generate(ownerId).statusCode());
+        assertEquals(201, generate(ownerId).statusCode());
+        verify(generator, times(2)).generate(any());
+        assertEquals(1L, jdbc.queryForObject("SELECT COUNT(*) FROM daily_reports WHERE baby_id=? AND status='COMPLETED'", Long.class, babyId));
+    }
+
+    @Test
+    void abandonedGenerationCanBeReclaimedWithoutChangingTheSchema() throws Exception {
+        seed();
+        jdbc.update("INSERT INTO daily_reports(baby_id,report_date,summary,status,generated_at) VALUES (?,'2026-11-08','','PENDING',?)",
+                babyId, Timestamp.valueOf(LocalDateTime.now().minusMinutes(10)));
+        Long abandonedId = jdbc.queryForObject("SELECT id FROM daily_reports WHERE baby_id=?", Long.class, babyId);
+        var response = generate(ownerId);
+        assertEquals(201, response.statusCode(), response.body());
+        assertNotEquals(abandonedId, jdbc.queryForObject("SELECT id FROM daily_reports WHERE baby_id=?", Long.class, babyId));
+        assertEquals("COMPLETED", jdbc.queryForObject("SELECT status FROM daily_reports WHERE baby_id=?", String.class, babyId));
+    }
+
+    @Test
+    void accessIsCheckedAgainAfterProviderReturnsAndFailedReservationIsRemoved() throws Exception {
+        seed();
+        when(generator.generate(any())).thenAnswer(invocation -> {
+            jdbc.update("UPDATE users SET status='WITHDRAWN', withdrawn_at=CURRENT_TIMESTAMP WHERE id=?", ownerId);
+            return "권한 변경 중 생성된 요약";
+        });
+        assertEquals(403, generate(ownerId).statusCode());
+        assertEquals(0L, jdbc.queryForObject("SELECT COUNT(*) FROM daily_reports WHERE baby_id=?", Long.class, babyId));
+    }
+
+    @Test
+    void expiredCallerCannotCompleteOrDeleteTheNewGenerationReservation() throws Exception {
+        seed();
+        var enteredFirst = new CountDownLatch(1);
+        var enteredSecond = new CountDownLatch(1);
+        var releaseFirst = new CountDownLatch(1);
+        var releaseSecond = new CountDownLatch(1);
+        var calls = new AtomicInteger();
+        when(generator.generate(any())).thenAnswer(invocation -> {
+            if (calls.incrementAndGet() == 1) {
+                enteredFirst.countDown();
+                assertTrue(releaseFirst.await(15, TimeUnit.SECONDS));
+                return "오래된 요약";
+            }
+            enteredSecond.countDown();
+            assertTrue(releaseSecond.await(15, TimeUnit.SECONDS));
+            return "새 요약";
+        });
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var first = executor.submit(() -> generate(ownerId));
+            try {
+                assertTrue(enteredFirst.await(5, TimeUnit.SECONDS));
+                jdbc.update("UPDATE daily_reports SET generated_at=? WHERE baby_id=?",
+                        Timestamp.valueOf(LocalDateTime.now().minusMinutes(10)), babyId);
+                var second = executor.submit(() -> generate(ownerId));
+                assertTrue(enteredSecond.await(5, TimeUnit.SECONDS));
+                releaseFirst.countDown();
+                assertEquals(503, first.get(5, TimeUnit.SECONDS).statusCode());
+                assertEquals("PENDING", jdbc.queryForObject("SELECT status FROM daily_reports WHERE baby_id=?", String.class, babyId));
+                releaseSecond.countDown();
+                var completed = second.get(5, TimeUnit.SECONDS);
+                assertEquals(201, completed.statusCode(), completed.body());
+                assertEquals("새 요약", mapper.readTree(completed.body()).path("data").path("summary").asString());
+            } finally {
+                releaseFirst.countDown();
+                releaseSecond.countDown();
+            }
+        }
+        verify(generator, times(2)).generate(any());
     }
 
     @Test

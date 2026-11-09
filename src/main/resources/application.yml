@@ -1,6 +1,8 @@
 spring:
   application:
     name: babi-server
+  jpa:
+    open-in-view: false
   sql:
     init:
       mode: never
