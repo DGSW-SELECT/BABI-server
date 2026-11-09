@@ -9,9 +9,6 @@ spring:
     init:
       mode: always
       schema-locations: classpath:schema-test.sql
-  mail:
-    host: localhost
-    username: test@babi.local
 email:
   verification:
     secret: test-only-email-verification-secret
@@ -23,3 +20,7 @@ jwt:
 # Tests must not call the real STT API.
 stt:
   api-key: test-key
+
+# The rate-limiter has dedicated isolated Redis tests.
+BABI_EMAIL_SEND_GLOBAL_PER_MINUTE: 10000
+BABI_EMAIL_SEND_SOURCE_PER_MINUTE: 10000

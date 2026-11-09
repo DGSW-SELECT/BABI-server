@@ -8,71 +8,93 @@ BABI 서비스의 Spring Boot 백엔드 프로젝트입니다.
 - Spring Boot 4.0.8
 - Gradle 9.7.1
 
-## 로컬 실행
+## Discord 시연 환경과 로컬 실행
 
-Spring Boot는 IntelliJ 또는 Gradle로 호스트에서 실행하고, MySQL과 Redis는 Docker로 실행합니다.
+기본 `local`/`aws` 프로필은 기존 Gmail SMTP 발송을 사용합니다. Discord는 `local,discord-demo` 또는 `aws,discord-demo` 프로필을 명시한 경우에만 활성화됩니다. Discord 인증은 이메일 소유권을 증명하지 **않는 시연 전용**이며, `@example.invalid` 주소만 허용합니다. 실제 사용자 계정이나 데이터로 운영하지 말고 접근이 제한된 비공개 Discord 채널을 사용하세요. 채널의 인증번호와 초대 코드를 볼 수 있는 사람은 이를 사용할 수 있습니다. Discord에는 주소와 초대 링크를 보내지 않습니다.
 
-1. 환경 변수 파일을 준비합니다. 실제 비밀번호는 Git에 커밋하지 않습니다.
+기존 Compose의 `babi` DB와 Redis에는 연결하지 마세요. 별도의 MySQL 8.4 인스턴스에 `babi_discord_demo` DB와 `babi_user` 계정을 준비하고, 최종 스키마를 그 전용 DB에만 별도로 적용하세요. 서버는 `schema.sql`을 자동 실행하지 않으며(`spring.sql.init.mode: never`) Hibernate `validate`만 수행합니다. 공유 DB를 초기화하지 않습니다. 별도의 인증된 Redis 인스턴스도 필요합니다.
+
+예를 들어 본인이 만든 임시 Docker 컨테이너를 사용할 수 있습니다. 아래 값은 셸에만 입력하고, 컨테이너 이름이 이미 존재하면 실행하지 마세요. 공개 포트 대신 호스트 루프백의 임의 포트를 사용합니다. 다음 명령에서 `MYSQL_PASSWORD`와 `BABI_DEMO_REDIS_PASSWORD`는 전용 무작위 값입니다.
 
 ```bash
-cp .env.example .env
+# 비밀번호는 화면에 표시되지 않도록 각각 입력합니다.
+read -r -s MYSQL_PASSWORD; export MYSQL_PASSWORD
+read -r -s BABI_DEMO_REDIS_PASSWORD; export BABI_DEMO_REDIS_PASSWORD
+export BABI_DEMO_REDIS_MARKER="$(openssl rand -hex 32)"
+docker run -d --rm --name babi-discord-demo-mysql --tmpfs /var/lib/mysql \
+  -p 127.0.0.1::3306 -e MYSQL_DATABASE=babi_discord_demo -e MYSQL_USER=babi_user \
+  -e MYSQL_ROOT_PASSWORD="$MYSQL_PASSWORD" -e MYSQL_PASSWORD mysql:8.4
+docker run -d --rm --name babi-discord-demo-redis --tmpfs /data \
+  -p 127.0.0.1::6379 redis:7-alpine redis-server --save '' --appendonly no \
+  --requirepass "$BABI_DEMO_REDIS_PASSWORD"
+# MySQL이 준비된 뒤, 전용 컨테이너인지 확인하고 스키마를 적용합니다.
+docker exec -i babi-discord-demo-mysql sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot babi_discord_demo' < src/main/resources/schema.sql
+docker exec -e REDISCLI_AUTH="$BABI_DEMO_REDIS_PASSWORD" babi-discord-demo-redis \
+  redis-cli SET babi:discord-demo:isolation-marker "$BABI_DEMO_REDIS_MARKER"
+# 표시된 포트를 전용 접속 설정에 사용합니다.
+docker port babi-discord-demo-mysql 3306
+docker port babi-discord-demo-redis 6379
 ```
 
-`.env`에서 `MYSQL_ROOT_PASSWORD`, `MYSQL_PASSWORD`, `JWT_SECRET`을 각자의 로컬 값으로 변경합니다. 음성 STT를 사용하려면 `OPENAI_API_KEY`도 실제 키로 변경합니다.
+서버를 중단한 뒤 **본인이 생성한 전용 컨테이너만** `docker stop babi-discord-demo-mysql babi-discord-demo-redis`로 종료합니다. 임시 DB와 Redis 데이터는 사라집니다. 기존 Compose 컨테이너나 볼륨은 건드리지 마세요.
 
-`JWT_SECRET`은 JWT 서명 및 검증에 사용하는 필수 환경 변수입니다. `.env`의 `JWT_SECRET`을 각자의 무작위 비밀키로 변경합니다. HS256 서명에 사용하는 비밀키는 최소 32바이트 이상이어야 하며, 실제 비밀키는 Git에 커밋하지 않습니다.
+`.env.example`을 `.env`로 복사하고 전용 연결 정보와 무작위 비밀값을 입력하세요. `.env`는 Git에 포함하지 마세요. `local`은 작업 디렉터리의 `.env`를 읽으며, 환경변수가 같은 이름의 값보다 우선합니다. 기존 `.env`가 있다면 덮어쓰지 마세요. 음성 STT를 사용하려면 `OPENAI_API_KEY`도 실제 키로 변경합니다.
 
 `OPENAI_API_KEY`는 음성 입력 STT를 호출할 때 필요합니다. 값이 없어도 서버는 시작되지만 음성 변환 API는 `STT_FAILED`로 실패합니다. 실제 키는 Git에 커밋하지 않습니다.
 
-`local` 프로필에서는 이메일 인증을 호출하지 않더라도 `.env`의 다음 필수 환경 변수를 설정해야 합니다. 예시 파일의 값은 자리표시자이므로 실제 로컬 설정으로 바꿔야 합니다.
-
-| 환경 변수 | 용도 및 설정 방법 |
+| 변수 | 설명 |
 | --- | --- |
-| `MAIL_USERNAME` | Gmail SMTP 발신 계정의 이메일 주소를 입력합니다. |
-| `MAIL_PASSWORD` | 해당 Gmail 계정에서 발급한 앱 비밀번호를 입력합니다. 일반 로그인 비밀번호를 사용하지 않습니다. |
-| `EMAIL_VERIFICATION_SECRET` | 인증번호를 HMAC-SHA256으로 해시하는 독립적인 무작위 비밀키입니다. `JWT_SECRET`과 다른 값을 사용합니다. 예를 들어 `openssl rand -hex 32`로 생성한 값을 설정할 수 있습니다. |
+| `BABI_DISCORD_DEMO_ENABLED` | 시연 환경에서만 `true` |
+| `DISCORD_WEBHOOK_URL` | 비공개 채널에서 만든 Webhook URL. 비밀값입니다. |
+| `BABI_DEMO_DB_URL` | 전용 DB `jdbc:mysql://호스트:포트/babi_discord_demo` |
+| `MYSQL_PASSWORD` | 전용 `babi_user` 비밀번호 |
+| `BABI_DEMO_REDIS_HOST`, `BABI_DEMO_REDIS_PORT` | 전용 Redis 주소와 6379가 아닌 포트 |
+| `BABI_DEMO_REDIS_PASSWORD` | 전용 Redis 비밀번호, 24자 이상 |
+| `BABI_DEMO_REDIS_MARKER` | 전용 Redis에 미리 저장한 48자 이상의 소문자 16진수 확인값 |
+| `JWT_SECRET`, `EMAIL_VERIFICATION_SECRET` | 각각 별도의 무작위 비밀값 |
+| `BABY_INVITATION_LINK_BASE_URL` | 기존 초대 API에 필요한 HTTPS 주소. Discord로 전송하지 않습니다. |
 
-실제 이메일 계정·앱 비밀번호·비밀키는 Git에 커밋하지 않습니다. `.env`는 `.gitignore`에 포함되어 있습니다. Docker Compose와 Spring Boot가 같은 파일을 읽으므로 따옴표 없이 `KEY=value` 형식으로 작성하고, 값에는 공백·백슬래시·달러 기호를 사용하지 않습니다. 각 프로그램의 해석 방식이 달라질 수 있습니다. 비밀키에는 `openssl rand -hex 32`로 생성한 값을 사용할 수 있습니다. Gmail 앱 비밀번호는 표시되는 공백을 제거하여 입력합니다. 외부에서 받은 `.env`를 셸 명령으로 실행하지 않습니다.
+일반 `local`/`aws` 프로필에서 Gmail 발송을 사용하려면 `.env`의 `MAIL_USERNAME`과 `MAIL_PASSWORD`를 실제 Gmail 주소와 앱 비밀번호로 설정합니다. `discord-demo` 프로필에서는 Discord가 발송을 담당하므로 해당 값이 필요하지 않습니다.
 
-`local` 프로필은 실행 프로세스의 **작업 디렉터리**에 있는 `.env`를 Spring의 properties 파일로 읽습니다. 파일 자체가 없어도 시작은 진행하지만 필요한 값이 다른 곳에도 없으면 시작에 실패합니다. OS 환경변수 또는 IntelliJ 실행 구성에서 명시한 환경변수가 `.env` 값보다 우선합니다. `local` 외의 프로필은 이 파일을 자동으로 읽지 않으며 운영 환경은 기존처럼 필요한 비밀값을 별도로 제공해야 합니다.
+### 웹후크 주소 변경
 
-2. MySQL과 Redis를 실행합니다.
+팀원이 비공개 Discord 시연 채널에서 새 웹후크를 만든 뒤, 로컬에서는 Git에 포함되지 않는 `.env`의 `DISCORD_WEBHOOK_URL` 값만 교체합니다. 환경변수나 IntelliJ 실행 구성에 같은 키가 있으면 해당 값이 `.env`보다 우선하므로 함께 확인하세요. AWS 시연 환경에서는 담당자가 비밀 설정 파일 `/etc/babi/app.env`의 같은 값을 교체합니다. 값은 `DISCORD_WEBHOOK_URL=새_웹후크_URL` 형식으로 한 줄에 넣고 Git·채팅·로그에 공유하지 않습니다.
+
+웹후크 주소는 서버가 **시작할 때** 읽으므로 변경 후 해당 서버를 재시작해야 합니다. 운영 환경에서는 담당자의 배포 절차와 승인에 따라 재시작하세요. 새 주소의 수신을 확인한 후 기존 웹후크를 Discord에서 삭제합니다. 주소가 외부에 노출됐다면 즉시 폐기하고 새로 발급하세요. 주소가 없거나 형식이 잘못되면 서버가 오류를 알리고 시작하지 않습니다.
+
+전용 Redis에 인증 후 키 `babi:discord-demo:isolation-marker`에 `BABI_DEMO_REDIS_MARKER`와 같은 값을 준비하세요. 예를 들어 `openssl rand -hex 32`로 비밀값을 만들 수 있습니다. 확인값은 전용 Redis를 잘못 연결하는 사고를 줄이지만, DB와 Redis에 실제 사용자 데이터가 없는지 직접 확인해야 합니다. 비밀번호나 Webhook URL을 로그에 출력하거나 공유하지 마세요.
+
+프로젝트 루트에서 실행합니다. IntelliJ에서는 같은 작업 디렉터리와 `local` 프로필을 지정하세요.
 
 ```bash
-docker compose up -d
-docker compose ps
+./gradlew bootRun --args='--spring.profiles.active=local,discord-demo'
 ```
 
-MySQL은 `127.0.0.1:3307`으로만 노출되며, MySQL 데이터 디렉터리(`/var/lib/mysql`)는 `babi_mysql_data` Docker Volume에 저장됩니다.
+실행 후 Swagger UI(`/swagger-ui.html`)에서 다음 순서로 테스트합니다. 실제 호출은 테스트 전용 서버에서만 하세요.
 
-3. IntelliJ의 Spring Boot 실행 구성에서 Main class를 `com.select.BabiServerApplication`, Active profiles를 `local`, Working directory를 **BABI-server 프로젝트 루트**로 지정하고 실행합니다. 이 설정에서는 `.env`의 값이 Spring 설정으로 전달되므로 환경변수를 하나씩 복사할 필요가 없습니다. 실행 구성에 동일한 환경변수가 이미 들어 있다면 그 값이 우선하므로 오래된 값이 없는지 확인합니다. IntelliJ의 별도 `.env` 플러그인은 필요하지 않습니다.
+1. `POST /auth/email/send`에 `{"email":"owner@example.invalid"}`를 전달하고 비공개 Discord 채널의 인증번호를 확인합니다.
+2. `POST /auth/email/verify`에 같은 이메일과 `code`를 전달하고 응답의 `verificationToken`을 받습니다.
+3. `POST /auth/signup`에 이메일, `password`, `passwordConfirm`, `nickname`, `verificationToken`을 전달한 뒤 `POST /auth/login`으로 로그인합니다. 정확한 요청·응답은 Swagger를 참조하세요.
+4. Bearer 액세스 토큰으로 `POST /babies`에서 아기를 등록하고 `GET /babies/{babyId}/invitation-code`로 코드를 발급합니다.
+5. `POST /babies/{babyId}/invitations`에 `{"email":"guardian@example.invalid"}`를 전달하면 Discord 채널에 초대 코드가 표시됩니다. 로그인한 다른 테스트 계정은 `/babies/invitations/check`, `/babies/invitations/accept`에 `{"code":"ABC123"}` 형식으로 입력할 수 있습니다.
 
-Gradle로 실행할 경우 프로젝트 루트에서 다음 명령을 실행합니다.
+Discord 연결은 최대 3초, 요청은 최대 5초로 제한합니다. 응답 본문은 사용하지 않고 즉시 닫습니다. 초대 데이터는 발송 전에 커밋되지만, 유효한 코드와 권한을 유지하기 위해 발송 중 아기 행 잠금이 유지됩니다. 5초는 HTTP 요청 제한이며 전체 트랜잭션 시간의 보장은 아닙니다. 타임아웃 후 초대 기록은 남고 발송 API는 실패하므로 재발송할 수 있습니다. 커밋 직후 서버가 종료되면 자동 재시도되지 않습니다.
 
-```bash
-./gradlew bootRun --args='--spring.profiles.active=local'
-```
+## 보호자 초대 발송 제한
 
-`Could not resolve placeholder 'EMAIL_VERIFICATION_SECRET'`가 계속 발생하면 `local` 프로필, 실행 구성의 Working directory, `.env` 파일과 해당 키의 존재 여부를 확인합니다. 설정값 자체는 로그나 스크린샷에 노출하지 않습니다.
+보호자 초대 발송은 인증번호의 `EmailSendRateLimiter`가 아닌 기존 `InvitationRateLimiter`로 별도 제한합니다. 기본값은 발송자별 시간당 10회, 아기별 시간당 30회, 아기와 대상 이메일별 시간당 3회입니다. 세 제한 중 하나라도 초과하면 HTTP 429 `INVITATION_RATE_LIMITED`를 반환하고 발송하지 않습니다. Redis 장애 시에는 503으로 차단합니다. 이메일 주소는 Redis 키에 해시로 저장합니다.
 
-애플리케이션은 시작 시 `schema.sql`을 자동 실행하지 않습니다 (`spring.sql.init.mode: never`). 실행 전에 팀에서 승인한 스키마를 별도로 준비해야 하며, 로컬 프로필은 Hibernate `validate`로 엔티티와 스키마를 검증합니다. 서버 시작은 기존 데이터베이스를 초기화하거나 테이블을 변경하지 않습니다. 스키마 변경은 별도 검토와 마이그레이션이 필요합니다.
+## 인증번호 발송 제한
 
-종료는 `docker compose down`을 사용합니다. 이 명령은 컨테이너와 네트워크를 제거하며, 일반적으로 `babi_mysql_data` Volume의 DB 데이터는 유지됩니다.
+`POST /auth/email/send`는 이메일별 기존 60초 재발송 제한 외에 Redis 원자적 제한을 적용합니다. 기본값은 **전체 서버 합계 1분당 30회**, 요청 출처별 **1분당 10회**입니다. `BABI_EMAIL_SEND_GLOBAL_PER_MINUTE`와 `BABI_EMAIL_SEND_SOURCE_PER_MINUTE`로 양의 정수만 지정할 수 있습니다. 누락 시 기본값을 쓰며, 0·음수·숫자가 아닌 값은 서버 기동을 실패시킵니다. 제한은 첫 요청부터 시작하는 60초 고정 구간으로 계산되며, 카운터는 구간이 끝나면 만료됩니다. 발송 실패나 동일 이메일 재발송도 요청으로 집계합니다.
 
-**주의:** `docker compose down -v`는 `babi_mysql_data` 데이터 Volume도 삭제하므로 저장된 DB 데이터가 손실될 수 있습니다. 기존 데이터를 유지해야 한다면 `-v` 옵션을 사용하지 않습니다.
+초과 시 기존 응답 형식의 HTTP 429, `EMAIL_SEND_RATE_LIMITED`를 반환합니다. Discord 자체의 429는 발송 실패로 처리되므로 이 오류 코드와 구분됩니다. Redis 오류 시 발송을 허용하지 않고 HTTP 503 `EMAIL_VERIFICATION_UNAVAILABLE`을 반환합니다.
 
-테스트는 H2 메모리 DB를 사용합니다. 테스트 종료 후 데이터는 삭제되며 H2는 배포용 JAR에 포함되지 않습니다.
+`X-Forwarded-For` 등 요청 헤더는 출처 판별에 사용하지 않습니다. `server.forward-headers-strategy=none`인 로컬에서는 서버에 직접 연결된 주소별로 제한합니다. AWS처럼 전달 헤더를 처리하는 환경에서는 주소 위조를 피하려고 모든 요청을 같은 출처로 취급하며 전역 제한도 함께 적용합니다. 따라서 프록시 뒤의 여러 사용자가 출처 한도를 공유할 수 있습니다. AWS에서 개별 사용자 제한이 필요하면 신뢰할 프록시 범위, 헤더 덮어쓰기, 직접 접근 차단을 팀에서 먼저 검증해야 합니다. 이 제한은 이메일 소유권 인증이나 시연 서버 접근 통제의 대체 수단이 아닙니다.
 
-## 배포 DB
+## AWS 시연 배포 준비
 
-배포 환경은 MySQL DB를 준비하고 다음 환경 변수를 설정해야 합니다. 비밀번호를 Git에 저장하지 않습니다.
-
-- `SPRING_DATASOURCE_URL`: `jdbc:mysql://localhost:3306/babi` 형식의 연결 주소
-- `SPRING_DATASOURCE_USERNAME`: DB 계정
-- `SPRING_DATASOURCE_PASSWORD`: DB 비밀번호
-- `JWT_SECRET`: JWT 서명 키 (32바이트 이상)
-
-AWS 프로필·Redis·SMTP 미설정 데모 운영과 `main` 자동 배포는 [AWS 운영 문서](docs/aws-runtime.md)를 참고합니다. 운영 DB는 자동 초기화하거나 migration하지 않습니다.
+현재 AWS 연결과 배포는 검증되지 않았습니다. 기존 `deploy/babi-server.service`는 `aws`만 활성화하므로 Discord가 자동으로 켜지지 않습니다. 시연 배포는 별도의 승인된 서비스 설정으로 `aws,discord-demo`를 명시해야 합니다. 팀원이 기존 AWS 설정을 확인하고 **전용 시연 MySQL과 Redis**를 별도 준비해야 합니다. `aws,discord-demo` 프로필은 `SPRING_DATASOURCE_URL`을 `babi_discord_demo`로 명시하고 전용 DB 계정, 위의 Discord·Redis·비밀 환경변수를 제공해야만 시작합니다. 기존 `babi` 기본값으로는 안전 검증에 실패합니다. HTTPS 아웃바운드와 비공개 Discord 채널, 환경변수 전달, Redis 확인값, DB 스키마를 배포 전에 확인하세요. 세부 사항은 [AWS 운영 문서](docs/aws-runtime.md)를 참조하세요. 실제 사용자 인증에는 사용할 수 없습니다.
 
 ## 일일 리포트 API
 
@@ -169,5 +191,3 @@ com.select
 ```
 
 새 핵심 기능은 `domain` 아래에 같은 계층으로 추가합니다.
-
-Discord에 Webhook으로 연결되어 확인메시지가 전송됩니다
