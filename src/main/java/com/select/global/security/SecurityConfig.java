@@ -37,6 +37,7 @@ public class SecurityConfig {
             auth.requestMatchers(
                     SecurityPaths.LOGIN,
                     "/auth/refresh",
+                    "/auth/logout",
                     "/auth/csrf",
                     SecurityPaths.SIGNUP,
                     SecurityPaths.EMAIL_SEND,

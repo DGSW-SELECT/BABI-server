@@ -81,6 +81,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 || path.equals(SecurityPaths.SIGNUP)
                 || path.equals(SecurityPaths.LOGIN)
                 || path.equals("/auth/refresh")
+                || path.equals("/auth/logout")
                 || path.equals("/auth/csrf")
                 || path.equals(SecurityPaths.EMAIL_SEND)
                 || path.equals(SecurityPaths.EMAIL_VERIFY)

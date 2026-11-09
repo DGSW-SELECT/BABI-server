@@ -24,7 +24,8 @@ public class CookieCsrfFilter extends OncePerRequestFilter {
         boolean safe = Set.of("GET", "HEAD", "OPTIONS", "TRACE").contains(request.getMethod());
         String authorization = request.getHeader("Authorization");
         boolean bearer = authorization != null && authorization.startsWith("Bearer ")
-                && !request.getServletPath().equals("/auth/refresh");
+                && !request.getServletPath().equals("/auth/refresh")
+                && !request.getServletPath().equals("/auth/logout");
         boolean cookieSession = AuthCookies.get(request, AuthCookies.ACCESS) != null || AuthCookies.get(request, AuthCookies.REFRESH) != null;
         if (!safe && cookieSession && !bearer && !request.getServletPath().equals("/auth/login")) {
             String cookie = AuthCookies.get(request, AuthCookies.CSRF);

@@ -61,6 +61,20 @@ class AuthCookieIntegrationTest {
         assertEquals(401, send("POST", "/auth/refresh", updated, updatedCsrf, null).statusCode());
     }
 
+
+    @Test void logoutWithOnlyRefreshCookieRevokesSession() throws Exception {
+        String email = UUID.randomUUID() + "@example.invalid";
+        users.saveAndFlush(User.builder().email(email).nickname("logout").passwordHash(passwords.encode("Test1234!")).build());
+        var login = send("POST", "/auth/login", null, null, "{\"email\":\"" + email + "\",\"password\":\"Test1234!\"}");
+        String refreshOnly = AuthCookies.REFRESH + "=" + cookie(login, AuthCookies.REFRESH) + "; " + AuthCookies.CSRF + "=" + cookie(login, AuthCookies.CSRF);
+        String csrf = cookie(login, AuthCookies.CSRF);
+        assertEquals(403, send("POST", "/auth/logout", refreshOnly, null, null).statusCode());
+        var logout = send("POST", "/auth/logout", refreshOnly, csrf, null);
+        assertEquals(200, logout.statusCode());
+        assertEquals(3, logout.headers().allValues("Set-Cookie").size());
+        assertEquals(401, send("POST", "/auth/refresh", refreshOnly, csrf, null).statusCode());
+    }
+
     @Test void corsOnlyAllowsConfiguredOrigin() throws Exception {
         for (String origin : List.of("https://frontend.example.invalid", "https://untrusted.example.invalid")) {
             var request = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/auth/refresh"))
@@ -87,14 +101,23 @@ class AuthCookieIntegrationTest {
         }
     }
 
-    @Test void logoutOfOriginalCredentialInvalidatesRotatedSession() {
+    @Test void staleCredentialCannotRevokeRotatedSession() {
         String original = sessions.create("123");
         var rotated = sessions.rotate(original);
         String sessionId = RefreshSessionService.sessionId(rotated.token());
         assertTrue(sessions.isActive(sessionId));
         sessions.revoke(original);
+        assertTrue(sessions.isActive(sessionId));
+        sessions.revoke(rotated.token());
         assertFalse(sessions.isActive(sessionId));
-        assertThrows(com.select.domain.user.exception.AccountLifecycleException.class, () -> sessions.rotate(rotated.token()));
+    }
+    @Test void incorrectRefreshSecretCannotRevokeSession() {
+        String token = sessions.create("123");
+        String id = RefreshSessionService.sessionId(token);
+        sessions.revoke(id + "." + "a".repeat(43));
+        assertTrue(sessions.isActive(id));
+        sessions.revoke(token);
+        assertFalse(sessions.isActive(id));
     }
     private boolean rotate(CountDownLatch start, String token) throws Exception {
         start.await();

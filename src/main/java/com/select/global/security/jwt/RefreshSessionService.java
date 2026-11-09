@@ -27,6 +27,13 @@ public class RefreshSessionService {
             redis.call('SET', KEYS[1], user .. ':' .. ARGV[2], 'EX', ARGV[3])
             return user
             """, String.class);
+    private static final DefaultRedisScript<Long> REVOKE = new DefaultRedisScript<>("""
+            local session = redis.call('GET', KEYS[1])
+            if not session then return 0 end
+            local user, digest = string.match(session, '^(%d+):([0-9a-f]+)$')
+            if not user or digest ~= ARGV[1] then return 0 end
+            return redis.call('DEL', KEYS[1])
+            """, Long.class);
     private final StringRedisTemplate redis;
 
     public RefreshSessionService(StringRedisTemplate redis) { this.redis = redis; }
@@ -52,7 +59,9 @@ public class RefreshSessionService {
 
     public void revoke(String token) {
         if (!validFormat(token)) return;
-        revokeSession(token.substring(0, 43));
+        String[] parts = token.split("\\.");
+        try { redis.execute(REVOKE, List.of(key(parts[0])), hash(parts[1])); }
+        catch (org.springframework.dao.DataAccessException e) { throw unavailable(); }
     }
 
     public void revokeSession(String sessionId) {

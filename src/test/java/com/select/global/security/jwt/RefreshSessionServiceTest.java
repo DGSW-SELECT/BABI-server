@@ -21,6 +21,14 @@ class RefreshSessionServiceTest {
         var exception = assertThrows(AccountLifecycleException.class, () -> service.rotate(token));
         assertEquals(ErrorCode.AUTH_SERVICE_UNAVAILABLE, exception.getErrorCode());
     }
+    @Test void redisFailureDoesNotPretendLogoutSucceeded() {
+        var redis = mock(StringRedisTemplate.class);
+        when(redis.execute(any(RedisScript.class), anyList(), any()))
+                .thenThrow(new DataAccessResourceFailureException("unavailable"));
+        String token = "a".repeat(43) + "." + "b".repeat(43);
+        var exception = assertThrows(AccountLifecycleException.class, () -> new RefreshSessionService(redis).revoke(token));
+        assertEquals(ErrorCode.AUTH_SERVICE_UNAVAILABLE, exception.getErrorCode());
+    }
     @Test void malformedRefreshIsRejectedBeforeRedis() {
         var redis = mock(StringRedisTemplate.class);
         var exception = assertThrows(AccountLifecycleException.class, () -> new RefreshSessionService(redis).rotate("bad"));

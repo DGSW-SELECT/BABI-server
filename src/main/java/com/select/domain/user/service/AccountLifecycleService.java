@@ -10,7 +10,7 @@ import com.select.global.exception.ErrorCode;
 import com.select.domain.user.exception.AccountLifecycleException;
 import com.select.global.security.jwt.JwtProvider;
 import com.select.global.security.jwt.TokenRevocationService;
-import org.springframework.jdbc.core.JdbcTemplate;
+import com.select.domain.baby.repository.AccountInvitationCleanupRepository;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,21 +22,32 @@ public class AccountLifecycleService {
     private final BabyPermissionRepository permissions;
     private final BabyRepository babies;
     private final PasswordEncoder passwords;
-    private final JdbcTemplate jdbc;
+    private final AccountInvitationCleanupRepository invitations;
     private final JwtProvider jwt;
+    private final com.select.global.security.jwt.RefreshSessionService sessions;
     private final TokenRevocationService revocations;
     private final jakarta.persistence.EntityManager entityManager;
 
     public AccountLifecycleService(UserRepository users, BabyMemberRepository members, BabyPermissionRepository permissions,
-            BabyRepository babies, PasswordEncoder passwords, JdbcTemplate jdbc, JwtProvider jwt, TokenRevocationService revocations,
-            jakarta.persistence.EntityManager entityManager) {
+            BabyRepository babies, PasswordEncoder passwords, AccountInvitationCleanupRepository invitations, JwtProvider jwt, TokenRevocationService revocations,
+            jakarta.persistence.EntityManager entityManager, com.select.global.security.jwt.RefreshSessionService sessions) {
         this.users = users; this.members = members; this.permissions = permissions; this.babies = babies;
-        this.passwords = passwords; this.jdbc = jdbc; this.jwt = jwt; this.revocations = revocations; this.entityManager = entityManager;
+        this.passwords = passwords; this.invitations = invitations; this.jwt = jwt; this.revocations = revocations; this.entityManager = entityManager; this.sessions = sessions;
     }
 
-    public void logout(String token) {
-        try { revocations.revoke(token, jwt.remainingLifetime(token)); }
-        catch (org.springframework.dao.DataAccessException e) { throw new AccountLifecycleException(ErrorCode.AUTH_SERVICE_UNAVAILABLE); }
+    public void logout(String accessToken, String refreshToken) {
+        if (accessToken != null) {
+            try {
+                jwt.getUserId(accessToken);
+                revocations.revoke(accessToken, jwt.remainingLifetime(accessToken));
+                sessions.revokeSession(jwt.getSessionId(accessToken));
+            } catch (io.jsonwebtoken.JwtException | IllegalArgumentException ignored) {
+                // Expired or invalid access tokens must not prevent refresh-token logout.
+            } catch (org.springframework.dao.DataAccessException e) {
+                throw new AccountLifecycleException(ErrorCode.AUTH_SERVICE_UNAVAILABLE);
+            }
+        }
+        sessions.revoke(refreshToken);
     }
 
     @Transactional
@@ -59,9 +70,7 @@ public class AccountLifecycleService {
             permissions.deleteByBabyIdAndBabyMemberId(member.getBabyId(), member.getId());
             member.deactivate();
         }
-        jdbc.update("UPDATE family_invitations SET status = 'CANCELED' WHERE status = 'PENDING' AND (inviter_user_id = ? OR invited_user_id = ?)", userId, userId);
-        jdbc.update("UPDATE baby_email_invitations SET status = 'CANCELED' WHERE status = 'PENDING' AND (LOWER(invited_email) = LOWER(?) OR invited_by_member_id IN (SELECT id FROM baby_members WHERE user_id = ?))", user.getEmail(), userId);
-        jdbc.update("UPDATE baby_email_invitations SET invited_email = ? WHERE LOWER(invited_email) = LOWER(?)", "withdrawn-" + userId + "@deleted.invalid", user.getEmail());
+        invitations.cancelAndAnonymize(userId, user.getEmail());
         user.withdraw();
     }
 }
