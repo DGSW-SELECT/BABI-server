@@ -9,6 +9,10 @@ import com.select.domain.user.repository.UserRepository;
 import com.select.global.exception.ErrorCode;
 import com.select.domain.user.exception.AccountLifecycleException;
 import com.select.global.security.jwt.JwtProvider;
+import com.select.global.security.jwt.RefreshSessionService;
+import io.jsonwebtoken.JwtException;
+import jakarta.persistence.EntityManager;
+import org.springframework.dao.DataAccessException;
 import com.select.global.security.jwt.TokenRevocationService;
 import com.select.domain.baby.repository.AccountInvitationCleanupRepository;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -24,13 +28,13 @@ public class AccountLifecycleService {
     private final PasswordEncoder passwords;
     private final AccountInvitationCleanupRepository invitations;
     private final JwtProvider jwt;
-    private final com.select.global.security.jwt.RefreshSessionService sessions;
+    private final RefreshSessionService sessions;
     private final TokenRevocationService revocations;
-    private final jakarta.persistence.EntityManager entityManager;
+    private final EntityManager entityManager;
 
     public AccountLifecycleService(UserRepository users, BabyMemberRepository members, BabyPermissionRepository permissions,
             BabyRepository babies, PasswordEncoder passwords, AccountInvitationCleanupRepository invitations, JwtProvider jwt, TokenRevocationService revocations,
-            jakarta.persistence.EntityManager entityManager, com.select.global.security.jwt.RefreshSessionService sessions) {
+            EntityManager entityManager, RefreshSessionService sessions) {
         this.users = users; this.members = members; this.permissions = permissions; this.babies = babies;
         this.passwords = passwords; this.invitations = invitations; this.jwt = jwt; this.revocations = revocations; this.entityManager = entityManager; this.sessions = sessions;
     }
@@ -41,9 +45,9 @@ public class AccountLifecycleService {
                 jwt.getUserId(accessToken);
                 revocations.revoke(accessToken, jwt.remainingLifetime(accessToken));
                 sessions.revokeSession(jwt.getSessionId(accessToken));
-            } catch (io.jsonwebtoken.JwtException | IllegalArgumentException ignored) {
+            } catch (JwtException | IllegalArgumentException ignored) {
                 // Expired or invalid access tokens must not prevent refresh-token logout.
-            } catch (org.springframework.dao.DataAccessException e) {
+            } catch (DataAccessException e) {
                 throw new AccountLifecycleException(ErrorCode.AUTH_SERVICE_UNAVAILABLE);
             }
         }

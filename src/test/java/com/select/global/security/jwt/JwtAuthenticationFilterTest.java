@@ -89,6 +89,16 @@ class JwtAuthenticationFilterTest {
     }
 
     @Test
+    void unexpectedNonnumericUserIdReturns401() throws Exception {
+        JwtProvider provider = mock(JwtProvider.class);
+        org.mockito.Mockito.when(provider.getUserId("token")).thenReturn("not-a-number");
+        filter = new JwtAuthenticationFilter(provider, new SecurityErrorResponseWriter(objectMapper),
+                mock(TokenRevocationService.class), mock(com.select.domain.user.repository.UserRepository.class), mock(RefreshSessionService.class));
+        request.addHeader(HttpHeaders.AUTHORIZATION, "Bearer token");
+        assertUnauthorized(ErrorCode.INVALID_TOKEN);
+    }
+
+    @Test
     void validJwtContinuesFilterChain() throws Exception {
         request.addHeader(HttpHeaders.AUTHORIZATION, "Bearer " + jwtProvider.createAccessToken("42"));
 

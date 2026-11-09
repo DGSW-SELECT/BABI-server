@@ -1,5 +1,7 @@
 package com.select.global.security.jwt;
 
+import com.select.domain.user.entity.User;
+import com.select.domain.user.repository.UserRepository;
 import com.select.global.exception.ErrorCode;
 import com.select.global.security.SecurityErrorResponseWriter;
 import com.select.global.security.SecurityPaths;
@@ -8,6 +10,7 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.dao.DataAccessException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -21,10 +24,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final JwtProvider jwtProvider;
     private final SecurityErrorResponseWriter securityErrorResponseWriter;
     private final TokenRevocationService revocations;
-    private final com.select.domain.user.repository.UserRepository users;
+    private final UserRepository users;
     private final RefreshSessionService sessions;
 
-    public JwtAuthenticationFilter(JwtProvider jwtProvider, SecurityErrorResponseWriter securityErrorResponseWriter, TokenRevocationService revocations, com.select.domain.user.repository.UserRepository users, RefreshSessionService sessions) {
+    public JwtAuthenticationFilter(JwtProvider jwtProvider, SecurityErrorResponseWriter securityErrorResponseWriter, TokenRevocationService revocations, UserRepository users, RefreshSessionService sessions) {
         this.jwtProvider = jwtProvider;
         this.securityErrorResponseWriter = securityErrorResponseWriter;
         this.revocations = revocations;
@@ -53,11 +56,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         try {
             String sessionId = jwtProvider.getSessionId(token);
-            if (revocations.isRevoked(token) || (sessionId != null && !sessions.isActive(sessionId)) || users.findById(Long.valueOf(userId)).filter(com.select.domain.user.entity.User::isActive).isEmpty()) {
+            if (revocations.isRevoked(token) || (sessionId != null && !sessions.isActive(sessionId)) || users.findById(Long.valueOf(userId)).filter(User::isActive).isEmpty()) {
                 securityErrorResponseWriter.writeErrorResponse(response, ErrorCode.INVALID_TOKEN);
                 return;
             }
-        } catch (org.springframework.dao.DataAccessException e) {
+        } catch (NumberFormatException e) {
+            securityErrorResponseWriter.writeErrorResponse(response, ErrorCode.INVALID_TOKEN);
+            return;
+        } catch (DataAccessException e) {
             securityErrorResponseWriter.writeErrorResponse(response, ErrorCode.AUTH_SERVICE_UNAVAILABLE);
             return;
         }
