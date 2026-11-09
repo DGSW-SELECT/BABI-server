@@ -9,6 +9,7 @@ import com.select.global.response.ApiResponse;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -33,9 +34,12 @@ public class VoiceRecordController {
     @PostMapping(value = "/stt", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ApiResponse<SttTranscriptResponse> transcribe(
             @PathVariable Long babyId,
+            @AuthenticationPrincipal String principal,
             @RequestPart("audio") MultipartFile audio
     ) {
-        SttTranscriptResponse response = voiceRecordService.transcribe(babyId, audio);
+        SttTranscriptResponse response = voiceRecordService.transcribe(
+                babyId, Long.valueOf(principal), audio
+        );
         return new ApiResponse<>(true, "음성 변환이 완료되었습니다.", response);
     }
 
@@ -43,28 +47,37 @@ public class VoiceRecordController {
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<VoiceInputResponse> save(
             @PathVariable Long babyId,
+            @AuthenticationPrincipal String principal,
             @Valid @RequestBody VoiceRecordRequest request
     ) {
-        VoiceInputResponse response = voiceRecordService.save(babyId, request);
+        VoiceInputResponse response = voiceRecordService.save(
+                babyId, Long.valueOf(principal), request
+        );
         return new ApiResponse<>(true, "음성 기록이 저장되었습니다.", response);
     }
 
     @GetMapping("/{voiceInputId}")
     public ApiResponse<VoiceInputResponse> get(
             @PathVariable Long babyId,
+            @AuthenticationPrincipal String principal,
             @PathVariable Long voiceInputId
     ) {
-        VoiceInputResponse response = voiceRecordService.get(babyId, voiceInputId);
+        VoiceInputResponse response = voiceRecordService.get(
+                babyId, Long.valueOf(principal), voiceInputId
+        );
         return new ApiResponse<>(true, "음성 기록을 조회했습니다.", response);
     }
 
     @PatchMapping("/{voiceInputId}")
     public ApiResponse<VoiceInputResponse> update(
             @PathVariable Long babyId,
+            @AuthenticationPrincipal String principal,
             @PathVariable Long voiceInputId,
             @Valid @RequestBody VoiceRecordUpdateRequest request
     ) {
-        VoiceInputResponse response = voiceRecordService.update(babyId, voiceInputId, request);
+        VoiceInputResponse response = voiceRecordService.update(
+                babyId, Long.valueOf(principal), voiceInputId, request
+        );
         return new ApiResponse<>(true, "음성 기록이 수정되었습니다.", response);
     }
 }

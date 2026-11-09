@@ -34,6 +34,10 @@ public class RestSttClient implements SttClient {
 
     @Override
     public SttResponse transcribe(MultipartFile audio) {
+        if (!StringUtils.hasText(properties.apiKey())) {
+            log.warn("STT API 키가 설정되지 않았습니다.");
+            throw new SttFailedException("STT API 키가 설정되지 않았습니다.");
+        }
         try {
             MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
             body.add("file", new ByteArrayResource(audio.getBytes()) {

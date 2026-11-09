@@ -18,11 +18,11 @@ Spring Boot는 IntelliJ 또는 Gradle로 호스트에서 실행하고, MySQL과 
 cp .env.example .env
 ```
 
-`.env`에서 `MYSQL_ROOT_PASSWORD`, `MYSQL_PASSWORD`, `JWT_SECRET`, `OPENAI_API_KEY`를 각자의 로컬 값으로 변경합니다.
+`.env`에서 `MYSQL_ROOT_PASSWORD`, `MYSQL_PASSWORD`, `JWT_SECRET`을 각자의 로컬 값으로 변경합니다. 음성 STT를 사용하려면 `OPENAI_API_KEY`도 실제 키로 변경합니다.
 
 `JWT_SECRET`은 JWT 서명 및 검증에 사용하는 필수 환경 변수입니다. `.env`의 `JWT_SECRET`을 각자의 무작위 비밀키로 변경합니다. HS256 서명에 사용하는 비밀키는 최소 32바이트 이상이어야 하며, 실제 비밀키는 Git에 커밋하지 않습니다.
 
-`OPENAI_API_KEY`는 음성 입력 STT에 사용하는 필수 환경 변수입니다. 실제 키는 Git에 커밋하지 않습니다.
+`OPENAI_API_KEY`는 음성 입력 STT를 호출할 때 필요합니다. 값이 없어도 서버는 시작되지만 음성 변환 API는 `STT_FAILED`로 실패합니다. 실제 키는 Git에 커밋하지 않습니다.
 
 `local` 프로필에서는 이메일 인증을 호출하지 않더라도 `.env`의 다음 필수 환경 변수를 설정해야 합니다. 예시 파일의 값은 자리표시자이므로 실제 로컬 설정으로 바꿔야 합니다.
 
@@ -32,9 +32,9 @@ cp .env.example .env
 | `MAIL_PASSWORD` | 해당 Gmail 계정에서 발급한 앱 비밀번호를 입력합니다. 일반 로그인 비밀번호를 사용하지 않습니다. |
 | `EMAIL_VERIFICATION_SECRET` | 인증번호를 HMAC-SHA256으로 해시하는 독립적인 무작위 비밀키입니다. `JWT_SECRET`과 다른 값을 사용합니다. 예를 들어 `openssl rand -hex 32`로 생성한 값을 설정할 수 있습니다. |
 
-실제 이메일 계정·앱 비밀번호·비밀키는 `.env`에만 보관하고 Git에 커밋하지 않습니다. 아래 실행 명령은 `.env`를 셸에서 읽으므로 `KEY=value` 형식을 유지하고, 공백이나 셸 특수문자가 들어가는 값은 작은따옴표로 감쌉니다. 직접 작성한 신뢰할 수 있는 `.env`만 읽습니다.
+실제 이메일 계정·앱 비밀번호·비밀키는 Git에 커밋하지 않습니다. `.env`는 `.gitignore`에 포함되어 있습니다. Docker Compose와 Spring Boot가 같은 파일을 읽으므로 따옴표 없이 `KEY=value` 형식으로 작성하고, 값에는 공백·백슬래시·달러 기호를 사용하지 않습니다. 각 프로그램의 해석 방식이 달라질 수 있습니다. 비밀키에는 `openssl rand -hex 32`로 생성한 값을 사용할 수 있습니다. Gmail 앱 비밀번호는 표시되는 공백을 제거하여 입력합니다. 외부에서 받은 `.env`를 셸 명령으로 실행하지 않습니다.
 
-`.env` 파일은 Docker Compose에서 설정값을 읽는 데 사용되며, 현재 프로젝트에는 호스트에서 실행하는 Spring Boot에 `.env`를 자동으로 로드하는 설정이 없습니다. 애플리케이션 실행 시 아래와 같이 환경 변수를 별도로 전달해야 합니다.
+`local` 프로필은 실행 프로세스의 **작업 디렉터리**에 있는 `.env`를 Spring의 properties 파일로 읽습니다. 파일 자체가 없어도 시작은 진행하지만 필요한 값이 다른 곳에도 없으면 시작에 실패합니다. OS 환경변수 또는 IntelliJ 실행 구성에서 명시한 환경변수가 `.env` 값보다 우선합니다. `local` 외의 프로필은 이 파일을 자동으로 읽지 않으며 운영 환경은 기존처럼 필요한 비밀값을 별도로 제공해야 합니다.
 
 2. MySQL과 Redis를 실행합니다.
 
@@ -45,24 +45,48 @@ docker compose ps
 
 MySQL은 `127.0.0.1:3307`으로만 노출되며, MySQL 데이터 디렉터리(`/var/lib/mysql`)는 `babi_mysql_data` Docker Volume에 저장됩니다.
 
-3. IntelliJ에서 `local` 프로필로 애플리케이션을 실행합니다. 실행 구성의 환경 변수에 `MYSQL_PASSWORD`, `JWT_SECRET`, `OPENAI_API_KEY`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `EMAIL_VERIFICATION_SECRET`을 `.env`의 값과 동일하게 설정해야 합니다. `.env` 파일을 만드는 것만으로 IntelliJ 실행 구성에 적용되지는 않습니다. `JWT_ACCESS_TOKEN_EXPIRATION_MINUTES`를 변경했다면 해당 값도 전달합니다.
+3. IntelliJ의 Spring Boot 실행 구성에서 Main class를 `com.select.BabiServerApplication`, Active profiles를 `local`, Working directory를 **BABI-server 프로젝트 루트**로 지정하고 실행합니다. 이 설정에서는 `.env`의 값이 Spring 설정으로 전달되므로 환경변수를 하나씩 복사할 필요가 없습니다. 실행 구성에 동일한 환경변수가 이미 들어 있다면 그 값이 우선하므로 오래된 값이 없는지 확인합니다. IntelliJ의 별도 `.env` 플러그인은 필요하지 않습니다.
 
-Gradle로 실행할 경우 프로젝트 루트에서 다음 명령을 실행합니다. Bash 또는 Zsh 기준이며, 괄호 안의 별도 셸에서 `.env`의 변수를 export한 뒤 Spring Boot를 실행합니다.
+Gradle로 실행할 경우 프로젝트 루트에서 다음 명령을 실행합니다.
 
 ```bash
-(
-  set -a
-  . ./.env || exit
-  set +a
-  ./gradlew bootRun --args='--spring.profiles.active=local'
-)
+./gradlew bootRun --args='--spring.profiles.active=local'
 ```
 
-`set -a`는 `.env`에서 읽은 변수를 자식 Gradle·Spring Boot 프로세스에 전달합니다. 별도 셸이 종료되면 이 설정은 현재 터미널에 남지 않습니다.
+`Could not resolve placeholder 'EMAIL_VERIFICATION_SECRET'`가 계속 발생하면 `local` 프로필, 실행 구성의 Working directory, `.env` 파일과 해당 키의 존재 여부를 확인합니다. 설정값 자체는 로그나 스크린샷에 노출하지 않습니다.
+
+애플리케이션은 시작 시 `schema.sql`을 자동 실행하지 않습니다 (`spring.sql.init.mode: never`). 실행 전에 팀에서 승인한 스키마를 별도로 준비해야 하며, 로컬 프로필은 Hibernate `validate`로 엔티티와 스키마를 검증합니다. 서버 시작은 기존 데이터베이스를 초기화하거나 테이블을 변경하지 않습니다. 스키마 변경은 별도 검토와 마이그레이션이 필요합니다.
 
 종료는 `docker compose down`을 사용합니다. 이 명령은 컨테이너와 네트워크를 제거하며, 일반적으로 `babi_mysql_data` Volume의 DB 데이터는 유지됩니다.
 
 **주의:** `docker compose down -v`는 `babi_mysql_data` 데이터 Volume도 삭제하므로 저장된 DB 데이터가 손실될 수 있습니다. 기존 데이터를 유지해야 한다면 `-v` 옵션을 사용하지 않습니다.
+
+테스트는 H2 메모리 DB를 사용합니다. 테스트 종료 후 데이터는 삭제되며 H2는 배포용 JAR에 포함되지 않습니다.
+
+## 배포 DB
+
+배포 환경은 MySQL DB를 준비하고 다음 환경 변수를 설정해야 합니다. 비밀번호를 Git에 저장하지 않습니다.
+
+- `SPRING_DATASOURCE_URL`: `jdbc:mysql://localhost:3306/babi` 형식의 연결 주소
+- `SPRING_DATASOURCE_USERNAME`: DB 계정
+- `SPRING_DATASOURCE_PASSWORD`: DB 비밀번호
+- `JWT_SECRET`: JWT 서명 키 (32바이트 이상)
+
+AWS 프로필·Redis·SMTP 미설정 데모 운영과 `main` 자동 배포는 [AWS 운영 문서](docs/aws-runtime.md)를 참고합니다. 운영 DB는 자동 초기화하거나 migration하지 않습니다.
+
+## 일일 리포트 API
+
+`POST /auth/login`에서 받은 `accessToken`을 `Authorization: Bearer <token>`으로 전달합니다.
+모든 리포트 API는 활성 계정이며 `active_baby_members`에 남아 있는 소유자 또는 `baby_permissions`가 부여된 멤버만 사용할 수 있습니다. 아기 생성자라도 멤버에서 제거되면 접근할 수 없습니다.
+
+| Method | Endpoint | 동작 |
+|---|---|---|
+| POST | `/babi/api/babies/{babyId}/daily-reports` | 생성 (`reportDate`, `summary`) |
+| GET | `/babi/api/babies/{babyId}/daily-reports/{date}` | 조회 |
+| PATCH | `/babi/api/babies/{babyId}/daily-reports/{date}` | 요약 수정 (`summary`) |
+| DELETE | `/babi/api/babies/{babyId}/daily-reports/{date}` | 삭제 |
+
+7일 통계는 리포트 날짜 6일 전 00:00부터 다음 날 00:00 직전까지 계산합니다. 경계를 넘는 수면은 구간과 겹치는 시간만 포함합니다.
 
 ## 음성 기록 API
 
@@ -78,13 +102,13 @@ Gradle로 실행할 경우 프로젝트 루트에서 다음 명령을 실행합�
 - STT 변환 결과는 DB에 저장하지 않으며, 사용자가 내용을 확인·수정한 뒤 저장 API를 호출합니다.
 - 저장된 기록도 `PATCH` API로 다시 수정할 수 있습니다.
 - 모든 음성 기록 API는 `Authorization: Bearer {accessToken}` 헤더가 필요합니다.
+- 요청자는 해당 아기의 활성 구성원이어야 하며, 아니면 `403 FORBIDDEN`을 반환합니다. 아기가 없으면 `404 NOT_FOUND`를 반환합니다.
 - 음성 파일은 25MB 이하이며 `mp3`, `mp4`, `m4a`, `mpeg`, `mpga`, `wav`, `webm`, `ogg`, `flac`, `aac`를 지원합니다.
 - 저장 요청 예시:
 
 ```json
 {
-  "transcript": "2시에 분유 100ml 먹였어",
-  "familyMemberId": 1
+  "transcript": "2시에 분유 100ml 먹였어"
 }
 ```
 
@@ -96,7 +120,14 @@ Gradle로 실행할 경우 프로젝트 루트에서 다음 명령을 실행합�
 }
 ```
 
-> `familyMemberId`는 family 도메인/JWT 연동 전까지 요청으로 받는 임시 값입니다. 연동 후에는 클라이언트 입력 대신 인증된 가족 구성원 ID를 서버에서 결정해야 합니다.
+> `familyMemberId`는 클라이언트가 보내지 않고, 인증된 사용자의 `baby_members.id`를 서버에서 결정합니다.
+
+## 검증
+
+```bash
+./gradlew test
+./gradlew build
+```
 
 ## Swagger API 문서
 
@@ -120,14 +151,10 @@ com.select
 │   ├── response
 │   └── security
 └── domain
+    ├── auth
+    ├── baby
+    ├── report
     ├── user
-    │   ├── controller
-    │   ├── dto
-    │   │   ├── request
-    │   │   └── response
-    │   ├── entity
-    │   ├── repository
-    │   └── service
     └── voice
         ├── client
         ├── controller

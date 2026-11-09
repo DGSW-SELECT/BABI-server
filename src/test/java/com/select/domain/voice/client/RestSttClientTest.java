@@ -76,4 +76,22 @@ class RestSttClientTest {
                 .isInstanceOf(SttFailedException.class);
         server.verify();
     }
+
+    @Test
+    void failsWithoutCallingUpstreamWhenApiKeyIsMissing() {
+        SttClient clientWithoutKey = new RestSttClient(
+                RestClient.builder().build(),
+                new SttProperties(
+                        "https://api.openai.com/v1", " ", "whisper-1", "ko", Duration.ofSeconds(30)
+                )
+        );
+        MockMultipartFile audio = new MockMultipartFile(
+                "audio", "voice.mp3", "audio/mpeg", "audio".getBytes(StandardCharsets.UTF_8)
+        );
+
+        assertThatThrownBy(() -> clientWithoutKey.transcribe(audio))
+                .isInstanceOf(SttFailedException.class)
+                .hasMessageContaining("API 키");
+        server.verify();
+    }
 }

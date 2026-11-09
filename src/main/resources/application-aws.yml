@@ -1,0 +1,43 @@
+spring:
+  config:
+    activate:
+      on-profile: aws
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://127.0.0.1:3307/babi}
+    username: ${SPRING_DATASOURCE_USERNAME:babi_user}
+    password: ${SPRING_DATASOURCE_PASSWORD:${MYSQL_PASSWORD}}
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 1
+  jpa:
+    defer-datasource-initialization: false
+    hibernate:
+      ddl-auto: validate
+  sql:
+    init:
+      mode: never
+  data:
+    redis:
+      host: 127.0.0.1
+      port: 6379
+      timeout: 2s
+  mail:
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+email:
+  verification:
+    secret: ${EMAIL_VERIFICATION_SECRET}
+jwt:
+  secret: ${JWT_SECRET}
+server:
+  address: 127.0.0.1
+  port: 8080
+  forward-headers-strategy: native

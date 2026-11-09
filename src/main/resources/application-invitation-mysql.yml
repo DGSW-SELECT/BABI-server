@@ -1,0 +1,47 @@
+spring:
+  config:
+    activate:
+      on-profile: invitation-mysql
+  datasource:
+    url: jdbc:mysql://127.0.0.1:1/disabled_invitation_mysql
+    username: babi_invitation_tester
+    password: ${INVITATION_TEST_DB_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+  sql:
+    init:
+      mode: never
+  data:
+    redis:
+      host: 127.0.0.1
+      port: 1
+      database: 15
+  mail:
+    host: 127.0.0.1
+    port: 1
+    username: invitation-test@example.invalid
+    password: unused
+    test-connection: false
+    properties:
+      mail:
+        debug: false
+        smtp:
+          auth: false
+          starttls:
+            enable: false
+          connectiontimeout: 1000
+          timeout: 1000
+          writetimeout: 1000
+server:
+  address: 127.0.0.1
+  port: ${INVITATION_TEST_PORT:18081}
+jwt:
+  secret: ${INVITATION_TEST_JWT_SECRET}
+email:
+  verification:
+    secret: ${INVITATION_TEST_EMAIL_SECRET}
+baby:
+  invitation:
+    link-base-url: https://invitation-test.example.invalid/invite
