@@ -13,6 +13,7 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 
@@ -44,7 +45,7 @@ class RestSttClientTest {
     }
 
     @Test
-    void sendsMultipartRequestAndParsesTranscript() {
+    void sendsMultipartWaveFileAndParsesTranscript() throws Exception {
         server.expect(requestTo(TRANSCRIPTION_URL))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer test-key"))
@@ -53,8 +54,15 @@ class RestSttClientTest {
                 .andExpect(content().string(containsString("ko")))
                 .andRespond(withSuccess("{\"text\":\"분유 먹였어\"}", MediaType.APPLICATION_JSON));
 
+        byte[] wavAudio;
+        try (InputStream input = getClass().getResourceAsStream("/audio/babi-voice-input-test.wav")) {
+            if (input == null) {
+                throw new IllegalStateException("음성 입력 테스트 파일을 찾을 수 없습니다.");
+            }
+            wavAudio = input.readAllBytes();
+        }
         MockMultipartFile audio = new MockMultipartFile(
-                "audio", "voice.mp3", "audio/mpeg", "audio".getBytes(StandardCharsets.UTF_8)
+                "audio", "babi-voice-input-test.wav", "audio/wav", wavAudio
         );
 
         SttResponse response = sttClient.transcribe(audio);

@@ -22,6 +22,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.nio.charset.StandardCharsets;
+import java.io.InputStream;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -68,8 +69,15 @@ class VoiceRecordControllerTest {
 
     @Test
     void transcribeReturnsTranscript() throws Exception {
+        byte[] wavAudio;
+        try (InputStream input = getClass().getResourceAsStream("/audio/babi-voice-input-test.wav")) {
+            if (input == null) {
+                throw new IllegalStateException("음성 입력 테스트 파일을 찾을 수 없습니다.");
+            }
+            wavAudio = input.readAllBytes();
+        }
         MockMultipartFile audio = new MockMultipartFile(
-                "audio", "voice.mp3", "audio/mpeg", "audio".getBytes(StandardCharsets.UTF_8)
+                "audio", "babi-voice-input-test.wav", "audio/wav", wavAudio
         );
         when(voiceRecordService.transcribe(eq(1L), eq(USER_ID), any(MultipartFile.class)))
                 .thenReturn(new SttTranscriptResponse("분유 먹였어"));
