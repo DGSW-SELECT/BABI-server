@@ -53,8 +53,7 @@ public class HandoverMemoService {
             Long authorMemberId = requireAuthor(userId, babyId);
             HandoverMemo memo = memos.save(new HandoverMemo(
                     babyId, authorMemberId, request.content(), LocalDateTime.now(SEOUL_ZONE)));
-            return new HandoverMemoResponse(memo.getId(), memo.getAuthorMemberId(),
-                    memo.getContent(), memo.getCreatedAt());
+            return new HandoverMemoResponse(memo.getId(), memo.getContent(), memo.getCreatedAt());
         });
     }
 

@@ -28,14 +28,13 @@ content는 필수이며 공백만 입력할 수 없고 최대 1000자이다.
   "message": "인수인계 메모가 등록되었습니다.",
   "data": {
     "memoId": 15,
-    "authorMemberId": 7,
     "content": "낮잠 후 장난감을 정리했습니다.",
     "createdAt": "2026-11-10T17:00:00"
   }
 }
 ```
 
-authorMemberId는 users.id가 아닌 baby_members.id이다.
+작성자 멤버 ID는 서버가 DB에 저장하지만 등록 응답에는 노출하지 않는다.
 createdAt은 Asia/Seoul 기준 작성 시각이며 응답에는 시간대 오프셋이 붙지 않는다.
 메모는 보호자가 직접 작성한 원문이고 AI 생성 결과가 아니다.
 
@@ -81,14 +80,20 @@ VIEWER는 권한 행이 남아 있어도 등록할 수 없다.
 
 handover_memos 테이블에 baby_id, author_member_id, content, created_at을 저장한다.
 (baby_id, author_member_id)의 복합 FK로 타 아기 멤버 지정은 DB에서도 차단한다.
-기존 groupId는 제거하고 authorId 응답은 authorMemberId로 변경했다.
+기존 groupId와 작성자 ID 요청값을 제거했고, 응답에서도 내부 멤버 ID를 제외했다.
 메모 테이블은 첨부 원본 DB에 없어서 신규 DDL이 필요하다.
 
 신규 초기화 스키마는 src/main/resources/schema.sql, H2 테스트 스키마는 src/test/resources/schema-test.sql에 반영했다.
 기존 DB 추가용 파일은 docs/schema/handover-memos.mysql.sql이다. DROP이나 기존 데이터 수정은 포함하지 않는다.
 팀 승인 후 DB 담당자가 대상 스키마, 부모 테이블 및 타입, InnoDB/utf8mb4 기본값을 확인하고 DDL을 적용한 다음 서버를 배포한다.
-이 PR은 실제 DB 적용이나 배포를 수행하지 않는다. MySQL 실DB 검증과 프론트엔드 연동 확인은 남아 있다.
+이 PR은 실제 DB 적용이나 배포를 수행하지 않는다. 프론트엔드 연동 확인은 남아 있다.
 서버 롤백 시에도 작성된 메모 테이블과 데이터는 보존한다.
+
+## 표시 및 AI 연동 보안
+
+프론트엔드는 `content`를 HTML로 해석하지 않고 React 문자열 보간 또는 `textContent`로 표시한다.
+`dangerouslySetInnerHTML`이나 동일한 HTML 삽입 방식을 사용하지 않는다.
+향후 AI 브리핑에 메모를 포함할 때는 메모를 실행할 지시가 아닌 요약 대상 데이터로 구분하고, 메모 안의 명령문을 실행하지 않는다.
 
 ## 범위
 
@@ -98,7 +103,8 @@ AI 브리핑 연동 요구는 별도 후속 작업으로 남겨 두며 기존 �
 
 ## 검증
 
-`./gradlew test --tests 'com.select.domain.handover.HandoverMemoIntegrationTest'`
+`./gradlew test --tests 'com.select.domain.handover.*'`
 
 실제 임의 포트 서버·JWT 필터·JPA/H2·공통 권한 SQL·복합 FK를 검증한다.
 Redis 토큰 폐기 저장소만 mock으로 대체하며 권한 저장소와 메모 저장소는 mock이 아니다.
+실제 Redis 원자적 제한은 `BABI_REDIS_TEST_PORT`가 있을 때, MySQL 복합 FK는 격리 스키마 검사에서 추가로 검증한다.

@@ -73,11 +73,13 @@ def main():
                 'com.select.domain.baby.service.BabyInvitationMySqlIntegrationTest',
                 '--tests', 'com.select.domain.care.CareRecordMySqlIntegrationTest',
                 '--tests', 'com.select.domain.report.DailyReportGenerationMySqlIntegrationTest',
+                '--tests', 'com.select.domain.handover.HandoverMemoMySqlIntegrationTest',
                 cwd=Path(__file__).resolve().parents[1], env=env)
             results = Path(__file__).resolve().parents[1] / 'build/test-results/test'
             for test_class in ['com.select.domain.baby.service.BabyInvitationMySqlIntegrationTest',
                                'com.select.domain.care.CareRecordMySqlIntegrationTest',
-                               'com.select.domain.report.DailyReportGenerationMySqlIntegrationTest']:
+                               'com.select.domain.report.DailyReportGenerationMySqlIntegrationTest',
+                               'com.select.domain.handover.HandoverMemoMySqlIntegrationTest']:
                 suite = ET.parse(results / ('TEST-' + test_class + '.xml')).getroot()
                 if int(suite.get('tests', '0')) == 0 or any(int(suite.get(key, '0')) for key in ['skipped', 'errors', 'failures']):
                     raise RuntimeError('Isolated MySQL suite did not run cleanly: ' + test_class)

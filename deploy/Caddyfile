@@ -3,5 +3,17 @@
 }
 
 api.babi.prot.kr {
+	@handover_memo_create {
+		method POST
+		path_regexp ^/babi/api/babies/[^/]+/handover-memos/?$
+	}
+
+	request_body @handover_memo_create {
+		max_size 8KB
+	}
+	timeouts @handover_memo_create {
+		read_timeout 10s 512
+	}
+
 	reverse_proxy 127.0.0.1:8080
 }

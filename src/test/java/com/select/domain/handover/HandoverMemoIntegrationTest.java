@@ -80,7 +80,7 @@ class HandoverMemoIntegrationTest {
         assertEquals(babyId, saved.getBabyId());
         assertEquals(ownerMemberId, saved.getAuthorMemberId());
         assertEquals(saved.getContent(), data.path("content").asString());
-        assertEquals(ownerMemberId.longValue(), data.path("authorMemberId").asLong());
+        assertFalse(data.has("authorMemberId"));
         assertNotNull(saved.getCreatedAt());
     }
 
