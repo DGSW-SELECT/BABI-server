@@ -1,6 +1,8 @@
 spring:
   application:
     name: babi-server
+  jpa:
+    open-in-view: false
   sql:
     init:
       mode: never
@@ -8,7 +10,6 @@ spring:
     properties:
       mail:
         smtp:
-          # Milliseconds per SMTP connect, read and write operation.
           connectiontimeout: 5000
           timeout: 5000
           writetimeout: 5000
@@ -21,3 +22,7 @@ springdoc:
 baby:
   invitation:
     link-base-url: ${BABY_INVITATION_LINK_BASE_URL:}
+
+openai:
+  api-key: ${OPENAI_API_KEY:}
+  model: ${OPENAI_MODEL:gpt-5-mini}

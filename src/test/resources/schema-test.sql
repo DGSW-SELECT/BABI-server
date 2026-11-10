@@ -215,3 +215,73 @@ CREATE TABLE IF NOT EXISTS `growth_records` (
     REFERENCES `baby_members` (`baby_id`, `id`)
     ON UPDATE NO ACTION ON DELETE NO ACTION
 );
+
+CREATE TABLE IF NOT EXISTS `voice_inputs` (
+    `id`             BIGINT       NOT NULL AUTO_INCREMENT,
+    `baby_id`        BIGINT       NOT NULL,
+    `baby_member_id` BIGINT       NULL,
+    `audio_url`      VARCHAR(500) NULL,
+    `transcript`     TEXT         NOT NULL,
+    `parse_status`   VARCHAR(20)  NOT NULL,
+    `created_at`     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_voice_inputs_pair` (`baby_id`, `id`),
+    KEY `idx_voice_inputs_baby_time` (`baby_id`, `created_at`),
+    CONSTRAINT `fk_voice_inputs_baby`
+        FOREIGN KEY (`baby_id`) REFERENCES `babies` (`id`)
+        ON UPDATE NO ACTION ON DELETE NO ACTION,
+    CONSTRAINT `fk_voice_inputs_member`
+        FOREIGN KEY (`baby_id`, `baby_member_id`)
+        REFERENCES `baby_members` (`baby_id`, `id`)
+        ON UPDATE NO ACTION ON DELETE NO ACTION
+);
+
+CREATE TABLE IF NOT EXISTS `diaper_records` (
+    `id`               BIGINT      NOT NULL AUTO_INCREMENT,
+    `baby_id`          BIGINT      NOT NULL,
+    `author_member_id` BIGINT      NULL,
+    `voice_input_id`   BIGINT      NULL,
+    `diaper_type`      VARCHAR(20) NOT NULL,
+    `occurred_at`      DATETIME    NOT NULL,
+    `note`             TEXT        NULL,
+    `created_at`       DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    KEY `idx_diaper_baby_time` (`baby_id`, `occurred_at`),
+    KEY `idx_diaper_author`    (`baby_id`, `author_member_id`),
+    KEY `idx_diaper_voice`     (`baby_id`, `voice_input_id`),
+    CONSTRAINT `fk_diaper_baby`
+        FOREIGN KEY (`baby_id`) REFERENCES `babies` (`id`)
+        ON UPDATE NO ACTION ON DELETE NO ACTION,
+    CONSTRAINT `fk_diaper_author`
+        FOREIGN KEY (`baby_id`, `author_member_id`)
+        REFERENCES `baby_members` (`baby_id`, `id`)
+        ON UPDATE NO ACTION ON DELETE NO ACTION,
+    CONSTRAINT `fk_diaper_voice`
+        FOREIGN KEY (`baby_id`, `voice_input_id`)
+        REFERENCES `voice_inputs` (`baby_id`, `id`)
+        ON UPDATE NO ACTION ON DELETE NO ACTION
+);
+
+CREATE TABLE IF NOT EXISTS `cry_records` (
+    `id`               BIGINT       NOT NULL AUTO_INCREMENT,
+    `baby_id`          BIGINT       NOT NULL,
+    `author_member_id` BIGINT       NULL,
+    `audio_url`        VARCHAR(500) NULL,
+    `cry_type`         VARCHAR(50)  NULL,
+    `confidence`       DECIMAL(5,2) NULL,
+    `occurred_at`      DATETIME     NOT NULL,
+    `note`             TEXT         NULL,
+    `created_at`       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    KEY `idx_cry_baby_time` (`baby_id`, `occurred_at`),
+    KEY `idx_cry_author`    (`baby_id`, `author_member_id`),
+    CONSTRAINT `chk_cry_confidence`
+        CHECK (`confidence` IS NULL OR `confidence` BETWEEN 0 AND 100),
+    CONSTRAINT `fk_cry_baby`
+        FOREIGN KEY (`baby_id`) REFERENCES `babies` (`id`)
+        ON UPDATE NO ACTION ON DELETE NO ACTION,
+    CONSTRAINT `fk_cry_author`
+        FOREIGN KEY (`baby_id`, `author_member_id`)
+        REFERENCES `baby_members` (`baby_id`, `id`)
+        ON UPDATE NO ACTION ON DELETE NO ACTION
+);

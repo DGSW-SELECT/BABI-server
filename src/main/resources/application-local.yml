@@ -30,3 +30,21 @@ email:
     secret: ${EMAIL_VERIFICATION_SECRET}
 jwt:
   secret: ${JWT_SECRET}
+server:
+  forward-headers-strategy: none
+
+---
+spring:
+  config:
+    activate:
+      on-profile: discord-demo
+  datasource:
+    url: ${BABI_DEMO_DB_URL:}
+  mail:
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+  data:
+    redis:
+      host: ${BABI_DEMO_REDIS_HOST:}
+      port: ${BABI_DEMO_REDIS_PORT:0}
+      password: ${BABI_DEMO_REDIS_PASSWORD:}

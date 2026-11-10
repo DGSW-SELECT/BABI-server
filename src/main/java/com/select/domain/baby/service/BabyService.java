@@ -38,6 +38,8 @@ public class BabyService {
 
     @Transactional
     public BabyCreateResponse createBaby(BabyCreateRequest request, Long userId) {
+        if (userRepository.findByIdForUpdate(userId).filter(User::isActive).isEmpty())
+            throw new AccessDeniedException("활성 사용자가 아닙니다.");
         Baby baby = Baby.builder()
                 .name(request.name())
                 .birthDate(request.birthDate())
