@@ -60,6 +60,14 @@ public class User {
         this.updatedAt = LocalDateTime.now();
     }
 
+    public void withdraw() {
+        this.email = "withdrawn-" + id + "@deleted.invalid";
+        this.passwordHash = "!";
+        this.nickname = "탈퇴한 사용자";
+        this.status = "WITHDRAWN";
+        this.withdrawnAt = LocalDateTime.now();
+    }
+
     public boolean isActive() {
         return "ACTIVE".equals(status);
     }

@@ -18,22 +18,7 @@ spring:
       host: 127.0.0.1
       port: 1
       database: 15
-  mail:
-    host: 127.0.0.1
-    port: 1
-    username: invitation-test@example.invalid
-    password: unused
-    test-connection: false
-    properties:
-      mail:
-        debug: false
-        smtp:
-          auth: false
-          starttls:
-            enable: false
-          connectiontimeout: 1000
-          timeout: 1000
-          writetimeout: 1000
+
 server:
   address: 127.0.0.1
   port: ${INVITATION_TEST_PORT:18081}

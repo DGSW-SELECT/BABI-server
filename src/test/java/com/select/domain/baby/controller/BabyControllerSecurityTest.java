@@ -203,6 +203,7 @@ class BabyControllerSecurityTest {
                 .andExpect(jsonPath("$.error").doesNotExist());
 
         verify(jwtProvider).getUserId("valid-token");
+        verify(jwtProvider).getSessionId("valid-token");
         verify(babyService).transferOwnership(101L, 7L, 8L);
         verifyNoMoreInteractions(jwtProvider, babyService);
     }
@@ -213,6 +214,22 @@ class BabyControllerSecurityTest {
     @Import({SecurityConfig.class, BabyController.class, GlobalExceptionHandler.class})
     static class SecurityTestConfig {
 
+        @Bean
+        com.select.global.security.jwt.RefreshSessionService refreshSessions() {
+            return mock(com.select.global.security.jwt.RefreshSessionService.class);
+        }
+
+        @Bean
+        com.select.global.security.jwt.TokenRevocationService tokenRevocationService() {
+            return mock(com.select.global.security.jwt.TokenRevocationService.class);
+        }
+        @Bean
+        com.select.domain.user.repository.UserRepository users() {
+            var users = mock(com.select.domain.user.repository.UserRepository.class);
+            when(users.findById(org.mockito.ArgumentMatchers.anyLong())).thenReturn(java.util.Optional.of(
+                    com.select.domain.user.entity.User.builder().email("test@example.invalid").nickname("test").passwordHash("test").build()));
+            return users;
+        }
         @Bean
         BabyService babyService() {
             return mock(BabyService.class);

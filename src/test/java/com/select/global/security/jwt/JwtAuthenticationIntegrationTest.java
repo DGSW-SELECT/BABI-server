@@ -61,6 +61,13 @@ class JwtAuthenticationIntegrationTest {
     @MockitoBean
     private EmailVerificationService emailVerificationService;
 
+    @MockitoSpyBean private com.select.domain.user.repository.UserRepository users;
+    @org.junit.jupiter.api.BeforeEach void activeSyntheticUsers() {
+        var active = com.select.domain.user.entity.User.builder().email("test@example.invalid").nickname("test").passwordHash("test").build();
+        org.mockito.Mockito.doReturn(java.util.Optional.of(active)).when(users).findById(42L);
+        org.mockito.Mockito.doReturn(java.util.Optional.of(active)).when(users).findById(43L);
+    }
+
     @LocalServerPort
     private int port;
 
