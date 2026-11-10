@@ -171,10 +171,12 @@ class GrowthServiceImplCreateTest {
         );
 
         verify(growthRepository, never()).save(any());
+        verify(babyRepository, never()).findByIdForUpdate(anyLong());
     }
     @Test
     void createGrowth_fail_whenBabyNotFound() {
         // given
+        when(babyMemberRepository.findByBabyIdAndUserId(1L, 10L)).thenReturn(Optional.of(member));
         when(babyRepository.findByIdForUpdate(1L))
                 .thenReturn(Optional.empty());
 
@@ -184,6 +186,21 @@ class GrowthServiceImplCreateTest {
                 () -> growthService.createGrowth(1L, 10L, request)
         );
 
+        verify(growthRepository, never()).save(any());
+    }
+    @Test
+    void createGrowth_rechecksMembershipAfterAcquiringBabyLock() {
+        when(babyMemberRepository.findByBabyIdAndUserId(1L, 10L))
+                .thenReturn(Optional.of(member), Optional.empty());
+
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> growthService.createGrowth(1L, 10L, request));
+
+        assertEquals(ErrorCode.BABY_MEMBER_NOT_FOUND, exception.getErrorCode());
+        var order = inOrder(babyMemberRepository, babyRepository);
+        order.verify(babyMemberRepository).findByBabyIdAndUserId(1L, 10L);
+        order.verify(babyRepository).findByIdForUpdate(1L);
+        order.verify(babyMemberRepository).findByBabyIdAndUserId(1L, 10L);
         verify(growthRepository, never()).save(any());
     }
     @Test

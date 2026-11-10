@@ -19,6 +19,7 @@ import com.select.global.exception.GlobalExceptionHandler;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Isolation;
 
 import java.time.LocalDate;
 
@@ -68,14 +69,16 @@ public class GrowthServiceImpl implements GrowthService{
     }
 
     @Override
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public GrowthRecordCreateResponse createGrowth(
             Long babyId,
             Long userId,
             GrowthRecordCreateRequest request
     ) {
+        babyMemberRepository.findByBabyIdAndUserId(babyId, userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.BABY_MEMBER_NOT_FOUND));
         Baby baby = babyRepository.findByIdForUpdate(babyId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.BABY_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(ErrorCode.BABY_MEMBER_NOT_FOUND));
         BabyMember member = babyMemberRepository.findByBabyIdAndUserId(babyId, userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.BABY_MEMBER_NOT_FOUND));
         // 2. 키와 몸무게 둘중에 하나라도 입력했는지 확인
@@ -90,8 +93,7 @@ public class GrowthServiceImpl implements GrowthService{
                     ErrorCode.GROWTH_INVALID_DATE
             );
         }
-        // The baby lock is acquired before any consistent read, so concurrent writes
-        // observe the last committed measurement even under MySQL repeatable read.
+        // READ_COMMITTED keeps this check and the membership recheck current after waiting for the baby lock.
         if (growthRepository.existsByBaby_IdAndMeasuredDate(babyId, request.measuredDate())) {
             throw new BusinessException(ErrorCode.GROWTH_DUPLICATE_DATE);
         }

@@ -88,6 +88,9 @@ class BabyIntegrationTest {
         assertEquals("FEMALE", mapper.readTree(request("GET", "/babies/" + id, ownerId, null).body()).path("data").path("sex").asText());
         assertEquals(403, request("PATCH", "/babies/" + babyId, memberId, "{\"sex\":\"MALE\"}").statusCode());
         assertEquals(400, request("POST", "/babies", ownerId, "{\"name\":\"baby\",\"birthDate\":\"2025-02-01\",\"sex\":\"UNKNOWN\"}").statusCode());
+        assertEquals(400, request("PATCH", "/babies/" + id, ownerId, "{\"sex\":\"UNKNOWN\"}").statusCode());
+        assertEquals(400, request("PATCH", "/babies/" + id, ownerId, "{\"sex\":null}").statusCode());
+        assertEquals("FEMALE", mapper.readTree(request("GET", "/babies/" + id, ownerId, null).body()).path("data").path("sex").asText());
     }
 
     @Test
