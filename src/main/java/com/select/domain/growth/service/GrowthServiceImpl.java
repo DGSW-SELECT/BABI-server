@@ -7,6 +7,7 @@ import com.select.domain.baby.repository.BabyRepository;
 import com.select.domain.growth.dto.request.GrowthRecordCreateRequest;
 import com.select.domain.growth.dto.response.GrowthRecordCreateResponse;
 import com.select.domain.growth.dto.response.GrowthRecordItem;
+import com.select.domain.growth.dto.response.GrowthComparisonResponse;
 import com.select.domain.growth.dto.response.GrowthRecordPage;
 import org.springframework.data.domain.PageRequest;
 import com.select.domain.growth.entity.GrowthRecord;
@@ -42,6 +43,25 @@ public class GrowthServiceImpl implements GrowthService{
         var items = results.stream().limit(limit).map(GrowthRecordItem::from).toList();
         Long next = more ? items.get(items.size() - 1).growthRecordId() : null;
         return new GrowthRecordPage(items, next);
+    }
+
+    @Override
+    public GrowthComparisonResponse compareGrowth(Long babyId, Long userId, Long growthRecordId) {
+        babyMemberRepository.findByBabyIdAndUserId(babyId, userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.BABY_MEMBER_NOT_FOUND));
+        GrowthRecord current = growthRepository.findByIdAndBaby_Id(growthRecordId, babyId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.GROWTH_RECORD_NOT_FOUND));
+        var previous = growthRepository.findFirstByBaby_IdAndMeasuredDateLessThanOrderByMeasuredDateDescIdDesc(babyId, current.getMeasuredDate());
+        if (previous.isEmpty()) return new GrowthComparisonResponse(GrowthRecordItem.from(current), null, null);
+        GrowthRecord old = previous.get();
+        var change = new GrowthComparisonResponse.Change(
+                java.time.temporal.ChronoUnit.DAYS.between(old.getMeasuredDate(), current.getMeasuredDate()),
+                difference(current.getHeight(), old.getHeight()), difference(current.getWeight(), old.getWeight()));
+        return new GrowthComparisonResponse(GrowthRecordItem.from(current), GrowthRecordItem.from(old), change);
+    }
+
+    private java.math.BigDecimal difference(java.math.BigDecimal current, java.math.BigDecimal previous) {
+        return current == null || previous == null ? null : current.subtract(previous);
     }
 
     @Override

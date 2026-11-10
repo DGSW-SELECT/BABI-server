@@ -16,6 +16,7 @@ public enum ErrorCode {
     INVITATION_SEND_FAILED(HttpStatus.SERVICE_UNAVAILABLE, "보호자 초대 이메일 발송에 실패했습니다."),
     BABY_NOT_FOUND(HttpStatus.NOT_FOUND, "아기를 찾을 수 없습니다."),
     BABY_MEMBER_NOT_FOUND(HttpStatus.NOT_FOUND, "멤버를 찾을 수 없습니다."),
+    GROWTH_RECORD_NOT_FOUND(HttpStatus.NOT_FOUND, "성장 기록을 찾을 수 없습니다."),
     GROWTH_VALUE_REQUIRED(HttpStatus.BAD_REQUEST, "키와 몸무게 중 하나라도 입력해야합니다."),
     GROWTH_INVALID_DATE(HttpStatus.BAD_REQUEST, "현재 이전의 날짜를 입력해주세요."),
     GROWTH_DUPLICATE_DATE(HttpStatus.CONFLICT, "동일 날짜의 기록이 존재합니다. 다른 날짜의 기록을 생성해주세요"),
