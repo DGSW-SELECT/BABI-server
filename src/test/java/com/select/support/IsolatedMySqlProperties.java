@@ -16,7 +16,8 @@ public final class IsolatedMySqlProperties {
                 || password == null || password.isBlank() || marker == null || !marker.matches("[0-9a-f]{48}")) {
             throw new IllegalStateException("Disposable MySQL test connection is required.");
         }
-        String url = "jdbc:mysql://127.0.0.1:" + port + "/babi_invitation_isolated?connectionTimeZone=UTC";
+        String url = "jdbc:mysql://127.0.0.1:" + port
+                + "/babi_invitation_isolated?connectionTimeZone=Asia%2FSeoul";
         try (var connection = DriverManager.getConnection(url, "babi_isolated_tester", password);
              var statement = connection.createStatement();
              var result = statement.executeQuery("SELECT run_token FROM isolation_guard")) {
