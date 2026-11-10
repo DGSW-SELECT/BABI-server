@@ -106,6 +106,17 @@ public class CareRecordIntegrationTest {
     }
 
     @Test
+    void writeOnlyCaregiverCanRegisterButCannotReadRecords() throws Exception {
+        Long writeOnlyId = user("write-only");
+        member(writeOnlyId, BabyRole.GUARDIAN, "CARE_WRITE");
+        var response = request("POST", recordsUrl(), writeOnlyId,
+                "{\"recordType\":\"DIAPER\",\"occurredAt\":\"2026-11-08T10:00:00\",\"diaperType\":\"STOOL\"}");
+        assertStatus(201, response);
+        assertStatus(403, request("GET", recordsUrl() + "?date=2026-11-08", writeOnlyId, null));
+        assertEquals(1L, jdbc.queryForObject("SELECT COUNT(*) FROM diaper_records WHERE baby_id=?", Long.class, babyId));
+    }
+
+    @Test
     void dateBoundariesAndStablePaginationDoNotMixBabiesOrLoseEqualTimeRecords() throws Exception {
         create(ownerId,"DIAPER","2026-11-07T23:59:59",Map.of("diaperType","URINE"));
         create(ownerId,"DIAPER","2026-11-08T00:00:00",Map.of("diaperType","STOOL"));
