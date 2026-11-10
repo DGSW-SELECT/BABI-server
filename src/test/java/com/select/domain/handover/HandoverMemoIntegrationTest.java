@@ -7,11 +7,14 @@ import com.select.domain.baby.repository.BabyMemberRepository;
 import com.select.domain.baby.repository.BabyRepository;
 import com.select.domain.handover.dto.request.HandoverMemoCreateRequest;
 import com.select.domain.handover.repository.HandoverMemoRepository;
+import com.select.domain.handover.service.HandoverMemoRateLimiter;
 import com.select.domain.handover.service.HandoverMemoService;
+import com.select.domain.handover.exception.HandoverMemoException;
 import com.select.domain.user.entity.User;
 import com.select.domain.user.repository.UserRepository;
 import com.select.global.security.jwt.JwtProvider;
 import com.select.global.security.jwt.TokenRevocationService;
+import com.select.global.exception.ErrorCode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -36,6 +39,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.doThrow;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
         "spring.datasource.url=jdbc:h2:mem:handover-memos;MODE=MySQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE",
@@ -53,6 +57,7 @@ class HandoverMemoIntegrationTest {
     @Autowired private JwtProvider jwt;
     @Autowired private ObjectMapper mapper;
     @MockitoBean private TokenRevocationService revocations;
+    @MockitoBean private HandoverMemoRateLimiter rateLimiter;
 
     private final HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build();
     private Long ownerId;
@@ -172,6 +177,32 @@ class HandoverMemoIntegrationTest {
         long before = memos.count();
         assertStatus(400, post(babyId, token(ownerId),
                 mapper.writeValueAsString(Map.of("content", "가".repeat(1001)))));
+        assertEquals(before, memos.count());
+    }
+
+    @Test
+    void rejectsOversizedRequestBeforeJsonParsing() throws Exception {
+        long before = memos.count();
+        var response = post(babyId, token(ownerId),
+                mapper.writeValueAsString(Map.of("content", "가".repeat(3000))));
+
+        assertStatus(413, response);
+        assertEquals("PAYLOAD_TOO_LARGE", mapper.readTree(response.body()).path("error").path("code").asString());
+        assertEquals(before, memos.count());
+    }
+
+    @Test
+    void rateLimitFailureDoesNotPersistMemo() throws Exception {
+        doThrow(new HandoverMemoException(ErrorCode.HANDOVER_MEMO_RATE_LIMITED))
+                .when(rateLimiter).check(ownerId, babyId);
+        long before = memos.count();
+
+        var response = post(babyId, token(ownerId), "{\"content\":\"메모\"}");
+
+        assertStatus(429, response);
+        assertEquals("60", response.headers().firstValue("Retry-After").orElseThrow());
+        assertEquals("HANDOVER_MEMO_RATE_LIMITED",
+                mapper.readTree(response.body()).path("error").path("code").asString());
         assertEquals(before, memos.count());
     }
 

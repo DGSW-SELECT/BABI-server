@@ -10,6 +10,10 @@ public enum ErrorCode {
     DAILY_REPORT_NO_RECORDS(HttpStatus.BAD_REQUEST, "해당 날짜에 요약할 육아 기록이 없습니다."),
     DAILY_REPORT_GENERATION_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "AI 리포트 생성을 일시적으로 사용할 수 없습니다."),
 
+    HANDOVER_MEMO_RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "인수인계 메모 등록 횟수를 초과했습니다."),
+    HANDOVER_MEMO_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "인수인계 메모 등록을 일시적으로 사용할 수 없습니다."),
+    PAYLOAD_TOO_LARGE(HttpStatus.CONTENT_TOO_LARGE, "요청 본문이 너무 큽니다."),
+
     INVITATION_INVALID(HttpStatus.BAD_REQUEST, "유효한 보호자 초대를 확인할 수 없습니다."),
     INVITATION_CODE_EXPIRED(HttpStatus.CONFLICT, "초대 코드가 만료되었습니다. 소유자가 재발급해야 합니다."),
     INVITATION_CODE_EXHAUSTED(HttpStatus.CONFLICT, "초대 코드의 사용 횟수를 모두 사용했습니다. 소유자가 재발급해야 합니다."),

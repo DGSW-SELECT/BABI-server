@@ -43,11 +43,16 @@ createdAt은 Asia/Seoul 기준 작성 시각이며 응답에는 시간대 오프
 | --- | --- | --- |
 | 입력 누락·공백·1000자 초과 | 400 | VALIDATION_ERROR |
 | 잘못된 JSON | 400 | INVALID_REQUEST_BODY |
+| 8KB를 초과하는 요청 본문 | 413 | PAYLOAD_TOO_LARGE |
 | 인증 없음 | 401 | UNAUTHORIZED |
 | 잘못된·폐기된 토큰 또는 비활성 계정 | 401 | INVALID_TOKEN |
 | 타 가족·제거된 멤버·쓰기 권한 없음·존재하지 않는 아기 | 403 | FORBIDDEN |
 | 인증 저장소 장애 | 503 | AUTH_SERVICE_UNAVAILABLE |
+| 분당 등록 제한 초과 | 429 | HANDOVER_MEMO_RATE_LIMITED |
+| 메모 요청 제한 저장소 장애 | 503 | HANDOVER_MEMO_UNAVAILABLE |
 | 예상하지 못한 저장 오류 | 500 | INTERNAL_SERVER_ERROR |
+
+분당 등록 제한을 초과한 `429` 응답은 `Retry-After: 60` 헤더를 함께 반환한다.
 
 오류는 기존 ApiResponse 형식으로 전달한다:
 
@@ -60,7 +65,8 @@ createdAt은 Asia/Seoul 기준 작성 시각이며 응답에는 시간대 오프
 }
 ```
 
-같은 내용의 메모를 여러 번 쓸 수 있다. 요청 중복 제거 기능은 없으므로 응답을 받지 못했다고 자동 재전송하지 않는다.
+같은 내용의 메모를 여러 번 쓸 수 있지만, 기본값으로 사용자당 분당 20회와 아기당 분당 60회로 제한한다.
+요청 중복 제거 기능은 없으므로 응답을 받지 못했다고 자동 재전송하지 않는다.
 AI 실패·육아 기록 없음은 이 등록 API의 오류 상태가 아니다.
 
 ## 권한 및 트랜잭션

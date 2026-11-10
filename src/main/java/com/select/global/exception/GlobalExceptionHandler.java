@@ -1,6 +1,7 @@
 package com.select.global.exception;
 
 import com.select.domain.care.exception.CareRecordException;
+import com.select.domain.handover.exception.HandoverMemoException;
 import com.select.domain.report.exception.DailyReportGenerationException;
 import com.select.domain.auth.exception.EmailVerificationException;
 import com.select.domain.baby.exception.BabyNotFoundException;
@@ -37,6 +38,17 @@ import java.util.List;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
+
+    @ExceptionHandler(HandoverMemoException.class)
+    public ResponseEntity<ApiResponse<Void>> handleHandoverMemo(HandoverMemoException e) {
+        if (e.getErrorCode() == ErrorCode.HANDOVER_MEMO_RATE_LIMITED) {
+            return ResponseEntity
+                    .status(e.getErrorCode().getHttpStatus())
+                    .header(HttpHeaders.RETRY_AFTER, "60")
+                    .body(createErrorResponseBody(e.getErrorCode(), List.of()));
+        }
+        return createErrorResponse(e.getErrorCode(), List.of());
+    }
 
     @ExceptionHandler(DailyReportGenerationException.class)
     public ResponseEntity<ApiResponse<Void>> handleDailyReportGeneration(DailyReportGenerationException e) {

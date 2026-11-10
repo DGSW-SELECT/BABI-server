@@ -27,21 +27,24 @@ public class HandoverMemoService {
     private final BabyAccessRepository access;
     private final BabyRepository babies;
     private final UserRepository users;
+    private final HandoverMemoRateLimiter rateLimiter;
     private final TransactionTemplate transactions;
 
     public HandoverMemoService(HandoverMemoRepository memos, BabyAccessRepository access,
-                               BabyRepository babies, UserRepository users,
+                               BabyRepository babies, UserRepository users, HandoverMemoRateLimiter rateLimiter,
                                PlatformTransactionManager transactionManager) {
         this.memos = memos;
         this.access = access;
         this.babies = babies;
         this.users = users;
+        this.rateLimiter = rateLimiter;
         this.transactions = new TransactionTemplate(transactionManager);
     }
 
     @Transactional(propagation = Propagation.NEVER)
     public HandoverMemoResponse createMemo(Long babyId, Long userId, HandoverMemoCreateRequest request) {
         requireAuthor(userId, babyId);
+        rateLimiter.check(userId, babyId);
         return transactions.execute(status -> {
             users.findByIdForUpdate(userId).filter(User::isActive)
                     .orElseThrow(() -> new AccessDeniedException("활성 사용자가 아닙니다."));
