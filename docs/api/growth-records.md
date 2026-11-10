@@ -30,4 +30,16 @@ JWT를 `Authorization: Bearer <accessToken>`으로 전달한다. 아기의 활�
 
 `/api/v1/babies/{babyId}/growth-comparison`도 지원한다. 지정 기록보다 측정일이 앞선 가장 최근 기록과 비교한다. 기록이 없거나 다른 아기의 기록이면 404이다. `current`와 `previous`는 조회 항목과 같은 구조다. `change`는 날짜 차이 `days`, 키 차이 `heightCm`, 몸무게 차이 `weightKg`를 포함한다. 비교 대상이 없으면 `previous`와 `change`는 null이고, 한쪽에 측정값이 없으면 해당 변화량은 null이다.
 
-표준 성장곡선이나 백분위 값은 제공하지 않는다. 신뢰할 수 있는 기준 데이터와 적용 연령·성별 정책이 정해져 있지 않기 때문이다.
+응답의 `standard`는 측정일 당시 만나이(완료된 개월 수)와 저장된 성별을 사용한 2017 소아청소년 성장도표의 연령별 신장·체중 백분위를 제공한다. 다음 예시는 남아 12개월, 키 75cm, 체중 9kg이다.
+
+```json
+{"status":"AVAILABLE","source":"2017 소아청소년 성장도표","sourceUrl":"https://knhanes.kdca.go.kr/knhanes/grtcht/dwnld/dtDtl.do?pg=1&st=&sb=1&menuId=20011002&dataNo=7","sex":"MALE","ageMonths":12,"heightPercentile":37.6,"weightPercentile":26.3}
+```
+
+성별이 저장되지 않은 아기는 `SEX_REQUIRED`, 측정일이 출생일 전이면 `MEASURED_BEFORE_BIRTH`, 228개월 이상이면 `AGE_OUT_OF_RANGE`를 반환하며 백분위는 null이다. 해당 항목에 측정값이 없을 때도 그 백분위는 null이다. 0~227개월에 해당하는 공식 L, M, S 값으로 LMS Z 점수와 정규분포 누적확률을 계산하고 백분위는 소수 첫째 자리로 반올림한다. 비교 결과는 성장 상태를 참고하기 위한 값이며 진단이나 의료적 판정을 제공하지 않는다. 개별 건강 판단은 전문가 상담이 필요하다.
+
+아기 등록 `POST /babies` 또는 OWNER의 수정 `PATCH /babies/{babyId}`에 `"sex":"MALE"` 또는 `"sex":"FEMALE"`을 전달할 수 있다. 기존 클라이언트 호환을 위해 생략 가능하며, 기존 아기에게는 임의 값을 지정하지 않는다. 성장도표 비교를 사용하려면 OWNER가 해당 값을 입력해야 한다.
+
+**자료 출처:** 질병관리청 국민건강영양조사 [2017 소아청소년 성장도표 기본자료](https://knhanes.kdca.go.kr/knhanes/grtcht/dwnld/dtDtl.do?pg=1&st=&sb=1&menuId=20011002&dataNo=7)의 `성장도표 데이터 테이블.xls`, `연령별 신장` 및 `연령별 체중` 시트. `src/main/resources/growth/kdca-2017-lms.csv`는 해당 시트의 성별·개월·L·M·S 열을 추출한 자료다. 원본 파일 SHA-256: `2f14e281f3414e5ef5354c8ef52f9143c91d470a2993d2b9484ef2c664b37d6a`. 공식 계산기의 가상 입력(남녀 각각 생후 12개월, 75cm, 9kg)과 결과를 대조했다.
+
+배포 전 별도 승인 절차로 `docs/migrations/20261110_add_baby_sex.sql`을 적용해야 한다. 자동 초기화·마이그레이션은 실행하지 않으며 기존 NULL 데이터는 보호자가 별도 수정해야 한다.

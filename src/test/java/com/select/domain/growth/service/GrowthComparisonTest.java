@@ -24,7 +24,7 @@ class GrowthComparisonTest {
         when(old.getHeight()).thenReturn(new BigDecimal("100.0"));
         when(repo.findByIdAndBaby_Id(5L, 1L)).thenReturn(Optional.of(current));
         when(repo.findFirstByBaby_IdAndMeasuredDateLessThanOrderByMeasuredDateDescIdDesc(1L, LocalDate.of(2026,9,24))).thenReturn(Optional.of(old));
-        var result = new GrowthServiceImpl(repo, members, mock(BabyRepository.class)).compareGrowth(1L, 2L, 5L);
+        var result = new GrowthServiceImpl(repo, members, mock(BabyRepository.class), mock(com.select.domain.growth.standard.GrowthStandardService.class)).compareGrowth(1L, 2L, 5L);
         assertEquals(1L, result.change().days());
         assertEquals(new BigDecimal("0.2"), result.change().heightCm());
         assertNull(result.change().weightKg());
@@ -35,7 +35,7 @@ class GrowthComparisonTest {
         var current = mock(GrowthRecord.class);
         when(current.getMeasuredDate()).thenReturn(LocalDate.of(2026,9,24));
         when(repo.findByIdAndBaby_Id(5L, 1L)).thenReturn(Optional.of(current));
-        var service = new GrowthServiceImpl(repo, members, mock(BabyRepository.class));
+        var service = new GrowthServiceImpl(repo, members, mock(BabyRepository.class), mock(com.select.domain.growth.standard.GrowthStandardService.class));
         var result = service.compareGrowth(1L, 2L, 5L);
         assertNull(result.previous()); assertNull(result.change());
         assertThrows(BusinessException.class, () -> service.compareGrowth(1L, 2L, 9L));

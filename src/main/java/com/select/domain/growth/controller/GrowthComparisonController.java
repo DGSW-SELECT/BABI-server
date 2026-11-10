@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class GrowthComparisonController {
     private final GrowthService growthService;
 
-    @Operation(summary = "이전 성장 기록과 비교", description = "지정 기록보다 측정일이 이전인 가장 최근 기록과 비교합니다.")
+    @Operation(summary = "이전 성장 기록과 비교", description = "이전 기록과 차이 및 2017 국내 성장도표 기준 백분위를 조회합니다. 의료 진단이 아닙니다.")
     @GetMapping({"/babies/{babyId}/growth-comparison", "/api/v1/babies/{babyId}/growth-comparison"})
     public GrowthComparisonResponse compare(@PathVariable Long babyId,
             @AuthenticationPrincipal(expression = "toString()") String userId,

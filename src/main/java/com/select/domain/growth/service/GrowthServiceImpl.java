@@ -12,6 +12,7 @@ import com.select.domain.growth.dto.response.GrowthRecordPage;
 import org.springframework.data.domain.PageRequest;
 import com.select.domain.growth.entity.GrowthRecord;
 import com.select.domain.growth.repository.GrowthRepository;
+import com.select.domain.growth.standard.GrowthStandardService;
 import com.select.global.exception.BusinessException;
 import com.select.global.exception.ErrorCode;
 import com.select.global.exception.GlobalExceptionHandler;
@@ -29,6 +30,7 @@ public class GrowthServiceImpl implements GrowthService{
     private final GrowthRepository growthRepository;
     private final BabyMemberRepository babyMemberRepository;
     private final BabyRepository babyRepository;
+    private final GrowthStandardService growthStandardService;
 
     @Override
     public GrowthRecordPage listGrowth(Long babyId, Long userId,
@@ -51,13 +53,14 @@ public class GrowthServiceImpl implements GrowthService{
                 .orElseThrow(() -> new BusinessException(ErrorCode.BABY_MEMBER_NOT_FOUND));
         GrowthRecord current = growthRepository.findByIdAndBaby_Id(growthRecordId, babyId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.GROWTH_RECORD_NOT_FOUND));
+        var standard = growthStandardService.assess(current.getBaby(), current);
         var previous = growthRepository.findFirstByBaby_IdAndMeasuredDateLessThanOrderByMeasuredDateDescIdDesc(babyId, current.getMeasuredDate());
-        if (previous.isEmpty()) return new GrowthComparisonResponse(GrowthRecordItem.from(current), null, null);
+        if (previous.isEmpty()) return new GrowthComparisonResponse(GrowthRecordItem.from(current), null, null, standard);
         GrowthRecord old = previous.get();
         var change = new GrowthComparisonResponse.Change(
                 java.time.temporal.ChronoUnit.DAYS.between(old.getMeasuredDate(), current.getMeasuredDate()),
                 difference(current.getHeight(), old.getHeight()), difference(current.getWeight(), old.getWeight()));
-        return new GrowthComparisonResponse(GrowthRecordItem.from(current), GrowthRecordItem.from(old), change);
+        return new GrowthComparisonResponse(GrowthRecordItem.from(current), GrowthRecordItem.from(old), change, standard);
     }
 
     private java.math.BigDecimal difference(java.math.BigDecimal current, java.math.BigDecimal previous) {

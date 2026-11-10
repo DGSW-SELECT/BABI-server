@@ -62,11 +62,36 @@ class GrowthApiIntegrationTest {
         var compare = send("GET", path + "/growth-comparison?growthRecordId=" + id, token, null);
         assertEquals(200, compare.statusCode(), compare.body());
         assertEquals(0, new java.math.BigDecimal("1.5").compareTo(json.readTree(compare.body()).get("change").get("heightCm").decimalValue()));
+        assertEquals("SEX_REQUIRED", json.readTree(compare.body()).get("standard").get("status").asText());
+        var updatedBaby = send("PATCH", path, token, "{\"sex\":\"FEMALE\"}");
+        assertEquals(200, updatedBaby.statusCode(), updatedBaby.body());
+        var updatedComparison = send("GET", path + "/growth-comparison?growthRecordId=" + id, token, null);
+        assertEquals("AVAILABLE", json.readTree(updatedComparison.body()).get("standard").get("status").asText());
+        assertEquals("FEMALE", json.readTree(updatedComparison.body()).get("standard").get("sex").asText());
         assertEquals(401, send("GET", path + "/growth-records", null, null).statusCode());
         String otherToken = jwt.createAccessToken(other.getId().toString());
         assertEquals(404, send("GET", path + "/growth-records", otherToken, null).statusCode());
         assertEquals(404, send("GET", path + "/growth-comparison?growthRecordId=" + id, otherToken, null).statusCode());
         assertEquals(404, send("POST", path + "/growth-records", otherToken, "{\"measuredDate\":\"" + today + "\",\"heightCm\":70}").statusCode());
+    }
+    @Test void standardComparisonUsesStoredSexAndExistingRecord() throws Exception {
+        var user = users.saveAndFlush(User.builder().email(UUID.randomUUID() + "@example.invalid").nickname("parent").passwordHash("hash").build());
+        var baby = babies.saveAndFlush(Baby.builder().name("baby").birthDate(LocalDate.of(2025,1,1)).sex(com.select.domain.baby.entity.BabySex.MALE).createdByUserId(user.getId()).build());
+        members.saveAndFlush(BabyMember.builder().babyId(baby.getId()).userId(user.getId()).role(BabyRole.OWNER).build());
+        String path = "/babies/" + baby.getId();
+        String token = jwt.createAccessToken(user.getId().toString());
+        var created = send("POST", path + "/growth-records", token,
+                "{\"measuredDate\":\"2026-01-01\",\"heightCm\":75,\"weightKg\":9}");
+        assertEquals(201, created.statusCode(), created.body());
+        long id = json.readTree(created.body()).get("growthRecordId").asLong();
+        var result = send("GET", path + "/growth-comparison?growthRecordId=" + id, token, null);
+        assertEquals(200, result.statusCode(), result.body());
+        var standard = json.readTree(result.body()).get("standard");
+        assertEquals("AVAILABLE", standard.get("status").asText());
+        assertEquals("MALE", standard.get("sex").asText());
+        assertEquals(12, standard.get("ageMonths").asInt());
+        assertEquals(0, new java.math.BigDecimal("37.6").compareTo(standard.get("heightPercentile").decimalValue()));
+        assertEquals(0, new java.math.BigDecimal("26.3").compareTo(standard.get("weightPercentile").decimalValue()));
     }
     @Test void simultaneousSameDateCreatesOnlyOneRecord() throws Exception {
         var user = users.saveAndFlush(User.builder().email(UUID.randomUUID() + "@example.invalid").nickname("parent").passwordHash("hash").build());
