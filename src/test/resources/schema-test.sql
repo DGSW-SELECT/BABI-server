@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS `babies` (
     `created_by_user_id` BIGINT       NOT NULL,
     `name`               VARCHAR(50)  NOT NULL,
     `birth_date`         DATE         NOT NULL,
+    `sex`                VARCHAR(6)   NULL,
     `created_at`         DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
     KEY `idx_babies_created_by` (`created_by_user_id`),
