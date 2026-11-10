@@ -8,4 +8,9 @@ public record HandoverMemoCreateRequest(
         @Size(max = 1000, message = "메모는 1000자 이하로 입력해 주세요.")
         String content
 ) {
+    public HandoverMemoCreateRequest {
+        if (content != null) {
+            content = content.strip();
+        }
+    }
 }

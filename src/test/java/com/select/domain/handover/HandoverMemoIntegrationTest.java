@@ -176,6 +176,17 @@ class HandoverMemoIntegrationTest {
     }
 
     @Test
+    void trimsOuterWhitespaceAndPreservesLineBreaks() throws Exception {
+        var response = post(babyId, token(ownerId), mapper.writeValueAsString(Map.of(
+                "content", "  낮잠 후 우유를 먹였습니다.\n잠들기 전에 체온을 확인해 주세요.  ")));
+
+        assertStatus(200, response);
+        Long memoId = mapper.readTree(response.body()).path("data").path("memoId").asLong();
+        assertEquals("낮잠 후 우유를 먹였습니다.\n잠들기 전에 체온을 확인해 주세요.",
+                memos.findById(memoId).orElseThrow().getContent());
+    }
+
+    @Test
     void databaseRejectsAuthorFromAnotherBaby() {
         Long otherBabyId = createBaby(ownerId);
         assertThrows(DataIntegrityViolationException.class, () -> jdbc.update(
