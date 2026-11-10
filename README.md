@@ -101,10 +101,10 @@ Discord 연결은 최대 3초, 요청은 최대 5초로 제한합니다. 응답 
 
 | Method | Endpoint | 동작 |
 |---|---|---|
-| POST | `/babi/api/babies/{babyId}/daily-reports` | 생성 (`reportDate`, `summary`) |
-| GET | `/babi/api/babies/{babyId}/daily-reports/{date}` | 조회 |
-| PATCH | `/babi/api/babies/{babyId}/daily-reports/{date}` | 요약 수정 (`summary`) |
-| DELETE | `/babi/api/babies/{babyId}/daily-reports/{date}` | 삭제 |
+| POST | `/babies/{babyId}/daily-reports` | 생성 (`reportDate`, `summary`) |
+| GET | `/babies/{babyId}/daily-reports/{date}` | 조회 |
+| PATCH | `/babies/{babyId}/daily-reports/{date}` | 요약 수정 (`summary`) |
+| DELETE | `/babies/{babyId}/daily-reports/{date}` | 삭제 |
 
 7일 통계는 리포트 날짜 6일 전 00:00부터 다음 날 00:00 직전까지 계산합니다. 경계를 넘는 수면은 구간과 겹치는 시간만 포함합니다.
 
