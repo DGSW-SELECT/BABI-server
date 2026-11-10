@@ -53,4 +53,8 @@ dependencies {
 tasks.named('test') {
 	useJUnitPlatform()
 	systemProperty 'spring.profiles.active', 'test'
+	testLogging {
+		events 'failed'
+		exceptionFormat 'full'
+	}
 }

@@ -18,6 +18,10 @@ public enum ErrorCode {
     VACCINE_DUPLICATE(HttpStatus.CONFLICT, "다른 접종과 중복될 수 없습니다."),
     ACCESS_DENIED(HttpStatus.FORBIDDEN, "해당 리소스에 접근할 권한이 없습니다."),
   
+    INVALID_CARE_RECORD(HttpStatus.BAD_REQUEST, "기록 내용 또는 연결된 음성 기록을 확인해 주세요."),
+    DAILY_REPORT_NO_RECORDS(HttpStatus.BAD_REQUEST, "해당 날짜에 요약할 육아 기록이 없습니다."),
+    DAILY_REPORT_GENERATION_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "AI 리포트 생성을 일시적으로 사용할 수 없습니다."),
+
     INVITATION_INVALID(HttpStatus.BAD_REQUEST, "유효한 보호자 초대를 확인할 수 없습니다."),
     INVITATION_CODE_EXPIRED(HttpStatus.CONFLICT, "초대 코드가 만료되었습니다. 소유자가 재발급해야 합니다."),
     INVITATION_CODE_EXHAUSTED(HttpStatus.CONFLICT, "초대 코드의 사용 횟수를 모두 사용했습니다. 소유자가 재발급해야 합니다."),
