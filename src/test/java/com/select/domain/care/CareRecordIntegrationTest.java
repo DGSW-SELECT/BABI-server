@@ -92,8 +92,9 @@ public class CareRecordIntegrationTest {
         jdbc.update("UPDATE baby_members SET removed_at=CURRENT_TIMESTAMP WHERE id=?", writerMemberId);
         assertStatus(403, request("POST", recordsUrl(), writerId, payload));
         assertStatus(403, request("GET", recordsUrl()+"?date=2026-11-08", writerId, null));
+        String ownerToken = jwt.createAccessToken(ownerId.toString());
         jdbc.update("UPDATE users SET status='WITHDRAWN',withdrawn_at=CURRENT_TIMESTAMP WHERE id=?", ownerId);
-        assertStatus(403, request("GET", recordsUrl()+"?date=2026-11-08", ownerId, null));
+        assertStatus(403, requestWithToken("GET", recordsUrl()+"?date=2026-11-08", ownerToken, null));
         assertEquals(1L, jdbc.queryForObject("SELECT COUNT(*) FROM feeding_records WHERE baby_id=?", Long.class, babyId));
     }
 
@@ -214,9 +215,14 @@ public class CareRecordIntegrationTest {
     }
 
     private HttpResponse<String> request(String method, String path, Long userId, String body) throws Exception {
+        String token = userId == null ? null : jwt.createAccessToken(userId.toString());
+        return requestWithToken(method, path, token, body);
+    }
+
+    private HttpResponse<String> requestWithToken(String method, String path, String token, String body) throws Exception {
         var request = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + path))
                 .timeout(Duration.ofSeconds(15)).header("Content-Type", "application/json");
-        if (userId != null) request.header("Authorization", "Bearer " + jwt.createAccessToken(userId.toString()));
+        if (token != null) request.header("Authorization", "Bearer " + token);
         return client.send(request.method(method, body == null ? HttpRequest.BodyPublishers.noBody()
                 : HttpRequest.BodyPublishers.ofString(body)).build(), HttpResponse.BodyHandlers.ofString());
     }
