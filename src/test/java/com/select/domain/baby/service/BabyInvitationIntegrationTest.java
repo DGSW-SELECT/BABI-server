@@ -283,12 +283,13 @@ class BabyInvitationIntegrationTest {
         CountDownLatch generated = new CountDownLatch(2);
         AtomicInteger attempts = new AtomicInteger();
         doAnswer(invocation -> {
-            if (attempts.incrementAndGet() <= 2) {
+            int attempt = attempts.incrementAndGet();
+            if (attempt <= 2) {
                 generated.countDown();
                 assertTrue(generated.await(5, TimeUnit.SECONDS));
                 return "Race12";
             }
-            return "Safe34";
+            return "Safe" + String.format(Locale.ROOT, "%02d", attempt);
         }).when(generator).generate();
         try (var executor = Executors.newFixedThreadPool(2)) {
             var a = executor.submit(() -> workflow.getCode(babyId, ownerId).code());
