@@ -11,6 +11,4 @@ public interface GrowthRepository extends JpaRepository<GrowthRecord, Long> {
             Long babyId,
             LocalDate MeasuredDate
     );
-
-    Long babyId(Long babyId);
 }
