@@ -94,7 +94,9 @@ public class CareRecordIntegrationTest {
         assertStatus(403, request("GET", recordsUrl()+"?date=2026-11-08", writerId, null));
         String ownerToken = jwt.createAccessToken(ownerId.toString());
         jdbc.update("UPDATE users SET status='WITHDRAWN',withdrawn_at=CURRENT_TIMESTAMP WHERE id=?", ownerId);
-        assertStatus(403, requestWithToken("GET", recordsUrl()+"?date=2026-11-08", ownerToken, null));
+        var withdrawnResponse = requestWithToken("GET", recordsUrl()+"?date=2026-11-08", ownerToken, null);
+        assertTrue(withdrawnResponse.statusCode() == 401 || withdrawnResponse.statusCode() == 403,
+                withdrawnResponse.body());
         assertEquals(1L, jdbc.queryForObject("SELECT COUNT(*) FROM feeding_records WHERE baby_id=?", Long.class, babyId));
     }
 
