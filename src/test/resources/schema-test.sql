@@ -64,6 +64,20 @@ CREATE TABLE IF NOT EXISTS `baby_permissions` (
         ON UPDATE NO ACTION ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS `voice_inputs` (
+    `id`             BIGINT       NOT NULL AUTO_INCREMENT,
+    `baby_id`        BIGINT       NOT NULL,
+    `baby_member_id` BIGINT       NOT NULL,
+    `audio_url`      VARCHAR(500) NULL,
+    `transcript`     TEXT         NULL,
+    `parse_status`   VARCHAR(20)  NOT NULL,
+    `created_at`     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at`     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_voice_inputs_pair` (`baby_id`, `id`),
+    KEY `idx_voice_inputs_baby_time` (`baby_id`, `created_at`)
+);
+
 CREATE TABLE IF NOT EXISTS `feeding_records` (
     `id`               BIGINT      NOT NULL AUTO_INCREMENT,
     `baby_id`          BIGINT      NOT NULL,
