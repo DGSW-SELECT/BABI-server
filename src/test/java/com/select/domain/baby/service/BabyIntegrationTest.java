@@ -231,6 +231,7 @@ class BabyIntegrationTest {
         var saved = babies.findById(babyId).orElseThrow();
         assertEquals("아기", saved.getName());
         assertEquals(LocalDate.of(2025, 1, 15), saved.getBirthDate());
+        assertNull(saved.getSex());
     }
 
     static Stream<String> invalidUpdates() {
@@ -246,6 +247,12 @@ class BabyIntegrationTest {
                 "{\"birthDate\":null}",
                 "{\"name\":42}",
                 "{\"birthDate\":42}",
+                "{\"name\":\"변경되면 안 됨\",\"sex\":\"UNKNOWN\"}",
+                "{\"sex\":null}",
+                "{\"sex\":42}",
+                "{\"sex\":true}",
+                "{\"sex\":{}}",
+                "{\"sex\":[]}",
                 "[]",
                 "null",
                 "{"
