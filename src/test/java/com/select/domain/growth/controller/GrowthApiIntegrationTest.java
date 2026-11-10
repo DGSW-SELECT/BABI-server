@@ -5,6 +5,7 @@ import com.select.domain.baby.entity.BabyMember;
 import com.select.domain.baby.entity.BabyRole;
 import com.select.domain.baby.repository.BabyMemberRepository;
 import com.select.domain.baby.repository.BabyRepository;
+import com.select.domain.growth.repository.GrowthRepository;
 import com.select.domain.user.entity.User;
 import com.select.domain.user.repository.UserRepository;
 import com.select.global.security.jwt.JwtProvider;
@@ -28,6 +29,7 @@ class GrowthApiIntegrationTest {
     @Autowired UserRepository users;
     @Autowired BabyRepository babies;
     @Autowired BabyMemberRepository members;
+    @Autowired GrowthRepository growthRecords;
     @Autowired JwtProvider jwt;
     @Autowired ObjectMapper json;
     @LocalServerPort int port;
@@ -43,6 +45,11 @@ class GrowthApiIntegrationTest {
         LocalDate today = LocalDate.now();
         var first = send("POST", path + "/growth-records", token, "{\"measuredDate\":\"" + today.minusDays(2) + "\",\"heightCm\":70.0}");
         assertEquals(201, first.statusCode(), first.body());
+        var firstBody = json.readTree(first.body());
+        assertNotNull(firstBody.get("createdAt"));
+        assertFalse(firstBody.get("createdAt").isNull(), first.body());
+        var createdAt = java.time.LocalDateTime.parse(firstBody.get("createdAt").asText());
+        assertEquals(growthRecords.findById(firstBody.get("growthRecordId").asLong()).orElseThrow().getCreatedAt(), createdAt);
         assertEquals(0, new java.math.BigDecimal("70.0").compareTo(json.readTree(first.body()).get("heightCm").decimalValue()));
         assertTrue(json.readTree(first.body()).get("authorMemberId").asLong() > 0);
         var second = send("POST", path + "/growth-records", token, "{\"measuredDate\":\"" + today.minusDays(1) + "\",\"heightCm\":71.5,\"weightKg\":9.2}");

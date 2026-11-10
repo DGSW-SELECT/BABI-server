@@ -2,6 +2,8 @@
 
 JWT를 `Authorization: Bearer <accessToken>`으로 전달한다. 아기의 활성 보호자만 접근할 수 있다. 기존 프로젝트 응답과 같이 성공 응답은 아래 JSON 객체를 직접 반환하고 오류는 공통 오류 형식을 사용한다.
 
+아기의 존재 여부를 비구성원에게 노출하지 않도록 인증된 사용자가 활성 보호자가 아니거나 아기가 존재하지 않으면 성장 기록 생성·조회·비교는 `404 BABY_MEMBER_NOT_FOUND`를 반환한다. JWT가 없거나 유효하지 않으면 401이다.
+
 ## 기록 생성
 
 `POST /babies/{babyId}/growth-records` (기존 `/babies/{babyId}/growth_records`도 사용 가능)

@@ -5,6 +5,7 @@ import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.Generated;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -39,6 +40,7 @@ public class GrowthRecord {
     @Column
     private String memo;
 
+    @Generated
     @Column(name = "created_at", insertable = false, updatable = false)
     private LocalDateTime createdAt;
 
