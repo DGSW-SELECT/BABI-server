@@ -51,12 +51,22 @@ class GrowthApiIntegrationTest {
         var list = send("GET", path + "/growth-records?limit=1", token, null);
         assertEquals(200, list.statusCode(), list.body());
         assertEquals(id, json.readTree(list.body()).get("item").get(0).get("growthRecordId").asLong());
-        assertFalse(json.readTree(list.body()).get("nextCursor").isNull());
+        long nextCursor = json.readTree(list.body()).get("nextCursor").asLong();
+        assertTrue(nextCursor > 0);
+        var next = send("GET", path + "/growth-records?limit=1&cursor=" + nextCursor, token, null);
+        assertEquals(200, next.statusCode(), next.body());
+        assertEquals(1, json.readTree(next.body()).get("item").size());
+        assertTrue(json.readTree(next.body()).get("nextCursor").isNull());
+        var filtered = send("GET", path + "/growth-records?from=" + today.minusDays(1), token, null);
+        assertEquals(1, json.readTree(filtered.body()).get("item").size());
         var compare = send("GET", path + "/growth-comparison?growthRecordId=" + id, token, null);
         assertEquals(200, compare.statusCode(), compare.body());
         assertEquals(0, new java.math.BigDecimal("1.5").compareTo(json.readTree(compare.body()).get("change").get("heightCm").decimalValue()));
         assertEquals(401, send("GET", path + "/growth-records", null, null).statusCode());
-        assertNotEquals(200, send("GET", path + "/growth-records", jwt.createAccessToken(other.getId().toString()), null).statusCode());
+        String otherToken = jwt.createAccessToken(other.getId().toString());
+        assertEquals(404, send("GET", path + "/growth-records", otherToken, null).statusCode());
+        assertEquals(404, send("GET", path + "/growth-comparison?growthRecordId=" + id, otherToken, null).statusCode());
+        assertEquals(404, send("POST", path + "/growth-records", otherToken, "{\"measuredDate\":\"" + today + "\",\"heightCm\":70}").statusCode());
     }
     @Test void simultaneousSameDateCreatesOnlyOneRecord() throws Exception {
         var user = users.saveAndFlush(User.builder().email(UUID.randomUUID() + "@example.invalid").nickname("parent").passwordHash("hash").build());
