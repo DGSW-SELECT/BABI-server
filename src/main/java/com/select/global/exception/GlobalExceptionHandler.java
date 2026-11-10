@@ -241,4 +241,13 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         ApiError error = new ApiError(errorCode.name(), details);
         return new ApiResponse<>(false, errorCode.getMessage(), null, error);
     }
+    @ExceptionHandler(BusinessException.class)
+    public ResponseEntity<ApiResponse<Void>> handleBusinessException(
+            BusinessException e
+    ) {
+        return createErrorResponse(
+                e.getErrorCode(),
+                List.of()
+        );
+    }
 }

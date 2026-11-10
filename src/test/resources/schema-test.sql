@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS `babies` (
     `created_by_user_id` BIGINT       NOT NULL,
     `name`               VARCHAR(50)  NOT NULL,
     `birth_date`         DATE         NOT NULL,
+    `sex`                VARCHAR(6)   NULL,
     `created_at`         DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
     KEY `idx_babies_created_by` (`created_by_user_id`),
@@ -188,6 +189,31 @@ CREATE TABLE IF NOT EXISTS baby_email_invitations (
     FOREIGN KEY (baby_id) REFERENCES babies(id),
     FOREIGN KEY (baby_id, invited_by_member_id) REFERENCES baby_members(baby_id, id),
     FOREIGN KEY (accepted_user_id) REFERENCES users(id)
+);
+CREATE TABLE IF NOT EXISTS `growth_records` (
+    `id`               BIGINT       NOT NULL AUTO_INCREMENT,
+    `baby_id`          BIGINT       NOT NULL,
+    `author_member_id` BIGINT       NULL,
+    `height_cm`        DECIMAL(5,2) NULL,
+    `weight_kg`        DECIMAL(5,2) NULL,
+    `measured_date`    DATE         NOT NULL,
+    `memo`             VARCHAR(255) NULL,
+    `created_at`       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    KEY `idx_growth_baby_date` (`baby_id`, `measured_date`),
+    KEY `idx_growth_author`    (`baby_id`, `author_member_id`),
+    CONSTRAINT `chk_growth_values`
+    CHECK ((`height_cm` IS NULL OR `height_cm` > 0)
+    AND (`weight_kg` IS NULL OR `weight_kg` > 0)),
+    CONSTRAINT `chk_growth_has_value`
+    CHECK (`height_cm` IS NOT NULL OR `weight_kg` IS NOT NULL),
+    CONSTRAINT `fk_growth_baby`
+    FOREIGN KEY (`baby_id`) REFERENCES `babies` (`id`)
+    ON UPDATE NO ACTION ON DELETE NO ACTION,
+    CONSTRAINT `fk_growth_author`
+    FOREIGN KEY (`baby_id`, `author_member_id`)
+    REFERENCES `baby_members` (`baby_id`, `id`)
+    ON UPDATE NO ACTION ON DELETE NO ACTION
 );
 
 CREATE TABLE IF NOT EXISTS `voice_inputs` (
