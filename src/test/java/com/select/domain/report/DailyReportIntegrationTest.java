@@ -34,7 +34,7 @@ class DailyReportIntegrationTest {
 
     private static final long BABY_ID = 300L;
     private static final LocalDate REPORT_DATE = LocalDate.of(2026, 10, 20);
-    private static final String REPORT_URL = "/babi/api/babies/" + BABY_ID + "/daily-reports";
+    private static final String REPORT_URL = "/babies/" + BABY_ID + "/daily-reports";
     private static final String PASSWORD = "Secret123!";
     private static final String CREATE_REQUEST = """
             {"reportDate":"2026-10-20","summary":"daily summary"}
