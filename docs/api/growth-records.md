@@ -12,6 +12,8 @@ JWT를 `Authorization: Bearer <accessToken>`으로 전달한다. 아기의 활�
 
 측정일은 오늘 또는 과거여야 하며 키(cm)와 몸무게(kg) 중 하나 이상 필요하다. 입력값은 양수이며 소수점 둘째 자리까지, 메모는 255자까지 허용한다. 동일 아기의 동일 날짜 기록은 한 건만 허용한다. 성공은 201이고 `growthRecordId`, `babyId`, `authorMemberId`, `heightCm`, `weightKg`, `measuredDate`, `memo`, `createdAt`을 반환한다. 기존 `height`, `weight` 필드도 유지한다. 미측정 항목은 null이다.
 
+중복 방지는 생성 트랜잭션에서 아기 행을 잠근 후 기존 기록을 확인하는 방식이다. 현재 확정 스키마에는 `(baby_id, measured_date)` UNIQUE 제약이 없으므로 이 잠금 절차를 거치지 않는 직접 DB 쓰기나 다른 저장 경로의 중복까지 DB가 차단하지는 못한다. DB 차원의 보장이 필요하면 기존 중복 데이터를 먼저 확인하고 팀과 제약 추가를 협의해야 한다.
+
 ## 기록 조회
 
 `GET /babies/{babyId}/growth-records?from=2026-01-01&to=2026-09-30&limit=20&cursor=123`

@@ -1,12 +1,9 @@
 package com.select.domain.growth.dto.request;
 
 import jakarta.validation.constraints.*;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.util.Date;
 
 public record GrowthRecordCreateRequest(
 

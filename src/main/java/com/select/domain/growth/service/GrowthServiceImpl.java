@@ -15,7 +15,6 @@ import com.select.domain.growth.repository.GrowthRepository;
 import com.select.domain.growth.standard.GrowthStandardService;
 import com.select.global.exception.BusinessException;
 import com.select.global.exception.ErrorCode;
-import com.select.global.exception.GlobalExceptionHandler;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
