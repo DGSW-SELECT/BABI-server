@@ -88,7 +88,7 @@ class GrowthServiceImplCreateTest {
                 babyId, userId
         )).thenReturn(Optional.of(member));
 
-        when(babyRepository.findById(babyId))
+        when(babyRepository.findByIdForUpdate(babyId))
                 .thenReturn(Optional.of(baby));
 
         when(member.getId()).thenReturn(100L);
@@ -177,7 +177,7 @@ class GrowthServiceImplCreateTest {
         when(babyMemberRepository.findByBabyIdAndUserId(1L, 10L))
                 .thenReturn(Optional.of(member));
 
-        when(babyRepository.findById(1L))
+        when(babyRepository.findByIdForUpdate(1L))
                 .thenReturn(Optional.empty());
 
         // when & then
@@ -217,7 +217,7 @@ class GrowthServiceImplCreateTest {
         when(babyMemberRepository.findByBabyIdAndUserId(1L, 10L))
                 .thenReturn(Optional.of(member));
 
-        when(babyRepository.findById(1L))
+        when(babyRepository.findByIdForUpdate(1L))
                 .thenReturn(Optional.of(baby));
 
         GrowthRecordCreateRequest request = new GrowthRecordCreateRequest(
@@ -256,7 +256,7 @@ class GrowthServiceImplCreateTest {
         when(babyMemberRepository.findByBabyIdAndUserId(1L, 10L))
                 .thenReturn(Optional.of(member));
 
-        when(babyRepository.findById(1L))
+        when(babyRepository.findByIdForUpdate(1L))
                 .thenReturn(Optional.of(baby));
 
         GrowthRecordCreateRequest request = new GrowthRecordCreateRequest(

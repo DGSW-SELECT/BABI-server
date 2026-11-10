@@ -99,7 +99,13 @@ public class GrowthServiceImpl implements GrowthService{
                     ErrorCode.GROWTH_DUPLICATE_DATE
             );
         }
-        Baby baby = babyRepository.findById(babyId).orElseThrow(() -> new BusinessException(ErrorCode.BABY_NOT_FOUND));
+        // Serialize writers for one baby before rechecking the existing date.
+        Baby baby = babyRepository.findByIdForUpdate(babyId).orElseThrow(() -> new BusinessException(ErrorCode.BABY_NOT_FOUND));
+        member = babyMemberRepository.findByBabyIdAndUserId(babyId, userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.BABY_MEMBER_NOT_FOUND));
+        if (growthRepository.existsByBaby_IdAndMeasuredDate(babyId, request.measuredDate())) {
+            throw new BusinessException(ErrorCode.GROWTH_DUPLICATE_DATE);
+        }
 
         // 5. 성장 기록 생성
         GrowthRecord growthRecord = new GrowthRecord(
@@ -122,7 +128,8 @@ public class GrowthServiceImpl implements GrowthService{
                 saved.getWeight(),
                 saved.getMeasuredDate(),
                 saved.getMemo(),
-                saved.getCreatedAt()
+                saved.getCreatedAt(),
+                saved.getAuthorMemberId()
         );
     }
 
