@@ -71,13 +71,10 @@ public class GrowthServiceImpl implements GrowthService{
             Long userId,
             GrowthRecordCreateRequest request
     ) {
-        BabyMember member = babyMemberRepository
-                .findByBabyIdAndUserId(babyId, userId)
-                .orElseThrow(() ->
-                        new BusinessException(
-                                ErrorCode.BABY_MEMBER_NOT_FOUND
-                        )
-                );
+        Baby baby = babyRepository.findByIdForUpdate(babyId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.BABY_NOT_FOUND));
+        BabyMember member = babyMemberRepository.findByBabyIdAndUserId(babyId, userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.BABY_MEMBER_NOT_FOUND));
         // 2. 키와 몸무게 둘중에 하나라도 입력했는지 확인
         if (request.heightCm() == null &&
                 request.weightKg() == null) {
@@ -90,19 +87,8 @@ public class GrowthServiceImpl implements GrowthService{
                     ErrorCode.GROWTH_INVALID_DATE
             );
         }
-        // 4. 동일 날짜 기록 확인
-        if (growthRepository.existsByBaby_IdAndMeasuredDate(
-                babyId,
-                request.measuredDate()
-        )) {
-            throw new BusinessException(
-                    ErrorCode.GROWTH_DUPLICATE_DATE
-            );
-        }
-        // Serialize writers for one baby before rechecking the existing date.
-        Baby baby = babyRepository.findByIdForUpdate(babyId).orElseThrow(() -> new BusinessException(ErrorCode.BABY_NOT_FOUND));
-        member = babyMemberRepository.findByBabyIdAndUserId(babyId, userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.BABY_MEMBER_NOT_FOUND));
+        // The baby lock is acquired before any consistent read, so concurrent writes
+        // observe the last committed measurement even under MySQL repeatable read.
         if (growthRepository.existsByBaby_IdAndMeasuredDate(babyId, request.measuredDate())) {
             throw new BusinessException(ErrorCode.GROWTH_DUPLICATE_DATE);
         }

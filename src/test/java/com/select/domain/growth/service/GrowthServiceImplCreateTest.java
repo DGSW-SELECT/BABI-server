@@ -63,6 +63,7 @@ class GrowthServiceImplCreateTest {
         );
         member = mock(BabyMember.class);
         baby = mock(Baby.class);
+        lenient().when(babyRepository.findByIdForUpdate(anyLong())).thenReturn(Optional.of(baby));
     }
 
     @Test
@@ -174,9 +175,6 @@ class GrowthServiceImplCreateTest {
     @Test
     void createGrowth_fail_whenBabyNotFound() {
         // given
-        when(babyMemberRepository.findByBabyIdAndUserId(1L, 10L))
-                .thenReturn(Optional.of(member));
-
         when(babyRepository.findByIdForUpdate(1L))
                 .thenReturn(Optional.empty());
 
