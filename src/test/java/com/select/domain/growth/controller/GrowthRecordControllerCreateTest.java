@@ -63,6 +63,17 @@ class GrowthRecordControllerCreateTest {
     }
 
     @Test
+    void createAcceptsJwtStringPrincipalAndDocumentedPath() throws Exception {
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken("10", null, List.of()));
+        when(growthService.createGrowth(eq(1L), eq(10L), any())).thenReturn(
+                new GrowthRecordCreateResponse(1L, 1L, new BigDecimal("72.50"), null, LocalDate.now(), null, LocalDateTime.now()));
+        mockMvc.perform(post("/babies/1/growth-records").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"measuredDate\":\"" + LocalDate.now() + "\",\"heightCm\":72.5}"))
+                .andExpect(status().isCreated());
+        verify(growthService).createGrowth(eq(1L), eq(10L), any());
+    }
+
+    @Test
     void CREATE_GROWTH_SUCCESS() throws Exception {
         // given
         LocalDate measuredDate = LocalDate.now();

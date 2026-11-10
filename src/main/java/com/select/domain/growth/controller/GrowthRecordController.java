@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/babies/{babyId}/growth_records")
+@RequestMapping({"/babies/{babyId}/growth-records", "/babies/{babyId}/growth_records"})
 public class GrowthRecordController {
 
     private final GrowthService growthService;
@@ -20,11 +20,11 @@ public class GrowthRecordController {
     @PostMapping
     public ResponseEntity<GrowthRecordCreateResponse> createGrowth(
             @PathVariable Long babyId,
-            @AuthenticationPrincipal Long userId,
+            @AuthenticationPrincipal(expression = "toString()") String userId,
             @Valid @RequestBody GrowthRecordCreateRequest request
     ) {
         GrowthRecordCreateResponse response =
-                growthService.createGrowth(babyId, userId, request);
+                growthService.createGrowth(babyId, Long.valueOf(userId), request);
 
         return ResponseEntity
                 .status(HttpStatus.CREATED)
