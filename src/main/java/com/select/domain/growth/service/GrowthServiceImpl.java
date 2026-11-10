@@ -6,6 +6,9 @@ import com.select.domain.baby.repository.BabyMemberRepository;
 import com.select.domain.baby.repository.BabyRepository;
 import com.select.domain.growth.dto.request.GrowthRecordCreateRequest;
 import com.select.domain.growth.dto.response.GrowthRecordCreateResponse;
+import com.select.domain.growth.dto.response.GrowthRecordItem;
+import com.select.domain.growth.dto.response.GrowthRecordPage;
+import org.springframework.data.domain.PageRequest;
 import com.select.domain.growth.entity.GrowthRecord;
 import com.select.domain.growth.repository.GrowthRepository;
 import com.select.global.exception.BusinessException;
@@ -25,6 +28,21 @@ public class GrowthServiceImpl implements GrowthService{
     private final GrowthRepository growthRepository;
     private final BabyMemberRepository babyMemberRepository;
     private final BabyRepository babyRepository;
+
+    @Override
+    public GrowthRecordPage listGrowth(Long babyId, Long userId,
+            LocalDate from, LocalDate to, Long cursor, int limit) {
+        babyMemberRepository.findByBabyIdAndUserId(babyId, userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.BABY_MEMBER_NOT_FOUND));
+        if ((from != null && to != null && from.isAfter(to)) || limit < 1 || limit > 100 || (cursor != null && cursor < 1)) {
+            throw new BusinessException(ErrorCode.REQUEST_ERROR);
+        }
+        var results = growthRepository.findPage(babyId, from, to, cursor, PageRequest.of(0, limit + 1));
+        boolean more = results.size() > limit;
+        var items = results.stream().limit(limit).map(GrowthRecordItem::from).toList();
+        Long next = more ? items.get(items.size() - 1).growthRecordId() : null;
+        return new GrowthRecordPage(items, next);
+    }
 
     @Override
     @Transactional

@@ -2,6 +2,8 @@ package com.select.domain.growth.controller;
 
 import com.select.domain.growth.dto.request.GrowthRecordCreateRequest;
 import com.select.domain.growth.dto.response.GrowthRecordCreateResponse;
+import com.select.domain.growth.dto.response.GrowthRecordPage;
+import java.time.LocalDate;
 import com.select.domain.growth.service.GrowthService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -16,6 +18,16 @@ import org.springframework.web.bind.annotation.*;
 public class GrowthRecordController {
 
     private final GrowthService growthService;
+
+    @GetMapping
+    public GrowthRecordPage listGrowth(
+            @PathVariable Long babyId, @AuthenticationPrincipal(expression = "toString()") String userId,
+            @RequestParam(required = false) LocalDate from,
+            @RequestParam(required = false) LocalDate to,
+            @RequestParam(required = false) Long cursor,
+            @RequestParam(defaultValue = "20") int limit) {
+        return growthService.listGrowth(babyId, Long.valueOf(userId), from, to, cursor, limit);
+    }
 
     @PostMapping
     public ResponseEntity<GrowthRecordCreateResponse> createGrowth(

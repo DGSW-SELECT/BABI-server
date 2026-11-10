@@ -91,6 +91,20 @@ class GrowthRepositoryCreateTest {
         assertThat(result).isFalse();
     }
 
+    @Test
+    void pageFiltersByBabyDateAndCursor() {
+        var first = growthRepository.save(createGrowthRecord(baby1, measuredDate.minusDays(2)));
+        var second = growthRepository.save(createGrowthRecord(baby1, measuredDate.minusDays(1)));
+        growthRepository.save(createGrowthRecord(baby2, measuredDate.minusDays(1)));
+        var last = growthRepository.save(createGrowthRecord(baby1, measuredDate));
+        growthRepository.flush();
+        var page = growthRepository.findPage(baby1.getId(), measuredDate.minusDays(1), measuredDate, null,
+                org.springframework.data.domain.PageRequest.of(0, 10));
+        assertThat(page).extracting(GrowthRecord::getId).containsExactly(last.getId(), second.getId());
+        var next = growthRepository.findPage(baby1.getId(), null, null, second.getId(), org.springframework.data.domain.PageRequest.of(0, 10));
+        assertThat(next).extracting(GrowthRecord::getId).containsExactly(first.getId());
+    }
+
     private GrowthRecord createGrowthRecord(Baby baby, LocalDate date) {
         return new GrowthRecord(
                 baby,
