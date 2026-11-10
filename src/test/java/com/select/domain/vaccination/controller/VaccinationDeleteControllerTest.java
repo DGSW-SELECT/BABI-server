@@ -30,6 +30,6 @@ class VaccinationDeleteControllerTest {
         ).andExpect(status().isNoContent());
 
         verify(vaccinationService)
-                .deleteVaccinationSchedule(1L, 10L);
+                .deleteVaccinationSchedule(1L, 10L,10L);
     }
 }

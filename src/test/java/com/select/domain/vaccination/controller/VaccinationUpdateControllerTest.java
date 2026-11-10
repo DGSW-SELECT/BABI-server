@@ -46,6 +46,7 @@ class VaccinationUpdateControllerTest {
 
         when(vaccinationService.updateVaccinationSchedule(
                 eq(1L),
+                10L,
                 eq(10L),
                 any(VaccinationScheduleUpdateRequest.class)
         )).thenReturn(response);
@@ -70,6 +71,7 @@ class VaccinationUpdateControllerTest {
 
         verify(vaccinationService).updateVaccinationSchedule(
                 eq(1L),
+                10L,
                 eq(10L),
                 any(VaccinationScheduleUpdateRequest.class)
         );

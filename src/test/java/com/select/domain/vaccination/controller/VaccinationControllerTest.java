@@ -47,7 +47,7 @@ class VaccinationControllerTest {
                 );
 
         when(vaccinationService.getVaccinationSchedules(
-                1L, from, to
+                1L, 10L, from, to
         )).thenReturn(response);
 
         mockMvc.perform(get("/babies/1/vaccination-schedules")
@@ -57,7 +57,7 @@ class VaccinationControllerTest {
                 .andExpect(jsonPath("$.babyId").value(1))
                 .andExpect(jsonPath("$.vaccinationSchedules").isArray());
         verify(vaccinationService).getVaccinationSchedules(
-                1L,from,to
+                1L,10L,from,to
         );
     }
     @Test
@@ -71,6 +71,7 @@ class VaccinationControllerTest {
     void VACCINATION_SCHEDULES_SUCCESS() throws Exception {
         when(vaccinationService.getVaccinationSchedules(
                 1L,
+                10L,
                 LocalDate.of(2026, 1, 1),
                 LocalDate.of(2026, 12, 31)
         )).thenReturn(
@@ -87,6 +88,7 @@ class VaccinationControllerTest {
 
         verify(vaccinationService).getVaccinationSchedules(
                 1L,
+                10L,
                 LocalDate.of(2026, 1, 1),
                 LocalDate.of(2026, 12, 31)
         );
@@ -98,6 +100,7 @@ class VaccinationControllerTest {
 
         when(vaccinationService.createVaccinationSchedule(
                 eq(1L),
+                eq(10L),
                 any(VaccinationScheduleCreateRequest.class)
         )).thenReturn(
                 new VaccinationScheduleCreateResponse(
@@ -134,6 +137,7 @@ class VaccinationControllerTest {
 
         verify(vaccinationService).createVaccinationSchedule(
                 eq(1L),
+                eq(10L),
                 any(VaccinationScheduleCreateRequest.class)
         );
     }
@@ -168,7 +172,7 @@ class VaccinationControllerTest {
     }
 
     @Test
-    void VACCINATION_SCHEDULES_OMMITED_RETURN_400() throws Exception {
+    void VACCINATION_SCHEDULES_COMMITED_RETURN_400() throws Exception {
         mockMvc.perform(post("/babies/1/vaccination-schedules")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -185,12 +189,14 @@ class VaccinationControllerTest {
     void VACCINATION_SCHEDULE_PATCH_SUCCESS() throws Exception {
         // given
         Long babyId = 1L;
+        Long userId = 10L;
         Long scheduleId = 10L;
         LocalDate scheduleDate = LocalDate.of(2026, 11, 10);
         LocalDate completedDate = LocalDate.now();
 
         when(vaccinationService.successVaccinationSchedule(
                 eq(babyId),
+                eq(userId),
                 eq(scheduleId),
                 any(VaccinationScheduleSuccessRequest.class)
         )).thenReturn(
@@ -230,6 +236,7 @@ class VaccinationControllerTest {
 
         verify(vaccinationService).successVaccinationSchedule(
                 eq(babyId),
+                eq(userId),
                 eq(scheduleId),
                 any(VaccinationScheduleSuccessRequest.class)
         );

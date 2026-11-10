@@ -34,6 +34,7 @@ class VaccinationHistoryControllerTest {
     void VACCINATION_HISTORY_GET_SUCCESS() throws Exception {
         // given
         Long babyId = 1L;
+        Long userId = 10L;
         VaccinationHistoryResponse response = new VaccinationHistoryResponse(
                 babyId,
                 List.of(new VaccinationHistoryResponse.Item(
@@ -43,7 +44,7 @@ class VaccinationHistoryControllerTest {
                         LocalDate.of(2026, 9, 20)
                 ))
         );
-        when(vaccinationService.getVaccinationHistory(babyId)).thenReturn(response);
+        when(vaccinationService.getVaccinationHistory(babyId, userId)).thenReturn(response);
 
         // when / then
         mockMvc.perform(get("/babies/{babyId}/vaccination-history", babyId))
@@ -56,14 +57,15 @@ class VaccinationHistoryControllerTest {
                 .andExpect(jsonPath("$.items[0].doseNumber").value(1))
                 .andExpect(jsonPath("$.items[0].completedDate").value("2026-09-20"));
 
-        verify(vaccinationService).getVaccinationHistory(babyId);
+        verify(vaccinationService).getVaccinationHistory(babyId, userId);
     }
 
     @Test
     void VACCINATION_HISTORY_EMPTY_RETURN_EMPTY_ITEMS() throws Exception {
         // given
         Long babyId = 1L;
-        when(vaccinationService.getVaccinationHistory(babyId))
+        Long userId = 10L;
+        when(vaccinationService.getVaccinationHistory(babyId, userId))
                 .thenReturn(new VaccinationHistoryResponse(babyId, List.of()));
 
         // when / then
@@ -73,6 +75,6 @@ class VaccinationHistoryControllerTest {
                 .andExpect(jsonPath("$.items").isArray())
                 .andExpect(jsonPath("$.items.length()").value(0));
 
-        verify(vaccinationService).getVaccinationHistory(babyId);
+        verify(vaccinationService).getVaccinationHistory(babyId, userId);
     }
 }

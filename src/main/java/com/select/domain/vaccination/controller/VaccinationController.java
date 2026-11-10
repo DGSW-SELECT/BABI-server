@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
@@ -27,6 +28,8 @@ public class VaccinationController {
     public VaccinationScheduleResponse getVaccinationSchedules(
             @PathVariable Long babyId,
 
+            @AuthenticationPrincipal Long userId,
+
             @RequestParam
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
             LocalDate from,
@@ -37,6 +40,7 @@ public class VaccinationController {
     ) {
         return vaccinationService.getVaccinationSchedules(
                 babyId,
+                userId,
                 from,
                 to
         );
@@ -45,10 +49,11 @@ public class VaccinationController {
     @PostMapping("/babies/{babyId}/vaccination-schedules")
     public ResponseEntity<VaccinationScheduleCreateResponse> createVaccinationSchedule(
             @PathVariable Long babyId,
+            @AuthenticationPrincipal Long userId,
             @Valid @RequestBody VaccinationScheduleCreateRequest request
     ) {
         VaccinationScheduleCreateResponse response =
-                vaccinationService.createVaccinationSchedule(babyId, request);
+                vaccinationService.createVaccinationSchedule(babyId, userId, request);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
@@ -57,12 +62,14 @@ public class VaccinationController {
     )
     public ResponseEntity<VaccinationScheduleUpdateResponse> updateVaccinationSchedule(
             @PathVariable Long babyId,
+            @AuthenticationPrincipal Long userId,
             @PathVariable Long vaccinationScheduleId,
             @Valid @RequestBody VaccinationScheduleSuccessRequest request
     ) {
         VaccinationScheduleUpdateResponse response =
                 vaccinationService.successVaccinationSchedule(
                         babyId,
+                        userId,
                         vaccinationScheduleId,
                         request
                 );
@@ -70,29 +77,33 @@ public class VaccinationController {
     }
     @GetMapping("/babies/{babyId}/vaccination-history")
     public VaccinationHistoryResponse getVaccinationHistory(
-            @PathVariable Long babyId
+            @PathVariable Long babyId,
+            @AuthenticationPrincipal Long userId
     ) {
-        return vaccinationService.getVaccinationHistory(babyId);
+        return vaccinationService.getVaccinationHistory(babyId, userId);
     }
     @DeleteMapping("/babies/{babyId}/vaccination-schedules/{vaccinationScheduleId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteVaccinationSchedule(
             @PathVariable Long babyId,
+            @AuthenticationPrincipal Long userId,
             @PathVariable Long vaccinationScheduleId
     ) {
         vaccinationService.deleteVaccinationSchedule(
-                babyId, vaccinationScheduleId
+                babyId, userId, vaccinationScheduleId
         );
     }
     @PatchMapping("/babies/{babyId}/vaccination-schedules/{vaccinationScheduleId}")
     public ResponseEntity<VaccinationScheduleUpdateResponse> updateVaccinationSchedule(
             @PathVariable Long babyId,
+            @AuthenticationPrincipal Long userId,
             @PathVariable Long vaccinationScheduleId,
             @Valid @RequestBody VaccinationScheduleUpdateRequest request
     ) {
         VaccinationScheduleUpdateResponse response =
                 vaccinationService.updateVaccinationSchedule(
                         babyId,
+                        userId,
                         vaccinationScheduleId,
                         request
                 );

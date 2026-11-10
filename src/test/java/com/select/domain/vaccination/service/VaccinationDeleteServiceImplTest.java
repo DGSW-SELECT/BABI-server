@@ -1,5 +1,6 @@
 package com.select.domain.vaccination.service;
 
+import com.select.domain.baby.repository.BabyMemberRepository;
 import com.select.domain.baby.repository.BabyRepository;
 import com.select.domain.vaccination.entity.BabyVaccination;
 import com.select.domain.vaccination.repository.BabyVaccinationRepository;
@@ -18,73 +19,77 @@ class VaccinationDeleteServiceImplTest {
     private VaccinationServiceImpl service;
     private VaccineRepository vaccineRepository;
     private BabyRepository babyRepository;
+    private BabyMemberRepository babyMemberRepository;
+
+    private final Long babyId = 1L;
+    private final Long userId = 10L;
+    private final Long scheduleId = 10L;
 
     @BeforeEach
     void setUp() {
         repository = mock(BabyVaccinationRepository.class);
         vaccineRepository = mock(VaccineRepository.class);
         babyRepository = mock(BabyRepository.class);
-        service = new VaccinationServiceImpl(repository, vaccineRepository, babyRepository);
+        babyMemberRepository = mock(BabyMemberRepository.class);
+        service = new VaccinationServiceImpl(repository, vaccineRepository, babyRepository, babyMemberRepository);
+    }
+    private void mockBabyAccess() {
+        when(babyRepository.existsById(babyId)).thenReturn(true);
+        when(babyMemberRepository.existsByBabyIdAndUserId(babyId, userId))
+                .thenReturn(true);
     }
     @Test
     void DELETE_INCOMPLETE_SCHEDULE_SUCCESS() {
-        Long babyId = 1L;
-        Long scheduleId = 10L;
 
         BabyVaccination vaccination = mock(BabyVaccination.class);
 
-        when(babyRepository.existsById(babyId)).thenReturn(true);
+        mockBabyAccess();
+
         when(repository.findById(scheduleId))
                 .thenReturn(Optional.of(vaccination));
         when(vaccination.getBabyId()).thenReturn(babyId);
 
-        service.deleteVaccinationSchedule(babyId, scheduleId);
+        service.deleteVaccinationSchedule(babyId, userId, scheduleId);
 
         verify(repository).delete(vaccination);
     }
 
     @Test
     void DELETE_COMPLETED_SCHEDULE_SUCCESS() {
-        Long babyId = 1L;
-        Long scheduleId = 10L;
 
         BabyVaccination vaccination = mock(BabyVaccination.class);
+        mockBabyAccess();
 
-        when(babyRepository.existsById(babyId)).thenReturn(true);
         when(repository.findById(scheduleId))
                 .thenReturn(Optional.of(vaccination));
         when(vaccination.getBabyId()).thenReturn(babyId);
         when(vaccination.getCompleted()).thenReturn(true);
 
-        service.deleteVaccinationSchedule(babyId, scheduleId);
+        service.deleteVaccinationSchedule(babyId, userId, scheduleId);
 
         verify(repository).delete(vaccination);
     }
     @Test
     void DELETE_SCHEDULE_BABY_NOT_FOUND() {
-        Long babyId = 1L;
-        Long scheduleId = 10L;
 
         when(babyRepository.existsById(babyId)).thenReturn(false);
 
         assertThrows(
                 BusinessException.class,
-                () -> service.deleteVaccinationSchedule(babyId, scheduleId)
+                () -> service.deleteVaccinationSchedule(babyId, userId, scheduleId)
         );
 
         verify(repository, never()).delete(any(BabyVaccination.class));
     }
     @Test
     void DELETE_SCHEDULE_NOT_FOUND() {
-        Long babyId = 1L;
-        Long scheduleId = 10L;
 
         when(babyRepository.existsById(babyId)).thenReturn(true);
         when(repository.findById(scheduleId)).thenReturn(Optional.empty());
 
         assertThrows(
                 BusinessException.class,
-                () -> service.deleteVaccinationSchedule(babyId, scheduleId)
+                () -> service.deleteVaccinationSchedule(babyId, userId, scheduleId)
         );
 
         verify(repository, never()).delete(any(BabyVaccination.class));
@@ -96,14 +101,14 @@ class VaccinationDeleteServiceImplTest {
 
         BabyVaccination vaccination = mock(BabyVaccination.class);
 
-        when(babyRepository.existsById(babyId)).thenReturn(true);
+        mockBabyAccess();
         when(repository.findById(scheduleId))
                 .thenReturn(Optional.of(vaccination));
         when(vaccination.getBabyId()).thenReturn(2L);
 
         assertThrows(
                 BusinessException.class,
-                () -> service.deleteVaccinationSchedule(babyId, scheduleId)
+                () -> service.deleteVaccinationSchedule(babyId, userId, scheduleId)
         );
 
         verify(repository, never()).delete(any(BabyVaccination.class));

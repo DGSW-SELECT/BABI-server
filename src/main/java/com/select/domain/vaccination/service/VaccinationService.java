@@ -17,22 +17,26 @@ public interface VaccinationService {
 
     VaccinationScheduleResponse getVaccinationSchedules(
            Long babyId,
+           Long userId,
            LocalDate from,
            LocalDate to
     );
     VaccinationScheduleCreateResponse createVaccinationSchedule(
             Long babyId,
+            Long userId,
             VaccinationScheduleCreateRequest request
     );
     VaccinationScheduleUpdateResponse successVaccinationSchedule(
             Long babyId,
+            Long userId,
             Long vaccinationScheduleId,
             VaccinationScheduleSuccessRequest request
     );
-    VaccinationHistoryResponse getVaccinationHistory(Long babyId);
-    void deleteVaccinationSchedule(Long BabyId, Long vaccinationScheduleId);
+    VaccinationHistoryResponse getVaccinationHistory(Long babyId, Long userId);
+    void deleteVaccinationSchedule(Long BabyId, Long userId, Long vaccinationScheduleId);
     VaccinationScheduleUpdateResponse updateVaccinationSchedule(
             Long babyId,
+            Long userId,
             Long vaccinationScheduleId,
             VaccinationScheduleUpdateRequest request
     );

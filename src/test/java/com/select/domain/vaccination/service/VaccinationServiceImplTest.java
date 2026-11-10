@@ -1,5 +1,6 @@
 package com.select.domain.vaccination.service;
 
+import com.select.domain.baby.repository.BabyMemberRepository;
 import com.select.domain.baby.repository.BabyRepository;
 import com.select.domain.vaccination.dto.request.VaccinationScheduleCreateRequest;
 import com.select.domain.vaccination.dto.request.VaccinationScheduleSuccessRequest;
@@ -25,19 +26,27 @@ class VaccinationServiceImplTest{
     private VaccinationServiceImpl service;
     private VaccineRepository vaccineRepository;
     private BabyRepository babyRepository;
+    private BabyMemberRepository babyMemberRepository;
 
+    private final Long babyId = 1L;
+    private final Long userId = 10L;
     @BeforeEach
     void setUp() {
         repository = mock(BabyVaccinationRepository.class);
         vaccineRepository = mock(VaccineRepository.class);
         babyRepository = mock(BabyRepository.class);
-        service = new VaccinationServiceImpl(repository, vaccineRepository, babyRepository);
+        babyMemberRepository = mock(BabyMemberRepository.class);
+        service = new VaccinationServiceImpl(repository, vaccineRepository, babyRepository, babyMemberRepository);
+    }
+    private void mockBabyAccess() {
+        when(babyRepository.existsById(babyId)).thenReturn(true);
+        when(babyMemberRepository.existsByBabyIdAndUserId(babyId, userId))
+                .thenReturn(true);
     }
 
     @Test
     // 정상적인 요청이면 예방접종 일정 반환
     void GOOD_OFFER_VACCINE_SCHEDULE_CHANGE() {
-        Long BabyId = 1L;
         LocalDate from = LocalDate.of(2026,1,1);
         LocalDate to = LocalDate.of(2026,12,31);
 
@@ -57,28 +66,27 @@ class VaccinationServiceImplTest{
 
         when(repository
                 .findByBabyIdAndScheduledDateBetweenOrderByScheduledDateAscIdAsc(
-                    BabyId, from, to))
+                    babyId, from, to))
                 .thenReturn(List.of(vaccination));
-        when(babyRepository.existsById(BabyId)).thenReturn(true);
+        mockBabyAccess();
         // when
         VaccinationScheduleResponse response =
-                service.getVaccinationSchedules(BabyId, from, to);
+                service.getVaccinationSchedules(babyId, userId, from, to);
 
         // then
-        assertEquals(BabyId, response.babyId());
+        assertEquals(babyId, response.babyId());
         assertEquals(1, response.vaccinationSchedules().size());
 
         // verify
         verify(repository)
                 .findByBabyIdAndScheduledDateBetweenOrderByScheduledDateAscIdAsc(
-                        BabyId, from, to
+                        babyId, from, to
                 );
     }
 
     @Test
     // 스케줄이 없으면 빈 목록 반환
     void NO_SCHEDULE_RETURN_EMPTY_LIST() {
-        Long babyId = 1L;
         LocalDate from = LocalDate.of(2026,1,1);
         LocalDate to = LocalDate.of(2026,12,31);
 
@@ -87,10 +95,10 @@ class VaccinationServiceImplTest{
                         babyId, from, to
                 ))
                 .thenReturn(List.of());
-        when(babyRepository.existsById(babyId)).thenReturn(true);
+        mockBabyAccess();
         // when
         VaccinationScheduleResponse response =
-                service.getVaccinationSchedules(babyId, from, to);
+                service.getVaccinationSchedules(babyId, userId, from, to);
 
         // then
         assertEquals(babyId, response.babyId());
@@ -105,6 +113,7 @@ class VaccinationServiceImplTest{
                 BusinessException.class,
                 () -> service.getVaccinationSchedules(
                         0L,
+                        10L,
                         LocalDate.of(2026,1,1),
                         LocalDate.of(2026,12,31)
                 )
@@ -119,6 +128,7 @@ class VaccinationServiceImplTest{
                 BusinessException.class,
                 () -> service.getVaccinationSchedules(
                         1L,
+                        10L,
                         LocalDate.of(2026,1,1),
                         LocalDate.of(2027,1,3)
                 )
@@ -128,7 +138,6 @@ class VaccinationServiceImplTest{
     @Test
 // 정상 등록
     void CREATE_VACCINATION_SCHEDULE_SUCCESS() {
-        Long babyId = 1L;
         Long vaccineId = 3L;
 
         VaccinationScheduleCreateRequest request =
@@ -141,7 +150,7 @@ class VaccinationServiceImplTest{
 
         Vaccine vaccine = mock(Vaccine.class);
 
-        when(babyRepository.existsById(babyId)).thenReturn(true);
+        mockBabyAccess();
         when(vaccineRepository.findById(vaccineId))
                 .thenReturn(Optional.of(vaccine));
 
@@ -156,7 +165,7 @@ class VaccinationServiceImplTest{
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         // when
-        var response = service.createVaccinationSchedule(babyId, request);
+        var response = service.createVaccinationSchedule(babyId, userId, request);
 
         // then
         assertNotNull(response);
@@ -164,7 +173,7 @@ class VaccinationServiceImplTest{
     }
 
     @Test
-// 존재하지 않는 아기
+    // 존재하지 않는 아기
     void CREATE_VACCINATION_SCHEDULE_BABY_NOT_FOUND() {
         Long babyId = 999L;
 
@@ -176,7 +185,7 @@ class VaccinationServiceImplTest{
 
         assertThrows(
                 BusinessException.class,
-                () -> service.createVaccinationSchedule(babyId, request)
+                () -> service.createVaccinationSchedule(babyId, userId, request)
         );
 
         verify(repository, never()).save(any(BabyVaccination.class));
@@ -185,20 +194,19 @@ class VaccinationServiceImplTest{
     @Test
 // 존재하지 않는 백신
     void CREATE_VACCINATION_SCHEDULE_VACCINE_NOT_FOUND() {
-        Long babyId = 1L;
         Long vaccineId = 999L;
 
         var request = new VaccinationScheduleCreateRequest(
                 vaccineId, LocalDate.now().plusDays(1),"",""
         );
 
-        when(babyRepository.existsById(babyId)).thenReturn(true);
+        mockBabyAccess();
         when(vaccineRepository.findById(vaccineId))
                 .thenReturn(Optional.empty());
 
         assertThrows(
                 BusinessException.class,
-                () -> service.createVaccinationSchedule(babyId, request)
+                () -> service.createVaccinationSchedule(babyId, userId, request)
         );
 
         verify(repository, never()).save(any(BabyVaccination.class));
@@ -207,7 +215,6 @@ class VaccinationServiceImplTest{
     @Test
     // 오늘 날짜는 허용하지 않음
     void CREATE_VACCINATION_SCHEDULE_INVALID_DATE() {
-        Long babyId = 1L;
         Long vaccineId = 3L;
 
         VaccinationScheduleCreateRequest request =
@@ -218,11 +225,11 @@ class VaccinationServiceImplTest{
                         ""
                 );
 
-        when(babyRepository.existsById(babyId)).thenReturn(true);
+        mockBabyAccess();
 
         assertThrows(
                 BusinessException.class,
-                () -> service.createVaccinationSchedule(babyId, request)
+                () -> service.createVaccinationSchedule(babyId, userId, request)
         );
 
         verify(repository, never()).save(any(BabyVaccination.class));
@@ -231,7 +238,6 @@ class VaccinationServiceImplTest{
     @Test
 // 중복 등록
     void CREATE_VACCINATION_SCHEDULE_DUPLICATE() {
-        Long babyId = 1L;
         Long vaccineId = 3L;
 
         var request = new VaccinationScheduleCreateRequest(
@@ -240,7 +246,7 @@ class VaccinationServiceImplTest{
 
         Vaccine vaccine = mock(Vaccine.class);
 
-        when(babyRepository.existsById(babyId)).thenReturn(true);
+        mockBabyAccess();
         when(vaccineRepository.findById(vaccineId))
                 .thenReturn(Optional.of(vaccine));
         when(vaccine.getId()).thenReturn(vaccineId);
@@ -250,7 +256,7 @@ class VaccinationServiceImplTest{
 
         assertThrows(
                 BusinessException.class,
-                () -> service.createVaccinationSchedule(babyId, request)
+                () -> service.createVaccinationSchedule(babyId, userId, request)
         );
 
         verify(repository, never()).save(any(BabyVaccination.class));
@@ -258,7 +264,6 @@ class VaccinationServiceImplTest{
     @Test
         // 접종 완료 처리: 완료 여부가 true이고 완료일이 지정됨
     void UPDATE_VACCINATION_SCHEDULE_COMPLETE_SUCCESS() {
-        Long babyId = 1L;
         Long scheduleId = 10L;
 
         Vaccine vaccine = mock(Vaccine.class);
@@ -272,7 +277,7 @@ class VaccinationServiceImplTest{
                 null
         );
 
-        when(babyRepository.existsById(babyId)).thenReturn(true);
+        mockBabyAccess();
         when(repository.findById(scheduleId))
                 .thenReturn(Optional.of(vaccination));
 
@@ -281,7 +286,7 @@ class VaccinationServiceImplTest{
         // when
         VaccinationScheduleUpdateResponse response =
                 service.successVaccinationSchedule(
-                        babyId, scheduleId, request
+                        babyId, userId ,scheduleId, request
                 );
 
         // then
@@ -293,7 +298,6 @@ class VaccinationServiceImplTest{
     @Test
         // 접종 완료 취소: 완료 여부가 false이고 완료일이 제거됨
     void UPDATE_VACCINATION_SCHEDULE_CANCEL_COMPLETE_SUCCESS() {
-        Long babyId = 1L;
         Long scheduleId = 10L;
 
         Vaccine vaccine = mock(Vaccine.class);
@@ -308,7 +312,7 @@ class VaccinationServiceImplTest{
         );
         vaccination.complete(LocalDate.now());
 
-        when(babyRepository.existsById(babyId)).thenReturn(true);
+        mockBabyAccess();
         when(repository.findById(scheduleId))
                 .thenReturn(Optional.of(vaccination));
 
@@ -317,7 +321,7 @@ class VaccinationServiceImplTest{
         // when
         VaccinationScheduleUpdateResponse response =
                 service.successVaccinationSchedule(
-                        babyId, scheduleId, request
+                        babyId, userId, scheduleId, request
                 );
 
         // then
@@ -329,7 +333,6 @@ class VaccinationServiceImplTest{
     @Test
         // 접종 일정이 존재하지 않으면 예외 발생
     void UPDATE_VACCINATION_SCHEDULE_NOT_FOUND() {
-        Long babyId = 1L;
         Long scheduleId = 999L;
 
         when(babyRepository.existsById(babyId)).thenReturn(true);
@@ -341,7 +344,7 @@ class VaccinationServiceImplTest{
         assertThrows(
                 BusinessException.class,
                 () -> service.successVaccinationSchedule(
-                        babyId, scheduleId, request
+                        babyId, userId, scheduleId, request
                 )
         );
 
@@ -375,7 +378,7 @@ class VaccinationServiceImplTest{
         assertThrows(
                 BusinessException.class,
                 () -> service.successVaccinationSchedule(
-                        requestedBabyId, scheduleId, request
+                        requestedBabyId, userId, scheduleId, request
                 )
         );
 

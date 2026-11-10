@@ -1,5 +1,6 @@
 package com.select.domain.vaccination.service;
 
+import com.select.domain.baby.repository.BabyMemberRepository;
 import com.select.domain.baby.repository.BabyRepository;
 import com.select.domain.vaccination.dto.request.VaccinationScheduleUpdateRequest;
 import com.select.domain.vaccination.dto.response.VaccinationScheduleResponse;
@@ -23,18 +24,27 @@ class VaccinationServiceUpdateTest {
     private VaccinationServiceImpl service;
     private VaccineRepository vaccineRepository;
     private BabyRepository babyRepository;
+    private BabyMemberRepository babyMemberRepository;
+
+    private final Long babyId = 1L;
+    private final Long userId = 10L;
 
     @BeforeEach
     void setUp() {
         repository = mock(BabyVaccinationRepository.class);
         vaccineRepository = mock(VaccineRepository.class);
         babyRepository = mock(BabyRepository.class);
-        service = new VaccinationServiceImpl(repository, vaccineRepository, babyRepository);
+        babyMemberRepository = mock(BabyMemberRepository.class);
+        service = new VaccinationServiceImpl(repository, vaccineRepository, babyRepository, babyMemberRepository);
+    }
+    private void mockBabyAccess() {
+        when(babyRepository.existsById(babyId)).thenReturn(true);
+        when(babyMemberRepository.existsByBabyIdAndUserId(babyId, userId))
+                .thenReturn(true);
     }
     @Test
     void UPDATE_VACCINATION_SCHEDULE_SUCCESS() {
         // given
-        Long babyId = 1L;
         Long scheduleId = 10L;
         Long vaccineId = 3L;
 
@@ -51,7 +61,7 @@ class VaccinationServiceUpdateTest {
         BabyVaccination vaccination = mock(BabyVaccination.class);
         Vaccine vaccine = mock(Vaccine.class);
 
-        when(babyRepository.existsById(babyId)).thenReturn(true);
+        mockBabyAccess();
         when(repository.findById(scheduleId))
                 .thenReturn(Optional.of(vaccination));
         when(vaccination.getBabyId()).thenReturn(babyId);
@@ -71,6 +81,7 @@ class VaccinationServiceUpdateTest {
         VaccinationScheduleUpdateResponse response =
                 service.updateVaccinationSchedule(
                         babyId,
+                        userId,
                         scheduleId,
                         request
                 );
@@ -83,7 +94,6 @@ class VaccinationServiceUpdateTest {
     }
     @Test
     void UPDATE_SCHEDULE_BABY_NOT_FOUND() {
-        Long babyId = 1L;
         Long scheduleId = 10L;
 
         VaccinationScheduleUpdateRequest request =
@@ -99,7 +109,7 @@ class VaccinationServiceUpdateTest {
         assertThrows(
                 BusinessException.class,
                 () -> service.updateVaccinationSchedule(
-                        babyId, scheduleId, request
+                        babyId, userId, scheduleId, request
                 )
         );
 
@@ -107,7 +117,6 @@ class VaccinationServiceUpdateTest {
     }
     @Test
     void UPDATE_SCHEDULE_NOT_FOUND() {
-        Long babyId = 1L;
         Long scheduleId = 10L;
 
         VaccinationScheduleUpdateRequest request =
@@ -118,19 +127,18 @@ class VaccinationServiceUpdateTest {
                         ""
                 );
 
-        when(babyRepository.existsById(babyId)).thenReturn(true);
+        mockBabyAccess();
         when(repository.findById(scheduleId)).thenReturn(Optional.empty());
 
         assertThrows(
                 BusinessException.class,
                 () -> service.updateVaccinationSchedule(
-                        babyId, scheduleId, request
+                        babyId, userId, scheduleId, request
                 )
         );
     }
     @Test
     void UPDATE_OTHER_BABY_SCHEDULE_FAIL() {
-        Long babyId = 1L;
         Long scheduleId = 10L;
 
         BabyVaccination vaccination = mock(BabyVaccination.class);
@@ -151,7 +159,7 @@ class VaccinationServiceUpdateTest {
         assertThrows(
                 BusinessException.class,
                 () -> service.updateVaccinationSchedule(
-                        babyId, scheduleId, request
+                        babyId, userId, scheduleId, request
                 )
         );
 
@@ -160,7 +168,6 @@ class VaccinationServiceUpdateTest {
     }
     @Test
     void UPDATE_VACCINE_NOT_FOUND() {
-        Long babyId = 1L;
         Long scheduleId = 10L;
         Long vaccineId = 3L;
 
@@ -174,7 +181,7 @@ class VaccinationServiceUpdateTest {
                         ""
                 );
 
-        when(babyRepository.existsById(babyId)).thenReturn(true);
+        mockBabyAccess();
         when(repository.findById(scheduleId))
                 .thenReturn(Optional.of(vaccination));
         when(vaccination.getBabyId()).thenReturn(babyId);
@@ -184,7 +191,7 @@ class VaccinationServiceUpdateTest {
         assertThrows(
                 BusinessException.class,
                 () -> service.updateVaccinationSchedule(
-                        babyId, scheduleId, request
+                        babyId, userId, scheduleId, request
                 )
         );
 
@@ -193,7 +200,6 @@ class VaccinationServiceUpdateTest {
     }
     @Test
     void UPDATE_COMPLETED_SCHEDULE_FAIL() {
-        Long babyId = 1L;
         Long scheduleId = 10L;
 
         BabyVaccination vaccination = mock(BabyVaccination.class);
@@ -206,7 +212,7 @@ class VaccinationServiceUpdateTest {
                         ""
                 );
 
-        when(babyRepository.existsById(babyId)).thenReturn(true);
+        mockBabyAccess();
         when(repository.findById(scheduleId))
                 .thenReturn(Optional.of(vaccination));
         when(vaccination.getBabyId()).thenReturn(babyId);
@@ -215,7 +221,7 @@ class VaccinationServiceUpdateTest {
         assertThrows(
                 BusinessException.class,
                 () -> service.updateVaccinationSchedule(
-                        babyId, scheduleId, request
+                        babyId, userId, scheduleId, request
                 )
         );
 
