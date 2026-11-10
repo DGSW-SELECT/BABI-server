@@ -1,9 +1,6 @@
 package com.select.domain.growth.dto.request;
 
-import jakarta.validation.constraints.DecimalMin;
-import jakarta.validation.constraints.Digits;
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
@@ -14,6 +11,7 @@ import java.util.Date;
 public record GrowthRecordCreateRequest(
 
         @NotNull
+        @PastOrPresent(message = "측정일은 오늘 또는 과거 날짜만 가능합니다.")
         LocalDate measuredDate,
 
         @DecimalMin("0.01")
