@@ -1,11 +1,14 @@
 package com.select.global.exception;
 
+import com.select.domain.care.exception.CareRecordException;
+import com.select.domain.report.exception.DailyReportGenerationException;
 import com.select.domain.auth.exception.EmailVerificationException;
 import com.select.domain.baby.exception.BabyInvitationException;
 import com.select.domain.baby.exception.BabyNotFoundException;
 import com.select.domain.baby.exception.InvalidOwnershipTransferException;
 import com.select.domain.report.exception.DailyReportAlreadyExistsException;
 import com.select.domain.report.exception.DailyReportNotFoundException;
+import com.select.domain.user.exception.AccountLifecycleException;
 import com.select.domain.user.exception.DuplicateEmailException;
 import com.select.domain.user.exception.InvalidCredentialsException;
 import com.select.domain.user.exception.PasswordMismatchException;
@@ -39,7 +42,22 @@ import java.util.List;
 @RestControllerAdvice
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
+    @ExceptionHandler(DailyReportGenerationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleDailyReportGeneration(DailyReportGenerationException e) {
+        return createErrorResponse(e.getErrorCode(), List.of());
+    }
+
+    @ExceptionHandler(CareRecordException.class)
+    public ResponseEntity<ApiResponse<Void>> handleCareRecord(CareRecordException e) {
+        return createErrorResponse(e.getErrorCode(), List.of());
+    }
+
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+    @ExceptionHandler(AccountLifecycleException.class)
+    public ResponseEntity<ApiResponse<Void>> handleAccountLifecycle(AccountLifecycleException e) {
+        return createErrorResponse(e.getErrorCode(), List.of());
+    }
 
     @ExceptionHandler(BabyInvitationException.class)
     public ResponseEntity<ApiResponse<Void>> handleBabyInvitation(BabyInvitationException e) {
@@ -280,5 +298,14 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     ) {
         ApiError error = new ApiError(errorCode.name(), details);
         return new ApiResponse<>(false, errorCode.getMessage(), null, error);
+    }
+    @ExceptionHandler(BusinessException.class)
+    public ResponseEntity<ApiResponse<Void>> handleBusinessException(
+            BusinessException e
+    ) {
+        return createErrorResponse(
+                e.getErrorCode(),
+                List.of()
+        );
     }
 }

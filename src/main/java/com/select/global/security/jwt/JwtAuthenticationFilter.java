@@ -1,5 +1,7 @@
 package com.select.global.security.jwt;
 
+import com.select.domain.user.entity.User;
+import com.select.domain.user.repository.UserRepository;
 import com.select.global.exception.ErrorCode;
 import com.select.global.security.SecurityErrorResponseWriter;
 import com.select.global.security.SecurityPaths;
@@ -8,6 +10,7 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.dao.DataAccessException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -20,10 +23,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtProvider jwtProvider;
     private final SecurityErrorResponseWriter securityErrorResponseWriter;
+    private final TokenRevocationService revocations;
+    private final UserRepository users;
+    private final RefreshSessionService sessions;
 
-    public JwtAuthenticationFilter(JwtProvider jwtProvider, SecurityErrorResponseWriter securityErrorResponseWriter) {
+    public JwtAuthenticationFilter(JwtProvider jwtProvider, SecurityErrorResponseWriter securityErrorResponseWriter, TokenRevocationService revocations, UserRepository users, RefreshSessionService sessions) {
         this.jwtProvider = jwtProvider;
         this.securityErrorResponseWriter = securityErrorResponseWriter;
+        this.revocations = revocations;
+        this.users = users;
+        this.sessions = sessions;
     }
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -31,11 +40,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                     FilterChain filterChain
     ) throws ServletException, IOException {
         String authorization = request.getHeader("Authorization");
-        if (authorization == null || !authorization.startsWith("Bearer ")) {
+        String token = authorization != null && authorization.startsWith("Bearer ")
+                ? authorization.substring(7) : AuthCookies.get(request, AuthCookies.ACCESS);
+        if (token == null) {
             securityErrorResponseWriter.writeErrorResponse(response,ErrorCode.UNAUTHORIZED);
             return;
         }
-        String token = authorization.substring(7);
         String userId;
         try {
             userId = jwtProvider.getUserId(token);
@@ -44,10 +54,25 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
 
+        try {
+            String sessionId = jwtProvider.getSessionId(token);
+            if (revocations.isRevoked(token) || (sessionId != null && !sessions.isActive(sessionId)) || users.findById(Long.valueOf(userId)).filter(User::isActive).isEmpty()) {
+                securityErrorResponseWriter.writeErrorResponse(response, ErrorCode.INVALID_TOKEN);
+                return;
+            }
+        } catch (NumberFormatException e) {
+            securityErrorResponseWriter.writeErrorResponse(response, ErrorCode.INVALID_TOKEN);
+            return;
+        } catch (DataAccessException e) {
+            securityErrorResponseWriter.writeErrorResponse(response, ErrorCode.AUTH_SERVICE_UNAVAILABLE);
+            return;
+        }
+
         UsernamePasswordAuthenticationToken authentication =
                 new UsernamePasswordAuthenticationToken(userId,null,List.of());
 
         request.setAttribute("userId",userId);
+        request.setAttribute("accessToken", token);
         SecurityContext context = SecurityContextHolder.createEmptyContext();
         context.setAuthentication(authentication);
         SecurityContextHolder.setContext(context);
@@ -61,6 +86,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         return SecurityPaths.isDocumentationPath(path)
                 || path.equals(SecurityPaths.SIGNUP)
                 || path.equals(SecurityPaths.LOGIN)
+                || path.equals("/auth/refresh")
+                || path.equals("/auth/logout")
+                || path.equals("/auth/csrf")
                 || path.equals(SecurityPaths.EMAIL_SEND)
                 || path.equals(SecurityPaths.EMAIL_VERIFY)
                 || "OPTIONS".equals(request.getMethod());
