@@ -189,7 +189,7 @@ PENDING -> PROCESSING -> COMPLETED
 
 > 현재 분석기는 MVP용 규칙 기반 구현입니다. `ParentingRecordAnalyzer` 인터페이스를 유지하고 있으므로 이후 LLM 기반 분석기로 교체할 수 있습니다.
 
-> `familyMemberId`는 family 도메인/JWT 연동 전까지 요청으로 받는 임시 값입니다. 연동 후에는 클라이언트 입력 대신 인증된 가족 구성원 ID를 서버에서 결정해야 합니다.
+> family 도메인은 추가되어 있지만, 현재 음성 기록 API는 `familyMemberId`를 요청으로 받습니다. JWT 사용자와 가족 구성원을 연결해 서버에서 ID를 결정하는 작업은 아직 반영되지 않았습니다.
 
 ## Swagger API 문서
 
@@ -203,45 +203,42 @@ PENDING -> PROCESSING -> COMPLETED
 
 Swagger의 **Try it out**은 실제 API 요청을 실행합니다. 이메일 발송·회원가입 등을 시도할 때는 사용 중인 서버와 연결 환경을 확인합니다.
 
-## 패키지 구조
+## 코드 구조
 
 ```text
-com.select
-├── global
-│   ├── config
-│   ├── exception
-│   ├── response
-│   └── security
-└── domain
-    ├── parenting
-    │   ├── analyzer
-    │   ├── dto
-    │   │   └── response
-    │   ├── entity
-    │   ├── repository
-    │   └── service
-    ├── user
-    │   ├── controller
-    │   ├── dto
-    │   │   ├── request
-    │   │   └── response
-    │   ├── entity
-    │   ├── repository
-    │   └── service
-    └── voice
-        ├── client
-        ├── controller
-        ├── dto
-        │   ├── request
-        │   └── response
-        ├── entity
-        ├── exception
-        ├── repository
-        ├── service
-        ├── storage
-        └── support
+src
+├── main
+│   ├── java/com/select
+│   │   ├── BabiServerApplication.java
+│   │   ├── global
+│   │   │   ├── config
+│   │   │   ├── exception
+│   │   │   ├── response
+│   │   │   ├── security/jwt
+│   │   │   └── util
+│   │   └── domain
+│   │       ├── auth (controller, dto/request, dto/response, exception, mail, service)
+│   │       ├── baby (entity, exception, repository, service)
+│   │       ├── family (entity, repository)
+│   │       ├── parenting (analyzer, dto/response, entity, repository, service)
+│   │       ├── user (controller, dto/request, dto/response, entity, exception, repository, service)
+│   │       └── voice
+│   │           ├── client/dto/response
+│   │           ├── controller
+│   │           ├── dto/request, dto/response
+│   │           ├── entity
+│   │           ├── exception
+│   │           ├── repository
+│   │           ├── service
+│   │           ├── storage
+│   │           └── support
+│   └── resources (application.yml, application-local.yml)
+└── test
+    ├── java/com/select
+    │   ├── BabiServerApplicationTests.java
+    │   ├── domain (auth, parenting, user, voice)
+    │   └── global (config, exception, security/jwt)
+    └── resources (application-test.yml, test schemas)
 ```
 
-새 핵심 기능은 `domain` 아래에 같은 계층으로 추가합니다.
-
-Discord에 Webhook으로 연결되어 확인메시지가 전송됩니다
+새 기능은 `domain/<기능>` 아래에 필요한 계층을 추가합니다. 공통 설정·예외·응답·인증 코드는 `global`에 둡니다.
