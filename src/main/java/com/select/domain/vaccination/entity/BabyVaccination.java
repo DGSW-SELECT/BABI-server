@@ -10,7 +10,12 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDate;
 
 @Entity
-@Table(name = "baby_vaccinations")
+@Table(name = "baby_vaccinations",uniqueConstraints = {
+        @UniqueConstraint(
+                name = "uk_baby_vaccine",
+                columnNames = {"baby_id", "vaccine_id"}
+        )
+})
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class BabyVaccination {

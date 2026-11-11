@@ -11,7 +11,10 @@ import com.select.global.exception.BusinessException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -24,6 +27,7 @@ class VaccinationHistoryServiceImplTest {
     private BabyRepository babyRepository;
     private BabyMemberRepository babyMemberRepository;
     private VaccinationServiceImpl service;
+    private Clock clock;
 
     private final Long babyId = 1L;
     private final Long userId = 10L;
@@ -35,11 +39,18 @@ class VaccinationHistoryServiceImplTest {
         babyRepository = mock(BabyRepository.class);
         babyMemberRepository = mock(BabyMemberRepository.class);
 
+        clock = Clock.fixed(
+                Instant.parse("2026-11-10T03:00:00Z"),
+                ZoneId.of("Asia/Seoul")
+        );
+
+
         service = new VaccinationServiceImpl(
                 babyVaccinationRepository,
                 vaccineRepository,
                 babyRepository,
-                babyMemberRepository
+                babyMemberRepository,
+                clock
         );
     }
 

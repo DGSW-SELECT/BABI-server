@@ -14,7 +14,10 @@ import com.select.global.exception.BusinessException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 
@@ -27,6 +30,9 @@ class VaccinationServiceImplTest{
     private VaccineRepository vaccineRepository;
     private BabyRepository babyRepository;
     private BabyMemberRepository babyMemberRepository;
+    private Clock clock;
+
+    private static final LocalDate TODAY = LocalDate.of(2026, 11, 10);
 
     private final Long babyId = 1L;
     private final Long userId = 10L;
@@ -36,8 +42,15 @@ class VaccinationServiceImplTest{
         vaccineRepository = mock(VaccineRepository.class);
         babyRepository = mock(BabyRepository.class);
         babyMemberRepository = mock(BabyMemberRepository.class);
-        service = new VaccinationServiceImpl(repository, vaccineRepository, babyRepository, babyMemberRepository);
+
+        clock = Clock.fixed(
+                TODAY.atStartOfDay(ZoneId.of("Asia/Seoul")).toInstant(),
+                ZoneId.of("Asia/Seoul")
+        );
+
+        service = new VaccinationServiceImpl(repository, vaccineRepository, babyRepository, babyMemberRepository, clock);
     }
+
     private void mockBabyAccess() {
         when(babyRepository.existsById(babyId)).thenReturn(true);
         when(babyMemberRepository.existsByBabyIdAndUserId(babyId, userId))
@@ -143,7 +156,7 @@ class VaccinationServiceImplTest{
         VaccinationScheduleCreateRequest request =
                 new VaccinationScheduleCreateRequest(
                         vaccineId,
-                        LocalDate.now().plusDays(1),
+                        TODAY.plusDays(1),
                         "",
                         ""
                 );
@@ -178,7 +191,7 @@ class VaccinationServiceImplTest{
         Long babyId = 999L;
 
         var request = new VaccinationScheduleCreateRequest(
-                3L, LocalDate.now().plusDays(1),"",""
+                3L, TODAY.plusDays(1),"",""
         );
 
         when(babyRepository.existsById(babyId)).thenReturn(false);
@@ -197,7 +210,7 @@ class VaccinationServiceImplTest{
         Long vaccineId = 999L;
 
         var request = new VaccinationScheduleCreateRequest(
-                vaccineId, LocalDate.now().plusDays(1),"",""
+                vaccineId, TODAY.plusDays(1),"",""
         );
 
         mockBabyAccess();
@@ -220,7 +233,7 @@ class VaccinationServiceImplTest{
         VaccinationScheduleCreateRequest request =
                 new VaccinationScheduleCreateRequest(
                         vaccineId,
-                        LocalDate.now(),
+                        TODAY,
                         "",
                         ""
                 );
@@ -241,7 +254,7 @@ class VaccinationServiceImplTest{
         Long vaccineId = 3L;
 
         var request = new VaccinationScheduleCreateRequest(
-                vaccineId, LocalDate.now().plusDays(1),"",""
+                vaccineId, TODAY.plusDays(1),"",""
         );
 
         Vaccine vaccine = mock(Vaccine.class);
@@ -272,7 +285,7 @@ class VaccinationServiceImplTest{
         BabyVaccination vaccination = BabyVaccination.create(
                 babyId,
                 vaccine,
-                LocalDate.now().plusDays(7),
+                TODAY.plusDays(7),
                 null,
                 null
         );
@@ -291,7 +304,7 @@ class VaccinationServiceImplTest{
 
         // then
         assertTrue(response.completed());
-        assertEquals(LocalDate.now(), response.completedDate());
+        assertEquals(TODAY, response.completedDate());
         assertTrue(vaccination.getCompleted());
     }
 
@@ -306,11 +319,11 @@ class VaccinationServiceImplTest{
         BabyVaccination vaccination = BabyVaccination.create(
                 babyId,
                 vaccine,
-                LocalDate.now().plusDays(7),
+                TODAY.plusDays(7),
                 null,
                 null
         );
-        vaccination.complete(LocalDate.now());
+        vaccination.complete(TODAY);
 
         mockBabyAccess();
         when(repository.findById(scheduleId))
@@ -363,7 +376,7 @@ class VaccinationServiceImplTest{
         BabyVaccination vaccination = BabyVaccination.create(
                 2L,
                 vaccine,
-                LocalDate.now().plusDays(7),
+                TODAY.plusDays(7),
                 null,
                 null
         );

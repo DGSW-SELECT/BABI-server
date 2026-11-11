@@ -117,12 +117,12 @@ public class VaccinationServiceImpl implements VaccinationService {
             Long userId,
             VaccinationScheduleCreateRequest request
     ) {
-        // 아기 존재 여부 확인
-        validateBabyAccess(babyId, userId);
         // 아기 Id 유효성 검사
         if (babyId == null || babyId <= 0) {
             throw new BusinessException(ErrorCode.VACCINE_INVALID_BABY_ID);
         }
+        // 아기 존재 여부 확인
+        validateBabyAccess(babyId, userId);
         // 백신조회
         Vaccine vaccine = vaccineRepository.findById(request.vaccineId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.VACCINE_NOT_FOUND));
@@ -178,7 +178,7 @@ public class VaccinationServiceImpl implements VaccinationService {
         }
 
         if (request.completed()) {
-            vaccination.complete(LocalDate.now());
+            vaccination.complete(LocalDate.now(clock));
         } else {
             vaccination.cancelComplete();
         }
@@ -246,7 +246,7 @@ public class VaccinationServiceImpl implements VaccinationService {
                 );
 
         if (request.scheduledDate() == null ||
-                !request.scheduledDate().isAfter(LocalDate.now())) {
+                request.scheduledDate().isBefore(LocalDate.now(clock))) {
             throw new BusinessException(
                     ErrorCode.VACCINE_INVALID_SCHEDULE_DATE
             );

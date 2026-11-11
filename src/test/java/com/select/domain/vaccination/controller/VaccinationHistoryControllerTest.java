@@ -2,17 +2,26 @@ package com.select.domain.vaccination.controller;
 
 import com.select.domain.vaccination.dto.response.VaccinationHistoryResponse;
 import com.select.domain.vaccination.service.VaccinationService;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.method.annotation.AuthenticationPrincipalArgumentResolver;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.time.LocalDate;
+import java.util.Collections;
 import java.util.List;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -25,9 +34,32 @@ class VaccinationHistoryControllerTest {
     @BeforeEach
     void setUp() {
         vaccinationService = mock(VaccinationService.class);
+
+        SecurityContext context =
+                SecurityContextHolder.createEmptyContext();
+
+        context.setAuthentication(createAuthentication());
+
+        SecurityContextHolder.setContext(context);
+
         mockMvc = MockMvcBuilders
                 .standaloneSetup(new VaccinationController(vaccinationService))
+                .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver())
                 .build();
+    }
+    private Authentication createAuthentication() {
+        return new UsernamePasswordAuthenticationToken(
+                "10",
+                null,
+                Collections.emptyList()
+        );
+    }
+    @AfterEach
+    void tearDown() {
+        SecurityContextHolder.clearContext();
+    }
+    private RequestPostProcessor authenticated() {
+        return authentication(createAuthentication());
     }
 
     @Test
@@ -47,7 +79,8 @@ class VaccinationHistoryControllerTest {
         when(vaccinationService.getVaccinationHistory(babyId, userId)).thenReturn(response);
 
         // when / then
-        mockMvc.perform(get("/babies/{babyId}/vaccination-history", babyId))
+        mockMvc.perform(get("/babies/{babyId}/vaccination-history", babyId)
+                        .with(authenticated()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.babyId").value(1))
                 .andExpect(jsonPath("$.items").isArray())
@@ -69,7 +102,8 @@ class VaccinationHistoryControllerTest {
                 .thenReturn(new VaccinationHistoryResponse(babyId, List.of()));
 
         // when / then
-        mockMvc.perform(get("/babies/{babyId}/vaccination-history", babyId))
+        mockMvc.perform(get("/babies/{babyId}/vaccination-history", babyId)
+                        .with(authenticated()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.babyId").value(1))
                 .andExpect(jsonPath("$.items").isArray())

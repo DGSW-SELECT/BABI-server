@@ -9,6 +9,9 @@ import com.select.global.exception.BusinessException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneId;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -20,6 +23,7 @@ class VaccinationDeleteServiceImplTest {
     private VaccineRepository vaccineRepository;
     private BabyRepository babyRepository;
     private BabyMemberRepository babyMemberRepository;
+    private Clock clock;
 
     private final Long babyId = 1L;
     private final Long userId = 10L;
@@ -31,7 +35,13 @@ class VaccinationDeleteServiceImplTest {
         vaccineRepository = mock(VaccineRepository.class);
         babyRepository = mock(BabyRepository.class);
         babyMemberRepository = mock(BabyMemberRepository.class);
-        service = new VaccinationServiceImpl(repository, vaccineRepository, babyRepository, babyMemberRepository);
+
+        clock = Clock.fixed(
+                Instant.parse("2026-11-10T03:00:00Z"),
+                ZoneId.of("Asia/Seoul")
+        );
+
+        service = new VaccinationServiceImpl(repository, vaccineRepository, babyRepository, babyMemberRepository, clock);
     }
     private void mockBabyAccess() {
         when(babyRepository.existsById(babyId)).thenReturn(true);
