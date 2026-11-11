@@ -43,7 +43,7 @@ public class Baby {
         this.sex = sex;
     }
 
-    @PrePersist
+  @PrePersist
     public void setCreatedAt() {
         createdAt = LocalDateTime.now();
     }

@@ -6,6 +6,18 @@ import org.springframework.http.HttpStatus;
 @Getter
 public enum ErrorCode {
 
+    VACCINE_INVALID_DATE_RANGE(HttpStatus.BAD_REQUEST, "조회 날짜 범위가 올바르지 않습니다."),
+    VACCINE_INVALID_BABY_ID(HttpStatus.BAD_REQUEST, "올바른 아기 ID가 필요합니다."),
+    VACCINE_NOT_FOUND (HttpStatus.NOT_FOUND, "백신을 찾을 수 없습니다."),
+    VACCINE_INVALID_DATE_SET(HttpStatus.BAD_REQUEST, "조회 기간은 최대 365일입니다."),
+    VACCINE_INVALID_SCHEDULE_DATE(HttpStatus.BAD_REQUEST, "올바른 접종 예정일을 입력해 주세요."),
+    DUPLICATE_VACCINATION (HttpStatus.CONFLICT, "이미 있는 백신 예약입니다."),
+    VACCINATION_SCHEDULE_NOT_FOUND(HttpStatus.NOT_FOUND, "접종 일정을 찾을 수 없습니다."),
+    VACCINATION_ALREADY_COMPLETED(HttpStatus.CONFLICT, "이미 완료된 일정입니다."),
+    BABY_NOT_FOUND(HttpStatus.NOT_FOUND, "아기를 찾을 수 없습니다."),
+    VACCINE_DUPLICATE(HttpStatus.CONFLICT, "다른 접종과 중복될 수 없습니다."),
+    ACCESS_DENIED(HttpStatus.FORBIDDEN, "해당 리소스에 접근할 권한이 없습니다."),
+  
     INVALID_CARE_RECORD(HttpStatus.BAD_REQUEST, "기록 내용 또는 연결된 음성 기록을 확인해 주세요."),
     DAILY_REPORT_NO_RECORDS(HttpStatus.BAD_REQUEST, "해당 날짜에 요약할 육아 기록이 없습니다."),
     DAILY_REPORT_GENERATION_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "AI 리포트 생성을 일시적으로 사용할 수 없습니다."),
@@ -19,7 +31,6 @@ public enum ErrorCode {
     INVITATION_RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "초대 요청 횟수를 초과했습니다."),
     INVITATION_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "보호자 초대 서비스를 일시적으로 사용할 수 없습니다."),
     INVITATION_SEND_FAILED(HttpStatus.SERVICE_UNAVAILABLE, "보호자 초대 이메일 발송에 실패했습니다."),
-    BABY_NOT_FOUND(HttpStatus.NOT_FOUND, "아기를 찾을 수 없습니다."),
     BABY_MEMBER_NOT_FOUND(HttpStatus.NOT_FOUND, "멤버를 찾을 수 없습니다."),
     GROWTH_RECORD_NOT_FOUND(HttpStatus.NOT_FOUND, "성장 기록을 찾을 수 없습니다."),
     GROWTH_VALUE_REQUIRED(HttpStatus.BAD_REQUEST, "키와 몸무게 중 하나라도 입력해야합니다."),
@@ -66,5 +77,4 @@ public enum ErrorCode {
         this.httpStatus = httpStatus;
         this.message = message;
     }
-
 }
