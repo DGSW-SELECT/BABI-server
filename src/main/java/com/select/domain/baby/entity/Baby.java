@@ -28,14 +28,19 @@ public class Baby {
     @Column(nullable = false, name = "created_by_user_id")
     private Long createdByUserId;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "sex", length = 6)
+    private BabySex sex;
+
     @Column(nullable = false, name = "created_at")
     private LocalDateTime createdAt;
 
     @Builder
-    public Baby(String name, LocalDate birthDate, Long createdByUserId) {
+    public Baby(String name, LocalDate birthDate, Long createdByUserId, BabySex sex) {
         this.name = name;
         this.birthDate = birthDate;
         this.createdByUserId = createdByUserId;
+        this.sex = sex;
     }
 
   @PrePersist
@@ -43,9 +48,12 @@ public class Baby {
         createdAt = LocalDateTime.now();
     }
 
-    public void updateDetails(String name, LocalDate birthDate) {
+    public void updateDetails(String name, LocalDate birthDate, BabySex sex) {
         if (name != null) {
             this.name = name;
+        }
+        if (sex != null) {
+            this.sex = sex;
         }
         if (birthDate != null) {
             this.birthDate = birthDate;

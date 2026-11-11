@@ -46,7 +46,7 @@ def ready():
                 paths = json.load(response)["paths"]
             if all(path in paths for path in ("/auth/login", "/auth/signup", "/auth/email/send", "/auth/email/verify")):
                 try:
-                    urlopen("http://127.0.0.1:8080/babi/api/babies/1/daily-reports/2026-11-03", timeout=2).close()
+                    urlopen("http://127.0.0.1:8080/babies/1/daily-reports/2026-11-03", timeout=2).close()
                 except HTTPError as error:
                     if error.code == 401:
                         return True
