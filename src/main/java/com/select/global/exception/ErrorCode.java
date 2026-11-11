@@ -31,7 +31,6 @@ public enum ErrorCode {
     INVITATION_RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "초대 요청 횟수를 초과했습니다."),
     INVITATION_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "보호자 초대 서비스를 일시적으로 사용할 수 없습니다."),
     INVITATION_SEND_FAILED(HttpStatus.SERVICE_UNAVAILABLE, "보호자 초대 이메일 발송에 실패했습니다."),
-    BABY_NOT_FOUND(HttpStatus.NOT_FOUND, "아기를 찾을 수 없습니다."),
     BABY_MEMBER_NOT_FOUND(HttpStatus.NOT_FOUND, "멤버를 찾을 수 없습니다."),
     GROWTH_RECORD_NOT_FOUND(HttpStatus.NOT_FOUND, "성장 기록을 찾을 수 없습니다."),
     GROWTH_VALUE_REQUIRED(HttpStatus.BAD_REQUEST, "키와 몸무게 중 하나라도 입력해야합니다."),
