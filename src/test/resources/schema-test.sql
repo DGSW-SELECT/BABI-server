@@ -182,6 +182,7 @@ CREATE TABLE IF NOT EXISTS `baby_vaccinations` (
     `id`             BIGINT       NOT NULL AUTO_INCREMENT,
     `baby_id`        BIGINT       NOT NULL,
     `vaccine_id`     BIGINT       NOT NULL,
+    `dose_number`    INT          NOT NULL,
     `scheduled_date` DATE         NULL,
     `completed_date` DATE         NULL,
     `institution`    VARCHAR(255) NULL,

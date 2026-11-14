@@ -17,6 +17,7 @@ import org.springframework.security.web.method.annotation.AuthenticationPrincipa
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 
 
 import java.time.LocalDate;
@@ -28,6 +29,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 
@@ -157,7 +159,8 @@ class VaccinationControllerTest {
                         .content("""
                                 {
                                     "vaccineId": 3,
-                                    "scheduleDate": "2099-11-01"
+                                    "doseNumber": 1,
+                                    "scheduledDate": "2099-11-01"
                                 }
                                 """))
                 .andExpect(status().isCreated())
@@ -166,7 +169,7 @@ class VaccinationControllerTest {
                 .andExpect(jsonPath("$.vaccineId").value(3))
                 .andExpect(jsonPath("$.vaccineName").value("B형간염"))
                 .andExpect(jsonPath("$.doseNumber").value(1))
-                .andExpect(jsonPath("$.scheduleDate").value("2099-11-01"))
+                .andExpect(jsonPath("$.scheduledDate").value("2099-11-01"))
                 .andExpect(jsonPath("$.completed").value(false));
 
         verify(vaccinationService).createVaccinationSchedule(
@@ -183,7 +186,7 @@ class VaccinationControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                    "scheduleDate": "2099-11-01"
+                                    "scheduledDate": "2099-11-01"
                                 }
                                 """))
                 .andExpect(status().isBadRequest());
@@ -199,7 +202,7 @@ class VaccinationControllerTest {
                         .content("""
                                 {
                                     "vaccineId": 0,
-                                    "scheduleDate": "2099-11-01"
+                                    "scheduledDate": "2099-11-01"
                                 }
                                 """))
                 .andExpect(status().isBadRequest());
@@ -241,6 +244,7 @@ class VaccinationControllerTest {
                         scheduleId,
                         babyId,
                         3L,
+                        1,
                         scheduleDate,
                         completedDate,
                         "",
@@ -278,5 +282,36 @@ class VaccinationControllerTest {
                 eq(scheduleId),
                 any(VaccinationScheduleSuccessRequest.class)
         );
+    }
+    @Test
+    void DOSE_NUMBER_NONE_RETURN_400() throws Exception {
+        mockMvc.perform(post("/babies/1/vaccination-schedules")
+                        .with(authenticated())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                            {
+                                "vaccineId": 3,
+                                "scheduledDate": "2099-11-01"
+                            }
+                            """))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(vaccinationService);
+    }
+    @Test
+    void DOSE_NUMBER_INVALID_RETURN_400() throws Exception {
+        mockMvc.perform(post("/babies/1/vaccination-schedules")
+                        .with(authenticated())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                            {
+                                "vaccineId": 3,
+                                "doseNumber": -1,
+                                "scheduledDate": "2099-11-01"
+                            }
+                            """))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(vaccinationService);
     }
 }

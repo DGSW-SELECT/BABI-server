@@ -63,6 +63,7 @@ class VaccinationServiceUpdateTest {
         VaccinationScheduleUpdateRequest request =
                 new VaccinationScheduleUpdateRequest(
                         vaccineId,
+                        1,
                         scheduledDate,
                         "어디든지",
                         "많이 아픔"
@@ -109,6 +110,7 @@ class VaccinationServiceUpdateTest {
         VaccinationScheduleUpdateRequest request =
                 new VaccinationScheduleUpdateRequest(
                         3L,
+                        1,
                         LocalDate.of(2026, 12, 15),
                         "사실 우리집 근처",
                         "그다지 안중요"
@@ -132,6 +134,7 @@ class VaccinationServiceUpdateTest {
         VaccinationScheduleUpdateRequest request =
                 new VaccinationScheduleUpdateRequest(
                         3L,
+                        1,
                         LocalDate.of(2026, 12, 15),
                         "",
                         ""
@@ -156,6 +159,7 @@ class VaccinationServiceUpdateTest {
         VaccinationScheduleUpdateRequest request =
                 new VaccinationScheduleUpdateRequest(
                         3L,
+                        1,
                         LocalDate.of(2026, 12, 15),
                         "",
                         ""
@@ -174,7 +178,7 @@ class VaccinationServiceUpdateTest {
         );
 
         verify(vaccination, never())
-                .updateSchedule(any(), any(), any(), any());
+                .updateSchedule(any(), any(), any(), any(), any());
     }
     @Test
     void UPDATE_VACCINE_NOT_FOUND() {
@@ -186,6 +190,7 @@ class VaccinationServiceUpdateTest {
         VaccinationScheduleUpdateRequest request =
                 new VaccinationScheduleUpdateRequest(
                         vaccineId,
+                        1,
                         LocalDate.of(2026, 12, 15),
                         "",
                         ""
@@ -206,7 +211,7 @@ class VaccinationServiceUpdateTest {
         );
 
         verify(vaccination, never())
-                .updateSchedule(any(), any(), any(), any());
+                .updateSchedule(any(), any(), any(), any(), any());
     }
     @Test
     void UPDATE_COMPLETED_SCHEDULE_FAIL() {
@@ -217,6 +222,7 @@ class VaccinationServiceUpdateTest {
         VaccinationScheduleUpdateRequest request =
                 new VaccinationScheduleUpdateRequest(
                         3L,
+                        1,
                         LocalDate.of(2026, 12, 15),
                         "",
                         ""
@@ -236,6 +242,6 @@ class VaccinationServiceUpdateTest {
         );
 
         verify(vaccination, never())
-                .updateSchedule(any(), any(), any(), any());
+                .updateSchedule(any(), any(), any(), any(), any());
     }
 }

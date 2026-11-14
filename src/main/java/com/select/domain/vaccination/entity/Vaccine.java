@@ -17,7 +17,7 @@ public class Vaccine {
     @Column(name = "vaccine_name")
     private String name;
 
-    @Column(name = "dose_number")
+    @Column(name = "dose_number", nullable = false)
     private Integer doseNumber;
 
     @Column(name = "recommended_start_month")

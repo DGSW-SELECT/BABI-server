@@ -8,7 +8,7 @@ public record VaccinationScheduleCreateResponse(
         Long vaccineId,
         String vaccineName,
         Integer doseNumber,
-        LocalDate scheduleDate,
+        LocalDate scheduledDate,
         LocalDate completedDate,
         String institution,
         String memo,

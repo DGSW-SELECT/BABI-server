@@ -70,7 +70,7 @@ class VaccinationServiceImplTest{
         when(vaccination.getVaccine()).thenReturn(vaccine);
         when(vaccine.getId()).thenReturn(20L);
         when(vaccine.getName()).thenReturn("B형간염");
-        when(vaccine.getDoseNumber()).thenReturn(1);
+        when(vaccination.getDoseNumber()).thenReturn(1);
         when(vaccine.getRecommendedStartMonth()).thenReturn(0);
         when(vaccine.getRecommendedEndMonth()).thenReturn(1);
         when(vaccination.getScheduledDate()).thenReturn(LocalDate.of(2026, 2,1));
@@ -156,12 +156,14 @@ class VaccinationServiceImplTest{
         VaccinationScheduleCreateRequest request =
                 new VaccinationScheduleCreateRequest(
                         vaccineId,
+                        1,
                         TODAY.plusDays(1),
                         "",
                         ""
                 );
 
         Vaccine vaccine = mock(Vaccine.class);
+        BabyVaccination vaccination = mock(BabyVaccination.class);
 
         mockBabyAccess();
         when(vaccineRepository.findById(vaccineId))
@@ -171,7 +173,7 @@ class VaccinationServiceImplTest{
         when(vaccine.getName()).thenReturn("B형간염");
         when(vaccine.getDoseNumber()).thenReturn(1);
 
-        when(repository.existsByBabyIdAndVaccine_Id(babyId, vaccineId))
+        when(repository.existsByBabyIdAndVaccine_Id(babyId, vaccineId, 1))
                 .thenReturn(false);
 
         when(repository.save(any(BabyVaccination.class)))
@@ -191,7 +193,7 @@ class VaccinationServiceImplTest{
         Long babyId = 999L;
 
         var request = new VaccinationScheduleCreateRequest(
-                3L, TODAY.plusDays(1),"",""
+                3L, 1, TODAY.plusDays(1),"",""
         );
 
         when(babyRepository.existsById(babyId)).thenReturn(false);
@@ -210,7 +212,7 @@ class VaccinationServiceImplTest{
         Long vaccineId = 999L;
 
         var request = new VaccinationScheduleCreateRequest(
-                vaccineId, TODAY.plusDays(1),"",""
+                vaccineId, 1, TODAY.plusDays(1),"",""
         );
 
         mockBabyAccess();
@@ -233,6 +235,7 @@ class VaccinationServiceImplTest{
         VaccinationScheduleCreateRequest request =
                 new VaccinationScheduleCreateRequest(
                         vaccineId,
+                        1,
                         TODAY,
                         "",
                         ""
@@ -254,7 +257,7 @@ class VaccinationServiceImplTest{
         Long vaccineId = 3L;
 
         var request = new VaccinationScheduleCreateRequest(
-                vaccineId, TODAY.plusDays(1),"",""
+                vaccineId, 1, TODAY.plusDays(1),"",""
         );
 
         Vaccine vaccine = mock(Vaccine.class);
@@ -263,8 +266,9 @@ class VaccinationServiceImplTest{
         when(vaccineRepository.findById(vaccineId))
                 .thenReturn(Optional.of(vaccine));
         when(vaccine.getId()).thenReturn(vaccineId);
+        when(vaccine.getDoseNumber()).thenReturn(1);
 
-        when(repository.existsByBabyIdAndVaccine_Id(babyId, vaccineId))
+        when(repository.existsByBabyIdAndVaccine_Id(babyId, vaccineId, 1))
                 .thenReturn(true);
 
         assertThrows(
@@ -285,6 +289,7 @@ class VaccinationServiceImplTest{
         BabyVaccination vaccination = BabyVaccination.create(
                 babyId,
                 vaccine,
+                1,
                 TODAY.plusDays(7),
                 null,
                 null
@@ -319,6 +324,7 @@ class VaccinationServiceImplTest{
         BabyVaccination vaccination = BabyVaccination.create(
                 babyId,
                 vaccine,
+                1,
                 TODAY.plusDays(7),
                 null,
                 null
@@ -376,6 +382,7 @@ class VaccinationServiceImplTest{
         BabyVaccination vaccination = BabyVaccination.create(
                 2L,
                 vaccine,
+                1,
                 TODAY.plusDays(7),
                 null,
                 null

@@ -13,7 +13,7 @@ import java.time.LocalDate;
 @Table(name = "baby_vaccinations",uniqueConstraints = {
         @UniqueConstraint(
                 name = "uk_baby_vaccine",
-                columnNames = {"baby_id", "vaccine_id"}
+                columnNames = {"baby_id", "vaccine_id", "dose_number"}
         )
 })
 @Getter
@@ -30,6 +30,9 @@ public class BabyVaccination {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "vaccine_id", nullable = false)
     private Vaccine vaccine;
+
+    @Column(name = "dose_number")
+    private Integer doseNumber;
 
     @Column(name = "scheduled_date")
     private LocalDate scheduledDate;
@@ -60,6 +63,7 @@ public class BabyVaccination {
     public static BabyVaccination create(
             Long babyId,
             Vaccine vaccine,
+            Integer doseNumber,
             LocalDate scheduledDate,
             String institution,
             String memo
@@ -67,18 +71,20 @@ public class BabyVaccination {
         BabyVaccination vaccination = new BabyVaccination();
         vaccination.babyId = babyId;
         vaccination.vaccine = vaccine;
+        vaccination.doseNumber = doseNumber;
         vaccination.scheduledDate = scheduledDate;
         vaccination.institution = institution;
         vaccination.memo = memo;
         vaccination.completed = false;
         return vaccination;
     }
-    public void updateSchedule(Vaccine vaccine, LocalDate scheduledDate, String institution, String memo) {
+    public void updateSchedule(Vaccine vaccine, Integer doseNumber, LocalDate scheduledDate, String institution, String memo) {
         if (Boolean.TRUE.equals(completed)) {
             throw new BusinessException(ErrorCode.VACCINATION_ALREADY_COMPLETED);
         }
         
         this.vaccine = vaccine;
+        this.doseNumber = doseNumber;
         this.scheduledDate = scheduledDate;
         this.institution = institution;
         this.memo = memo;

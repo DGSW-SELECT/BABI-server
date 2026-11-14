@@ -77,7 +77,7 @@ class BabyVaccinationRepositoryTest {
         entityManager.persist(vaccine);
 
         BabyVaccination vaccination =
-                BabyVaccination.create(babyId, vaccine, scheduledDate,"test","test");
+                BabyVaccination.create(babyId, vaccine, 1, scheduledDate,"test","test");
 
         entityManager.persist(vaccination);
 
@@ -165,7 +165,7 @@ class BabyVaccinationRepositoryTest {
 
         // when
         boolean result =
-                repository.existsByBabyIdAndVaccine_Id(babyId1, vaccineId);
+                repository.existsByBabyIdAndVaccine_Id(babyId1, vaccineId, 1);
 
         // then
         assertThat(result).isTrue();
@@ -187,7 +187,7 @@ class BabyVaccinationRepositoryTest {
 
         // when: 존재하지 않는 아기와 백신 ID 조합 확인
         boolean result =
-                repository.existsByBabyIdAndVaccine_Id(999L, vaccineId);
+                repository.existsByBabyIdAndVaccine_Id(999L, vaccineId, 1);
 
         // then
         assertThat(result).isFalse();
@@ -208,6 +208,7 @@ class BabyVaccinationRepositoryTest {
         BabyVaccination vaccination = BabyVaccination.create(
                 babyId1,
                 vaccine,
+                1,
                 LocalDate.of(2026, 11, 1),
                 "병원명",
                 "메모씀"

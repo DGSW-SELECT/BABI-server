@@ -63,6 +63,7 @@ class VaccinationUpdateControllerTest {
                         10L,
                         1L,
                         3L,
+                        1,
                         LocalDate.of(2026, 12, 15),
                         null,
                         "",
@@ -84,6 +85,7 @@ class VaccinationUpdateControllerTest {
                         .content("""
                     {
                         "vaccineId": 3,
+                        "doseNumber": 1,
                         "scheduledDate": "2026-12-15"
                     }
                     """))

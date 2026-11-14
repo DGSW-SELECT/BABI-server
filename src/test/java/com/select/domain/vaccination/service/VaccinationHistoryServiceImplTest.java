@@ -1,5 +1,6 @@
 package com.select.domain.vaccination.service;
 
+import com.select.domain.baby.entity.Baby;
 import com.select.domain.baby.repository.BabyMemberRepository;
 import com.select.domain.baby.repository.BabyRepository;
 import com.select.domain.vaccination.dto.response.VaccinationHistoryResponse;
@@ -66,31 +67,36 @@ class VaccinationHistoryServiceImplTest {
         LocalDate completedDate = LocalDate.of(2026, 9, 20);
 
         Vaccine vaccine = mock(Vaccine.class);
-        when(vaccine.getName()).thenReturn("DTaP");
-        when(vaccine.getDoseNumber()).thenReturn(1);
-
         BabyVaccination vaccination = mock(BabyVaccination.class);
+
+        when(vaccine.getName()).thenReturn("DTaP");
+
         when(vaccination.getId()).thenReturn(10L);
         when(vaccination.getVaccine()).thenReturn(vaccine);
+        when(vaccination.getDoseNumber()).thenReturn(2);
         when(vaccination.getCompletedDate()).thenReturn(completedDate);
 
         mockBabyAccess();
+
         when(babyVaccinationRepository.findAllByBabyIdAndCompletedTrue(babyId))
                 .thenReturn(List.of(vaccination));
 
         // when
-        VaccinationHistoryResponse response = service.getVaccinationHistory(babyId, userId);
+        VaccinationHistoryResponse response =
+                service.getVaccinationHistory(babyId, userId);
 
         // then
         assertEquals(babyId, response.babyId());
         assertEquals(1, response.items().size());
         assertEquals(10L, response.items().get(0).vaccinationScheduleId());
         assertEquals("DTaP", response.items().get(0).vaccineName());
-        assertEquals(1, response.items().get(0).doseNumber());
+        assertEquals(2, response.items().get(0).doseNumber());
         assertEquals(completedDate, response.items().get(0).completedDate());
 
+        // verify
         verify(babyRepository).existsById(babyId);
-        verify(babyVaccinationRepository).findAllByBabyIdAndCompletedTrue(babyId);
+        verify(babyVaccinationRepository)
+                .findAllByBabyIdAndCompletedTrue(babyId);
 }
 
 @Test

@@ -78,20 +78,20 @@ class VaccinationHistoryRepositoryTest {
 
         Vaccine completedVaccine = createVaccine("완료된 백신", 1);
         BabyVaccination completed = BabyVaccination.create(
-                1L, completedVaccine, LocalDate.of(2026, 9, 1),"test","test"
+                1L, completedVaccine, 1, LocalDate.of(2026, 9, 1),"test","test"
         );
         completed.complete(completedDate);
         entityManager.persist(completed);
 
         Vaccine incompleteVaccine = createVaccine("미완료 백신", 2);
         BabyVaccination incomplete = BabyVaccination.create(
-                1L, incompleteVaccine, LocalDate.of(2026, 10, 1),"test","test"
+                1L, incompleteVaccine, 1, LocalDate.of(2026, 10, 1),"test","test"
         );
         entityManager.persist(incomplete);
 
         Vaccine otherBabyVaccine = createVaccine("다른 아이의 백신", 1);
         BabyVaccination otherBaby = BabyVaccination.create(
-                2L, otherBabyVaccine, LocalDate.of(2026, 9, 1), "test", "test"
+                2L, otherBabyVaccine, 1, LocalDate.of(2026, 9, 1), "test", "test"
         );
         otherBaby.complete(LocalDate.of(2026, 9, 2));
         entityManager.persist(otherBaby);
