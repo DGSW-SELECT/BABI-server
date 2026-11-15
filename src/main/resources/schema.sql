@@ -498,7 +498,7 @@ CREATE TABLE IF NOT EXISTS `baby_vaccinations` (
     CONSTRAINT `chk_vaccination_completed`
         CHECK ((`completed` = TRUE  AND `completed_date` IS NOT NULL)
             OR (`completed` = FALSE AND `completed_date` IS NULL)),
-    CONSTRAINT uk_baby_vaccine_dose
+    CONSTRAINT uk_baby_vaccine
         UNIQUE (baby_id, vaccine_id),
     CONSTRAINT `fk_baby_vaccinations_baby`
         FOREIGN KEY (`baby_id`) REFERENCES `babies` (`id`)

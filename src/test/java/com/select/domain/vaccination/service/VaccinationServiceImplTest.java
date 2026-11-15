@@ -174,7 +174,7 @@ class VaccinationServiceImplTest{
         when(repository.existsByBabyIdAndVaccine_Id(babyId, vaccineId))
                 .thenReturn(false);
 
-        when(repository.save(any(BabyVaccination.class)))
+        when(repository.saveAndFlush(any(BabyVaccination.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         // when
@@ -182,7 +182,7 @@ class VaccinationServiceImplTest{
 
         // then
         assertNotNull(response);
-        verify(repository).save(any(BabyVaccination.class));
+        verify(repository).saveAndFlush(any(BabyVaccination.class));
     }
 
     @Test
@@ -399,5 +399,103 @@ class VaccinationServiceImplTest{
 
         assertFalse(vaccination.getCompleted());
         assertNull(vaccination.getCompletedDate());
+    }
+    @Test
+    // 아기의 구성원이 아니면 예방접종 일정을 생성할 수 없음
+    void CREATE_VACCINATION_SCHEDULE_ACCESS_DENIED() {
+        var request = new VaccinationScheduleCreateRequest(
+                3L, 1, TODAY.plusDays(1), "", ""
+        );
+
+        when(babyRepository.existsById(babyId)).thenReturn(true);
+        when(babyMemberRepository.existsByBabyIdAndUserId(babyId, userId))
+                .thenReturn(false);
+
+        assertThrows(
+                BusinessException.class,
+                () -> service.createVaccinationSchedule(babyId, userId, request)
+        );
+
+        verify(vaccineRepository, never()).findById(anyLong());
+        verify(repository, never()).save(any(BabyVaccination.class));
+    }
+    @Test
+// 과거 날짜로 예방접종 일정을 생성할 수 없음
+    void CREATE_VACCINATION_SCHEDULE_PAST_DATE() {
+        Long vaccineId = 3L;
+
+        var request = new VaccinationScheduleCreateRequest(
+                vaccineId, 1, TODAY.minusDays(1), "", ""
+        );
+
+        Vaccine vaccine = mock(Vaccine.class);
+
+        mockBabyAccess();
+
+        when(vaccineRepository.findById(vaccineId))
+                .thenReturn(Optional.of(vaccine));
+        when(vaccine.getDoseNumber()).thenReturn(1);
+
+        assertThrows(
+                BusinessException.class,
+                () -> service.createVaccinationSchedule(babyId, userId, request)
+        );
+
+        verify(repository, never()).save(any(BabyVaccination.class));
+    }
+    @Test
+    // 백신의 접종 차수와 요청한 차수가 다르면 등록할 수 없음
+    void CREATE_VACCINATION_SCHEDULE_DOSE_MISMATCH() {
+        Long vaccineId = 3L;
+
+        var request = new VaccinationScheduleCreateRequest(
+                vaccineId, 2, TODAY.plusDays(1), "", ""
+        );
+
+        Vaccine vaccine = mock(Vaccine.class);
+
+        mockBabyAccess();
+
+        when(vaccineRepository.findById(vaccineId))
+                .thenReturn(Optional.of(vaccine));
+        when(vaccine.getDoseNumber()).thenReturn(1);
+
+        assertThrows(
+                BusinessException.class,
+                () -> service.createVaccinationSchedule(babyId, userId, request)
+        );
+
+        verify(repository, never()).save(any(BabyVaccination.class));
+    }
+    @Test
+// 이미 완료된 예방접종 일정은 수정할 수 없음
+    void UPDATE_VACCINATION_SCHEDULE_ALREADY_COMPLETED() {
+        Long scheduleId = 10L;
+
+        Vaccine vaccine = mock(Vaccine.class);
+
+        BabyVaccination vaccination = BabyVaccination.create(
+                babyId,
+                vaccine,
+                TODAY.plusDays(7),
+                null,
+                null
+        );
+
+        vaccination.complete(TODAY);
+
+        mockBabyAccess();
+
+        when(repository.findById(scheduleId))
+                .thenReturn(Optional.of(vaccination));
+
+        assertThrows(
+                BusinessException.class,
+                () -> service.updateVaccinationSchedule(
+                        babyId, userId, scheduleId, null
+                )
+        );
+
+        assertTrue(vaccination.getCompleted());
     }
 }

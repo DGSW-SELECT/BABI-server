@@ -145,7 +145,7 @@ public class VaccinationServiceImpl implements VaccinationService {
                 BabyVaccination.create(babyId, vaccine, scheduledDate,request.institution(), request.memo());
 
         BabyVaccination saved =
-                babyVaccinationRepository.save(vaccination);
+                babyVaccinationRepository.saveAndFlush(vaccination);
         // 응답 반환
         return new VaccinationScheduleCreateResponse(
                 saved.getId(),
@@ -275,6 +275,7 @@ public class VaccinationServiceImpl implements VaccinationService {
 
         // 엔티티 수정
         vaccination.updateSchedule(vaccine, request.scheduledDate(), request.institution(), request.memo());
+        babyVaccinationRepository.flush();
 
         return new VaccinationScheduleUpdateResponse(
                 vaccination.getId(),
