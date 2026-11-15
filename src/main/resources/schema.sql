@@ -464,7 +464,7 @@ CREATE TABLE IF NOT EXISTS `handoff_briefings` (
 CREATE TABLE IF NOT EXISTS `vaccines` (
     `id`                      BIGINT       NOT NULL AUTO_INCREMENT,
     `vaccine_name`            VARCHAR(100) NOT NULL,
-    `dose_number`             INTEGER      NULL,
+    `dose_number`             INTEGER      NOT NULL,
     `recommended_start_month` INTEGER      NULL,
     `recommended_end_month`   INTEGER      NULL,
     PRIMARY KEY (`id`),
