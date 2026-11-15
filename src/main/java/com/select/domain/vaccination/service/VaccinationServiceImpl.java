@@ -271,7 +271,7 @@ public class VaccinationServiceImpl implements VaccinationService {
                         vaccinationScheduleId
                 );
         if(duplicated)
-            throw new BusinessException(ErrorCode.VACCINE_DUPLICATE);
+            throw new BusinessException(ErrorCode.DUPLICATE_VACCINATION);
 
         // 엔티티 수정
         vaccination.updateSchedule(vaccine, request.scheduledDate(), request.institution(), request.memo());

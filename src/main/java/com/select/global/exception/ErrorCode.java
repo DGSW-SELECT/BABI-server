@@ -16,7 +16,6 @@ public enum ErrorCode {
     VACCINATION_ALREADY_COMPLETED(HttpStatus.CONFLICT, "이미 완료된 일정입니다."),
     VACCINATION_INVALID_DOSE_NUMBER(HttpStatus.BAD_REQUEST, "유효하지 않은 접종 차수입니다."),
     BABY_NOT_FOUND(HttpStatus.NOT_FOUND, "아기를 찾을 수 없습니다."),
-    VACCINE_DUPLICATE(HttpStatus.CONFLICT, "다른 접종과 중복될 수 없습니다."),
     ACCESS_DENIED(HttpStatus.FORBIDDEN, "해당 리소스에 접근할 권한이 없습니다."),
   
     INVALID_CARE_RECORD(HttpStatus.BAD_REQUEST, "기록 내용 또는 연결된 음성 기록을 확인해 주세요."),
