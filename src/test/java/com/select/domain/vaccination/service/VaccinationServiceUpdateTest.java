@@ -180,7 +180,7 @@ class VaccinationServiceUpdateTest {
         );
 
         verify(vaccination, never())
-                .updateSchedule(any(), any(), any(), any(), any());
+                .updateSchedule(any(), any(), any(), any());
     }
     @Test
     void UPDATE_VACCINE_NOT_FOUND() {
@@ -213,7 +213,7 @@ class VaccinationServiceUpdateTest {
         );
 
         verify(vaccination, never())
-                .updateSchedule(any(), any(), any(), any(), any());
+                .updateSchedule(any(), any(), any(), any());
     }
     @Test
     void UPDATE_COMPLETED_SCHEDULE_FAIL() {
@@ -244,6 +244,6 @@ class VaccinationServiceUpdateTest {
         );
 
         verify(vaccination, never())
-                .updateSchedule(any(), any(), any(), any(), any());
+                .updateSchedule(any(), any(), any(), any());
     }
 }

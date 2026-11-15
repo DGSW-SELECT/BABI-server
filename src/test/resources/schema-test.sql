@@ -167,7 +167,7 @@ CREATE TABLE IF NOT EXISTS `daily_reports` (
 CREATE TABLE IF NOT EXISTS `vaccines` (
     `id`                      BIGINT       NOT NULL AUTO_INCREMENT,
     `vaccine_name`            VARCHAR(100) NOT NULL,
-    `dose_number`             INTEGER      NULL,
+    `dose_number`             INTEGER      NOT NULL,
     `recommended_start_month` INTEGER      NULL,
     `recommended_end_month`   INTEGER      NULL,
     PRIMARY KEY (`id`),
@@ -182,14 +182,12 @@ CREATE TABLE IF NOT EXISTS `baby_vaccinations` (
     `id`             BIGINT       NOT NULL AUTO_INCREMENT,
     `baby_id`        BIGINT       NOT NULL,
     `vaccine_id`     BIGINT       NOT NULL,
-    `dose_number`    INT          NOT NULL,
     `scheduled_date` DATE         NULL,
     `completed_date` DATE         NULL,
     `institution`    VARCHAR(255) NULL,
     `memo`           VARCHAR(255) NULL,
     `completed`      BOOLEAN      NOT NULL DEFAULT FALSE,
     PRIMARY KEY (`id`),
-    UNIQUE KEY `uk_baby_vaccine` (`baby_id`, `vaccine_id`),
     KEY `idx_baby_vaccinations_vaccine` (`vaccine_id`),
     KEY `idx_baby_vaccinations_schedule` (`baby_id`, `scheduled_date`),
     -- 완료 여부와 완료일은 항상 함께 움직여야 함 (양방향 일관성)
@@ -202,6 +200,8 @@ CREATE TABLE IF NOT EXISTS `baby_vaccinations` (
     CONSTRAINT `fk_baby_vaccinations_baby`
     FOREIGN KEY (`baby_id`) REFERENCES `babies` (`id`)
     ON UPDATE NO ACTION ON DELETE NO ACTION,
+    CONSTRAINT uk_baby_vaccine_dose
+    UNIQUE (baby_id, vaccine_id),
     CONSTRAINT `fk_baby_vaccinations_vaccine`
     FOREIGN KEY (`vaccine_id`) REFERENCES `vaccines` (`id`)
     ON UPDATE NO ACTION ON DELETE NO ACTION

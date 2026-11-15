@@ -483,7 +483,6 @@ CREATE TABLE IF NOT EXISTS `baby_vaccinations` (
     `id`             BIGINT       NOT NULL AUTO_INCREMENT,
     `baby_id`        BIGINT       NOT NULL,
     `vaccine_id`     BIGINT       NOT NULL,
-    `dose_number`    INT          NOT NULL,
     `scheduled_date` DATE         NULL,
     `completed_date` DATE         NULL,
     `institution`    VARCHAR(255) NULL,
@@ -500,7 +499,7 @@ CREATE TABLE IF NOT EXISTS `baby_vaccinations` (
         CHECK ((`completed` = TRUE  AND `completed_date` IS NOT NULL)
             OR (`completed` = FALSE AND `completed_date` IS NULL)),
     CONSTRAINT uk_baby_vaccine_dose
-        UNIQUE (baby_id, vaccine_id, dose_number),
+        UNIQUE (baby_id, vaccine_id),
     CONSTRAINT `fk_baby_vaccinations_baby`
         FOREIGN KEY (`baby_id`) REFERENCES `babies` (`id`)
         ON UPDATE NO ACTION ON DELETE NO ACTION,

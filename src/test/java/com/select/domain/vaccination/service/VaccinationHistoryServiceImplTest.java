@@ -1,6 +1,5 @@
 package com.select.domain.vaccination.service;
 
-import com.select.domain.baby.entity.Baby;
 import com.select.domain.baby.repository.BabyMemberRepository;
 import com.select.domain.baby.repository.BabyRepository;
 import com.select.domain.vaccination.dto.response.VaccinationHistoryResponse;
@@ -73,7 +72,6 @@ class VaccinationHistoryServiceImplTest {
 
         when(vaccination.getId()).thenReturn(10L);
         when(vaccination.getVaccine()).thenReturn(vaccine);
-        when(vaccination.getDoseNumber()).thenReturn(2);
         when(vaccination.getCompletedDate()).thenReturn(completedDate);
 
         mockBabyAccess();
@@ -90,7 +88,6 @@ class VaccinationHistoryServiceImplTest {
         assertEquals(1, response.items().size());
         assertEquals(10L, response.items().get(0).vaccinationScheduleId());
         assertEquals("DTaP", response.items().get(0).vaccineName());
-        assertEquals(2, response.items().get(0).doseNumber());
         assertEquals(completedDate, response.items().get(0).completedDate());
 
         // verify

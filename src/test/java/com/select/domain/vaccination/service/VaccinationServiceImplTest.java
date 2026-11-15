@@ -15,7 +15,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.time.Clock;
-import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
@@ -70,7 +69,6 @@ class VaccinationServiceImplTest{
         when(vaccination.getVaccine()).thenReturn(vaccine);
         when(vaccine.getId()).thenReturn(20L);
         when(vaccine.getName()).thenReturn("B형간염");
-        when(vaccination.getDoseNumber()).thenReturn(1);
         when(vaccine.getRecommendedStartMonth()).thenReturn(0);
         when(vaccine.getRecommendedEndMonth()).thenReturn(1);
         when(vaccination.getScheduledDate()).thenReturn(LocalDate.of(2026, 2,1));
@@ -173,7 +171,7 @@ class VaccinationServiceImplTest{
         when(vaccine.getName()).thenReturn("B형간염");
         when(vaccine.getDoseNumber()).thenReturn(1);
 
-        when(repository.existsByBabyIdAndVaccine_IdAndDoseNumber(babyId, vaccineId, 1))
+        when(repository.existsByBabyIdAndVaccine_Id(babyId, vaccineId))
                 .thenReturn(false);
 
         when(repository.save(any(BabyVaccination.class)))
@@ -268,7 +266,7 @@ class VaccinationServiceImplTest{
         when(vaccine.getId()).thenReturn(vaccineId);
         when(vaccine.getDoseNumber()).thenReturn(1);
 
-        when(repository.existsByBabyIdAndVaccine_IdAndDoseNumber(babyId, vaccineId, 1))
+        when(repository.existsByBabyIdAndVaccine_Id(babyId, vaccineId))
                 .thenReturn(true);
 
         assertThrows(
@@ -289,7 +287,6 @@ class VaccinationServiceImplTest{
         BabyVaccination vaccination = BabyVaccination.create(
                 babyId,
                 vaccine,
-                1,
                 TODAY.plusDays(7),
                 null,
                 null
@@ -324,7 +321,6 @@ class VaccinationServiceImplTest{
         BabyVaccination vaccination = BabyVaccination.create(
                 babyId,
                 vaccine,
-                1,
                 TODAY.plusDays(7),
                 null,
                 null
@@ -382,7 +378,6 @@ class VaccinationServiceImplTest{
         BabyVaccination vaccination = BabyVaccination.create(
                 2L,
                 vaccine,
-                1,
                 TODAY.plusDays(7),
                 null,
                 null

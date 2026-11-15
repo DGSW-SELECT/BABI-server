@@ -93,7 +93,7 @@ public class VaccinationServiceImpl implements VaccinationService {
                             babyVaccination.getId(),
                             vaccine.getId(),
                             vaccine.getName(),
-                            babyVaccination.getDoseNumber(),
+                            vaccine.getDoseNumber(),
                             vaccine.getRecommendedStartMonth(),
                             vaccine.getRecommendedEndMonth(),
                             babyVaccination.getScheduledDate(),
@@ -137,12 +137,12 @@ public class VaccinationServiceImpl implements VaccinationService {
             throw new BusinessException(ErrorCode.VACCINE_INVALID_SCHEDULE_DATE);
         }
         // 중복 등록 검사
-        if (babyVaccinationRepository.existsByBabyIdAndVaccine_IdAndDoseNumber(babyId, vaccine.getId(), request.doseNumber())) {
+        if (babyVaccinationRepository.existsByBabyIdAndVaccine_Id(babyId, vaccine.getId())) {
             throw new BusinessException(ErrorCode.DUPLICATE_VACCINATION);
         }
         // 엔티티 생성 및 저장
         BabyVaccination vaccination =
-                BabyVaccination.create(babyId, vaccine, request.doseNumber(),scheduledDate,request.institution(), request.memo());
+                BabyVaccination.create(babyId, vaccine, scheduledDate,request.institution(), request.memo());
 
         BabyVaccination saved =
                 babyVaccinationRepository.save(vaccination);
@@ -152,7 +152,7 @@ public class VaccinationServiceImpl implements VaccinationService {
                 babyId,
                 vaccine.getId(),
                 vaccine.getName(),
-                saved.getDoseNumber(),
+                vaccine.getDoseNumber(),
                 saved.getScheduledDate(),
                 saved.getCompletedDate(),
                 saved.getInstitution(),
@@ -191,7 +191,7 @@ public class VaccinationServiceImpl implements VaccinationService {
                 vaccination.getId(),
                 vaccination.getBabyId(),
                 vaccination.getVaccine().getId(),
-                vaccination.getDoseNumber(),
+                vaccination.getVaccine().getDoseNumber(),
                 vaccination.getScheduledDate(),
                 vaccination.getCompletedDate(),
                 vaccination.getInstitution(),
@@ -211,7 +211,7 @@ public class VaccinationServiceImpl implements VaccinationService {
                                 new VaccinationHistoryResponse.Item(
                                         vaccination.getId(),
                                         vaccination.getVaccine().getName(),
-                                        vaccination.getDoseNumber(),
+                                        vaccination.getVaccine().getDoseNumber(),
                                         vaccination.getCompletedDate()
                                 )
                         ).toList();
@@ -265,23 +265,22 @@ public class VaccinationServiceImpl implements VaccinationService {
             );
         }
         boolean duplicated =
-                babyVaccinationRepository.existsByBabyIdAndVaccine_IdAndDoseNumberAndIdNot(
+                babyVaccinationRepository.existsByBabyIdAndVaccine_IdAndIdNot(
                         babyId,
                         request.vaccineId(),
-                        request.doseNumber(),
                         vaccinationScheduleId
                 );
         if(duplicated)
             throw new BusinessException(ErrorCode.VACCINE_DUPLICATE);
 
         // 엔티티 수정
-        vaccination.updateSchedule(vaccine, request.doseNumber(), request.scheduledDate(), request.institution(), request.memo());
+        vaccination.updateSchedule(vaccine, request.scheduledDate(), request.institution(), request.memo());
 
         return new VaccinationScheduleUpdateResponse(
                 vaccination.getId(),
                 vaccination.getBabyId(),
                 vaccination.getVaccine().getId(),
-                vaccination.getDoseNumber(),
+                vaccination.getVaccine().getDoseNumber(),
                 vaccination.getScheduledDate(),
                 vaccination.getCompletedDate(),
                 vaccination.getInstitution(),

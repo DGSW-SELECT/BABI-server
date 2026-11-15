@@ -15,18 +15,16 @@ public interface BabyVaccinationRepository extends JpaRepository<BabyVaccination
             LocalDate to
     );
 
-    boolean existsByBabyIdAndVaccine_IdAndDoseNumber(
+    boolean existsByBabyIdAndVaccine_Id(
             Long babyId,
-            Long vaccineId,
-            Integer doseNumber
+            Long vaccineId
     );
 
     List<BabyVaccination> findAllByBabyIdAndCompletedTrue(Long babyId);
 
-    boolean existsByBabyIdAndVaccine_IdAndDoseNumberAndIdNot(
+    boolean existsByBabyIdAndVaccine_IdAndIdNot(
             Long babyId,
             Long vaccineId,
-            Integer doseNumber,
             Long scheduleId
     );
 }
