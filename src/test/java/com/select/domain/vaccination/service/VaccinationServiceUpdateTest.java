@@ -84,6 +84,8 @@ class VaccinationServiceUpdateTest {
         when(vaccination.getId()).thenReturn(scheduleId);
         when(vaccination.getVaccine()).thenReturn(vaccine);
         when(vaccination.getScheduledDate()).thenReturn(scheduledDate);
+        when(vaccine.getId()).thenReturn(vaccineId);
+        when(vaccine.getDoseNumber()).thenReturn(1);
         when(vaccination.getCompletedDate()).thenReturn(null);
         when(vaccination.getCompleted()).thenReturn(false);
         when(vaccine.getId()).thenReturn(vaccineId);
