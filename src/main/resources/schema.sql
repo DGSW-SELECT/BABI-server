@@ -490,7 +490,6 @@ CREATE TABLE IF NOT EXISTS `baby_vaccinations` (
     `memo`           VARCHAR(255) NULL,
     `completed`      BOOLEAN      NOT NULL DEFAULT FALSE,
     PRIMARY KEY (`id`),
-    UNIQUE KEY `uk_baby_vaccine` (`baby_id`, `vaccine_id`),
     KEY `idx_baby_vaccinations_vaccine` (`vaccine_id`),
     KEY `idx_baby_vaccinations_schedule` (`baby_id`, `scheduled_date`),
     -- 완료 여부와 완료일은 항상 함께 움직여야 함 (양방향 일관성)

@@ -254,6 +254,9 @@ public class VaccinationServiceImpl implements VaccinationService {
         if (request.doseNumber() == null || request.doseNumber() < 1) {
             throw new BusinessException(ErrorCode.VACCINATION_INVALID_DOSE_NUMBER);
         }
+        if (!Objects.equals(vaccine.getDoseNumber(), request.doseNumber())) {
+            throw new BusinessException(ErrorCode.VACCINATION_INVALID_DOSE_NUMBER);
+        }
 
         if (request.scheduledDate() == null ||
                 request.scheduledDate().isBefore(LocalDate.now(clock))) {
