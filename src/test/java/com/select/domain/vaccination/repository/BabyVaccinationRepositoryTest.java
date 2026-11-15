@@ -165,7 +165,7 @@ class BabyVaccinationRepositoryTest {
 
         // when
         boolean result =
-                repository.existsByBabyIdAndVaccine_Id(babyId1, vaccineId, 1);
+                repository.existsByBabyIdAndVaccine_IdAndDoseNumber(babyId1, vaccineId, 1);
 
         // then
         assertThat(result).isTrue();
@@ -187,7 +187,7 @@ class BabyVaccinationRepositoryTest {
 
         // when: 존재하지 않는 아기와 백신 ID 조합 확인
         boolean result =
-                repository.existsByBabyIdAndVaccine_Id(999L, vaccineId, 1);
+                repository.existsByBabyIdAndVaccine_IdAndDoseNumber(999L, vaccineId, 1);
 
         // then
         assertThat(result).isFalse();

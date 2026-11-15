@@ -173,7 +173,7 @@ class VaccinationServiceImplTest{
         when(vaccine.getName()).thenReturn("B형간염");
         when(vaccine.getDoseNumber()).thenReturn(1);
 
-        when(repository.existsByBabyIdAndVaccine_Id(babyId, vaccineId, 1))
+        when(repository.existsByBabyIdAndVaccine_IdAndDoseNumber(babyId, vaccineId, 1))
                 .thenReturn(false);
 
         when(repository.save(any(BabyVaccination.class)))
@@ -268,7 +268,7 @@ class VaccinationServiceImplTest{
         when(vaccine.getId()).thenReturn(vaccineId);
         when(vaccine.getDoseNumber()).thenReturn(1);
 
-        when(repository.existsByBabyIdAndVaccine_Id(babyId, vaccineId, 1))
+        when(repository.existsByBabyIdAndVaccine_IdAndDoseNumber(babyId, vaccineId, 1))
                 .thenReturn(true);
 
         assertThrows(

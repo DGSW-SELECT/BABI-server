@@ -9,6 +9,7 @@ import java.time.LocalDate;
 
 public record VaccinationScheduleUpdateRequest (
         @NotNull(message = "백신 ID는 필수입니다.")
+        @Positive(message = "백신 ID는 양수여야합니다.")
         Long vaccineId,
 
         @NotNull(message = "접종 차수는 필수입니다.")

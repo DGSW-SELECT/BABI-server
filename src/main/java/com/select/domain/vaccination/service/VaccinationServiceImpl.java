@@ -20,6 +20,7 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
@@ -92,9 +93,9 @@ public class VaccinationServiceImpl implements VaccinationService {
                             babyVaccination.getId(),
                             vaccine.getId(),
                             vaccine.getName(),
+                            babyVaccination.getDoseNumber(),
                             vaccine.getRecommendedStartMonth(),
                             vaccine.getRecommendedEndMonth(),
-                            babyVaccination.getDoseNumber(),
                             babyVaccination.getScheduledDate(),
                             babyVaccination.getCompletedDate(),
                             babyVaccination.getInstitution(),
@@ -128,7 +129,7 @@ public class VaccinationServiceImpl implements VaccinationService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.VACCINE_NOT_FOUND));
         LocalDate scheduledDate = request.scheduledDate();
 
-        if (!vaccine.getDoseNumber().equals(request.doseNumber())) {
+        if (!Objects.equals(vaccine.getDoseNumber(), request.doseNumber())) {
             throw new BusinessException(ErrorCode.VACCINATION_INVALID_DOSE_NUMBER);
         }
         // 접종 예정 검증
@@ -136,7 +137,7 @@ public class VaccinationServiceImpl implements VaccinationService {
             throw new BusinessException(ErrorCode.VACCINE_INVALID_SCHEDULE_DATE);
         }
         // 중복 등록 검사
-        if (babyVaccinationRepository.existsByBabyIdAndVaccine_Id(babyId, vaccine.getId(), request.doseNumber())) {
+        if (babyVaccinationRepository.existsByBabyIdAndVaccine_IdAndDoseNumber(babyId, vaccine.getId(), request.doseNumber())) {
             throw new BusinessException(ErrorCode.DUPLICATE_VACCINATION);
         }
         // 엔티티 생성 및 저장
@@ -261,7 +262,7 @@ public class VaccinationServiceImpl implements VaccinationService {
             );
         }
         boolean duplicated =
-                babyVaccinationRepository.existsByBabyIdAndVaccine_IdAndIdNot(
+                babyVaccinationRepository.existsByBabyIdAndVaccine_IdAndDoseNumberAndIdNot(
                         babyId,
                         request.vaccineId(),
                         request.doseNumber(),
