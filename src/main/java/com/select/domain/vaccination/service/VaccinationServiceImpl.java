@@ -1,5 +1,8 @@
 package com.select.domain.vaccination.service;
 
+import com.select.domain.baby.entity.Baby;
+import com.select.domain.baby.entity.BabyMember;
+import com.select.domain.baby.entity.BabyRole;
 import com.select.domain.baby.repository.BabyMemberRepository;
 import com.select.domain.baby.repository.BabyRepository;
 import com.select.domain.vaccination.dto.request.VaccinationScheduleCreateRequest;
@@ -13,6 +16,7 @@ import com.select.domain.vaccination.repository.VaccineRepository;
 import com.select.global.exception.BusinessException;
 import com.select.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,19 +38,61 @@ public class VaccinationServiceImpl implements VaccinationService {
     private final BabyRepository babyRepository;
     private final BabyMemberRepository babyMemberRepository;
     private final Clock clock;
-    // 아기 권한 검사 로직
-    private void validateBabyAccess(Long babyId, Long userId) {
 
+
+    // 아기 권한 검사 로직
+    private void validateBabyId(Long babyId) {
+        if (babyId == null || babyId <= 0) {
+            throw new BusinessException(
+                    ErrorCode.VACCINE_INVALID_BABY_ID
+            );
+        }
+    }
+
+    private void validateBabyReadAccess(Long babyId, Long userId) {
+        validateBabyId(babyId);
         // 아기 존재 여부 확인
         if (!babyRepository.existsById(babyId)) {
             throw new BusinessException(ErrorCode.BABY_NOT_FOUND);
         }
 
         // 로그인 사용자가 해당 아기의 활성 구성원인지 확인
-        if (!babyMemberRepository.existsByBabyIdAndUserId(babyId, userId)) {
+                babyMemberRepository
+                .findByBabyIdAndUserId(babyId, userId)
+                .orElseThrow(() ->
+                        new BusinessException(ErrorCode.ACCESS_DENIED));
+    }
+    private void validateBabyWriteAccess(Long babyId, Long userId) {
+        validateBabyId(babyId);
+
+        if (!babyRepository.existsById(babyId)) {
+            throw new BusinessException(ErrorCode.BABY_NOT_FOUND);
+        }
+
+        BabyMember member = babyMemberRepository
+                .findByBabyIdAndUserId(babyId, userId)
+                .orElseThrow(() ->
+                        new BusinessException(ErrorCode.ACCESS_DENIED));
+
+        if (member.getRole() == BabyRole.VIEWER) {
             throw new BusinessException(ErrorCode.ACCESS_DENIED);
         }
     }
+    private boolean isDuplicateVaccinationConstraint(Throwable e) {
+        Throwable cause = e;
+
+        while (cause != null) {
+            if (cause instanceof
+                    org.hibernate.exception.ConstraintViolationException ex) {
+                return "uk_baby_vaccine".equals(ex.getConstraintName());
+            }
+
+            cause = cause.getCause();
+        }
+
+        return false;
+    }
+
     @Override
     public VaccinationScheduleResponse getVaccinationSchedules(
             Long babyId,
@@ -76,7 +122,7 @@ public class VaccinationServiceImpl implements VaccinationService {
         }
 
         // 2. 아기 존재 여부 확인 + 사용자 권한 검증
-        validateBabyAccess(babyId, userId);
+        validateBabyReadAccess(babyId, userId);
 
         // 3. 일정 조회
         List<BabyVaccination> babyVaccinations =
@@ -123,7 +169,7 @@ public class VaccinationServiceImpl implements VaccinationService {
             throw new BusinessException(ErrorCode.VACCINE_INVALID_BABY_ID);
         }
         // 아기 존재 여부 확인
-        validateBabyAccess(babyId, userId);
+        validateBabyWriteAccess(babyId, userId);
         // 백신조회
         Vaccine vaccine = vaccineRepository.findById(request.vaccineId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.VACCINE_NOT_FOUND));
@@ -144,8 +190,15 @@ public class VaccinationServiceImpl implements VaccinationService {
         BabyVaccination vaccination =
                 BabyVaccination.create(babyId, vaccine, scheduledDate,request.institution(), request.memo());
 
-        BabyVaccination saved =
-                babyVaccinationRepository.saveAndFlush(vaccination);
+        BabyVaccination saved;
+        try {
+            saved = babyVaccinationRepository.saveAndFlush(vaccination);
+        } catch (DataIntegrityViolationException e) {
+            if (isDuplicateVaccinationConstraint(e)) {
+                throw new BusinessException(ErrorCode.DUPLICATE_VACCINATION);
+            }
+            throw e;
+        }
         // 응답 반환
         return new VaccinationScheduleCreateResponse(
                 saved.getId(),
@@ -168,7 +221,7 @@ public class VaccinationServiceImpl implements VaccinationService {
             Long vaccinationScheduleId,
             VaccinationScheduleSuccessRequest request
     ){
-        validateBabyAccess(babyId, userId);
+        validateBabyWriteAccess(babyId, userId);
 
         BabyVaccination vaccination = babyVaccinationRepository
                 .findById(vaccinationScheduleId)
@@ -183,7 +236,12 @@ public class VaccinationServiceImpl implements VaccinationService {
         }
 
         if (request.completed()) {
-            vaccination.complete(LocalDate.now(clock));
+            if (vaccination.getScheduledDate() != null && vaccination.getScheduledDate().isAfter(LocalDate.now(clock)))
+                throw new BusinessException(
+                        ErrorCode.VACCINE_INVALID_SCHEDULE_DATE
+                );
+            if (!Boolean.TRUE.equals(vaccination.getCompleted()))
+                vaccination.complete(LocalDate.now(clock));
         } else {
             vaccination.cancelComplete();
         }
@@ -201,7 +259,7 @@ public class VaccinationServiceImpl implements VaccinationService {
     }
     @Override
     public VaccinationHistoryResponse getVaccinationHistory(Long babyId, Long userId) {
-        validateBabyAccess(babyId, userId);
+        validateBabyReadAccess(babyId, userId);
         List<BabyVaccination> vaccinations =
                 babyVaccinationRepository.findAllByBabyIdAndCompletedTrue(babyId);
 
@@ -227,7 +285,7 @@ public class VaccinationServiceImpl implements VaccinationService {
             VaccinationScheduleUpdateRequest request
     ) {
         // 아기 존재 여부 확인
-        validateBabyAccess(babyId, userId);
+        validateBabyWriteAccess(babyId, userId);
 
         // 접종 일정 조회
         BabyVaccination vaccination = babyVaccinationRepository
@@ -257,13 +315,19 @@ public class VaccinationServiceImpl implements VaccinationService {
         if (!Objects.equals(vaccine.getDoseNumber(), request.doseNumber())) {
             throw new BusinessException(ErrorCode.VACCINATION_INVALID_DOSE_NUMBER);
         }
-
-        if (request.scheduledDate() == null ||
-                request.scheduledDate().isBefore(LocalDate.now(clock))) {
+        if (request.scheduledDate() == null) {
             throw new BusinessException(
                     ErrorCode.VACCINE_INVALID_SCHEDULE_DATE
             );
         }
+
+        boolean dataChange = !Objects.equals(vaccination.getScheduledDate(), request.scheduledDate());
+        if (dataChange && request.scheduledDate().isBefore(LocalDate.now(clock))) {
+            throw new BusinessException(
+                    ErrorCode.VACCINE_INVALID_SCHEDULE_DATE
+            );
+        }
+
         boolean duplicated =
                 babyVaccinationRepository.existsByBabyIdAndVaccine_IdAndIdNot(
                         babyId,
@@ -275,7 +339,14 @@ public class VaccinationServiceImpl implements VaccinationService {
 
         // 엔티티 수정
         vaccination.updateSchedule(vaccine, request.scheduledDate(), request.institution(), request.memo());
-        babyVaccinationRepository.flush();
+        try {
+            babyVaccinationRepository.flush();
+        } catch (DataIntegrityViolationException e) {
+            if (isDuplicateVaccinationConstraint(e)) {
+                throw new BusinessException(ErrorCode.DUPLICATE_VACCINATION);
+            }
+            throw e;
+        }
 
         return new VaccinationScheduleUpdateResponse(
                 vaccination.getId(),
@@ -298,7 +369,7 @@ public class VaccinationServiceImpl implements VaccinationService {
             Long userId,
             Long vaccinationScheduleId
     ) {
-        validateBabyAccess(babyId, userId);
+        validateBabyWriteAccess(babyId, userId);
 
         BabyVaccination vaccination = babyVaccinationRepository
                 .findById(vaccinationScheduleId)
