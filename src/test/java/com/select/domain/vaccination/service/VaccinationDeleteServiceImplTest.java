@@ -1,5 +1,7 @@
 package com.select.domain.vaccination.service;
 
+import com.select.domain.baby.entity.BabyMember;
+import com.select.domain.baby.entity.BabyRole;
 import com.select.domain.baby.repository.BabyMemberRepository;
 import com.select.domain.baby.repository.BabyRepository;
 import com.select.domain.vaccination.entity.BabyVaccination;
@@ -23,6 +25,7 @@ class VaccinationDeleteServiceImplTest {
     private VaccineRepository vaccineRepository;
     private BabyRepository babyRepository;
     private BabyMemberRepository babyMemberRepository;
+    private BabyMember babyMember;
     private Clock clock;
 
     private final Long babyId = 1L;
@@ -35,6 +38,7 @@ class VaccinationDeleteServiceImplTest {
         vaccineRepository = mock(VaccineRepository.class);
         babyRepository = mock(BabyRepository.class);
         babyMemberRepository = mock(BabyMemberRepository.class);
+        babyMember = mock(BabyMember.class);
 
         clock = Clock.fixed(
                 Instant.parse("2026-11-10T03:00:00Z"),
@@ -43,17 +47,20 @@ class VaccinationDeleteServiceImplTest {
 
         service = new VaccinationServiceImpl(repository, vaccineRepository, babyRepository, babyMemberRepository, clock);
     }
-    private void mockBabyAccess() {
+    private void mockWriteAccess() {
         when(babyRepository.existsById(babyId)).thenReturn(true);
-        when(babyMemberRepository.existsByBabyIdAndUserId(babyId, userId))
-                .thenReturn(true);
+
+        when(babyMemberRepository.findByBabyIdAndUserId(babyId, userId))
+                .thenReturn(Optional.of(babyMember));
+
+        when(babyMember.getRole()).thenReturn(BabyRole.GUARDIAN);
     }
     @Test
     void DELETE_INCOMPLETE_SCHEDULE_SUCCESS() {
 
         BabyVaccination vaccination = mock(BabyVaccination.class);
 
-        mockBabyAccess();
+        mockWriteAccess();
 
         when(repository.findById(scheduleId))
                 .thenReturn(Optional.of(vaccination));
@@ -68,7 +75,7 @@ class VaccinationDeleteServiceImplTest {
     void DELETE_COMPLETED_SCHEDULE_SUCCESS() {
 
         BabyVaccination vaccination = mock(BabyVaccination.class);
-        mockBabyAccess();
+        mockWriteAccess();
 
         when(repository.findById(scheduleId))
                 .thenReturn(Optional.of(vaccination));
@@ -111,7 +118,7 @@ class VaccinationDeleteServiceImplTest {
 
         BabyVaccination vaccination = mock(BabyVaccination.class);
 
-        mockBabyAccess();
+        mockWriteAccess();
         when(repository.findById(scheduleId))
                 .thenReturn(Optional.of(vaccination));
         when(vaccination.getBabyId()).thenReturn(2L);

@@ -1,5 +1,7 @@
 package com.select.domain.vaccination.service;
 
+import com.select.domain.baby.entity.BabyMember;
+import com.select.domain.baby.entity.BabyRole;
 import com.select.domain.baby.repository.BabyMemberRepository;
 import com.select.domain.baby.repository.BabyRepository;
 import com.select.domain.vaccination.dto.response.VaccinationHistoryResponse;
@@ -16,6 +18,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -27,6 +30,7 @@ class VaccinationHistoryServiceImplTest {
     private BabyRepository babyRepository;
     private BabyMemberRepository babyMemberRepository;
     private VaccinationServiceImpl service;
+    private BabyMember babyMember;
     private Clock clock;
 
     private final Long babyId = 1L;
@@ -38,7 +42,7 @@ class VaccinationHistoryServiceImplTest {
         vaccineRepository = mock(VaccineRepository.class);
         babyRepository = mock(BabyRepository.class);
         babyMemberRepository = mock(BabyMemberRepository.class);
-
+        babyMember = mock(BabyMember.class);
         clock = Clock.fixed(
                 Instant.parse("2026-11-10T03:00:00Z"),
                 ZoneId.of("Asia/Seoul")
@@ -54,10 +58,13 @@ class VaccinationHistoryServiceImplTest {
         );
     }
 
-    private void mockBabyAccess() {
+    private void mockViewerAccess() {
         when(babyRepository.existsById(babyId)).thenReturn(true);
-        when(babyMemberRepository.existsByBabyIdAndUserId(babyId, userId))
-                .thenReturn(true);
+
+        when(babyMemberRepository.findByBabyIdAndUserId(babyId, userId))
+                .thenReturn(Optional.of(babyMember));
+
+        when(babyMember.getRole()).thenReturn(BabyRole.VIEWER);
     }
 
     @Test
@@ -74,7 +81,7 @@ class VaccinationHistoryServiceImplTest {
         when(vaccination.getVaccine()).thenReturn(vaccine);
         when(vaccination.getCompletedDate()).thenReturn(completedDate);
 
-        mockBabyAccess();
+        mockViewerAccess();
 
         when(babyVaccinationRepository.findAllByBabyIdAndCompletedTrue(babyId))
                 .thenReturn(List.of(vaccination));
@@ -98,7 +105,7 @@ class VaccinationHistoryServiceImplTest {
 
 @Test
 void VACCINATION_HISTORY_EMPTY() {
-    mockBabyAccess();
+    mockViewerAccess();
     // given
     when(babyVaccinationRepository.findAllByBabyIdAndCompletedTrue(babyId))
             .thenReturn(List.of());
@@ -119,7 +126,7 @@ void VACCINATION_HISTORY_BABY_NOT_FOUND() {
     // given
     Long babyId = 999L;
 
-    mockBabyAccess();
+    mockViewerAccess();
 
     // when / then
     assertThrows(

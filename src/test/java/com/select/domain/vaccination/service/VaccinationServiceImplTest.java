@@ -1,5 +1,7 @@
 package com.select.domain.vaccination.service;
 
+import com.select.domain.baby.entity.BabyMember;
+import com.select.domain.baby.entity.BabyRole;
 import com.select.domain.baby.repository.BabyMemberRepository;
 import com.select.domain.baby.repository.BabyRepository;
 import com.select.domain.vaccination.dto.request.VaccinationScheduleCreateRequest;
@@ -29,6 +31,7 @@ class VaccinationServiceImplTest{
     private VaccineRepository vaccineRepository;
     private BabyRepository babyRepository;
     private BabyMemberRepository babyMemberRepository;
+    private BabyMember babyMember;
     private Clock clock;
 
     private static final LocalDate TODAY = LocalDate.of(2026, 11, 10);
@@ -41,6 +44,7 @@ class VaccinationServiceImplTest{
         vaccineRepository = mock(VaccineRepository.class);
         babyRepository = mock(BabyRepository.class);
         babyMemberRepository = mock(BabyMemberRepository.class);
+        babyMember = mock(BabyMember.class);
 
         clock = Clock.fixed(
                 TODAY.atStartOfDay(ZoneId.of("Asia/Seoul")).toInstant(),
@@ -50,10 +54,21 @@ class VaccinationServiceImplTest{
         service = new VaccinationServiceImpl(repository, vaccineRepository, babyRepository, babyMemberRepository, clock);
     }
 
-    private void mockBabyAccess() {
+    private void mockViewerAccess() {
         when(babyRepository.existsById(babyId)).thenReturn(true);
-        when(babyMemberRepository.existsByBabyIdAndUserId(babyId, userId))
-                .thenReturn(true);
+
+        when(babyMemberRepository.findByBabyIdAndUserId(babyId, userId))
+                .thenReturn(Optional.of(babyMember));
+
+        when(babyMember.getRole()).thenReturn(BabyRole.VIEWER);
+    }
+    private void mockWriteAccess() {
+        when(babyRepository.existsById(babyId)).thenReturn(true);
+
+        when(babyMemberRepository.findByBabyIdAndUserId(babyId, userId))
+                .thenReturn(Optional.of(babyMember));
+
+        when(babyMember.getRole()).thenReturn(BabyRole.GUARDIAN);
     }
 
     @Test
@@ -79,7 +94,7 @@ class VaccinationServiceImplTest{
                 .findByBabyIdAndScheduledDateBetweenOrderByScheduledDateAscIdAsc(
                     babyId, from, to))
                 .thenReturn(List.of(vaccination));
-        mockBabyAccess();
+        mockViewerAccess();
         // when
         VaccinationScheduleResponse response =
                 service.getVaccinationSchedules(babyId, userId, from, to);
@@ -106,7 +121,7 @@ class VaccinationServiceImplTest{
                         babyId, from, to
                 ))
                 .thenReturn(List.of());
-        mockBabyAccess();
+        mockViewerAccess();
         // when
         VaccinationScheduleResponse response =
                 service.getVaccinationSchedules(babyId, userId, from, to);
@@ -161,9 +176,8 @@ class VaccinationServiceImplTest{
                 );
 
         Vaccine vaccine = mock(Vaccine.class);
-        BabyVaccination vaccination = mock(BabyVaccination.class);
 
-        mockBabyAccess();
+        mockWriteAccess();
         when(vaccineRepository.findById(vaccineId))
                 .thenReturn(Optional.of(vaccine));
 
@@ -213,7 +227,7 @@ class VaccinationServiceImplTest{
                 vaccineId, 1, TODAY.plusDays(1),"",""
         );
 
-        mockBabyAccess();
+        mockWriteAccess();
         when(vaccineRepository.findById(vaccineId))
                 .thenReturn(Optional.empty());
 
@@ -239,7 +253,7 @@ class VaccinationServiceImplTest{
                         ""
                 );
 
-        mockBabyAccess();
+        mockWriteAccess();
 
         assertThrows(
                 BusinessException.class,
@@ -260,7 +274,7 @@ class VaccinationServiceImplTest{
 
         Vaccine vaccine = mock(Vaccine.class);
 
-        mockBabyAccess();
+        mockWriteAccess();
         when(vaccineRepository.findById(vaccineId))
                 .thenReturn(Optional.of(vaccine));
         when(vaccine.getId()).thenReturn(vaccineId);
@@ -287,12 +301,12 @@ class VaccinationServiceImplTest{
         BabyVaccination vaccination = BabyVaccination.create(
                 babyId,
                 vaccine,
-                TODAY.plusDays(7),
+                TODAY,
                 null,
                 null
         );
 
-        mockBabyAccess();
+        mockWriteAccess();
         when(repository.findById(scheduleId))
                 .thenReturn(Optional.of(vaccination));
 
@@ -327,7 +341,7 @@ class VaccinationServiceImplTest{
         );
         vaccination.complete(TODAY);
 
-        mockBabyAccess();
+        mockWriteAccess();
         when(repository.findById(scheduleId))
                 .thenReturn(Optional.of(vaccination));
 
@@ -430,7 +444,7 @@ class VaccinationServiceImplTest{
 
         Vaccine vaccine = mock(Vaccine.class);
 
-        mockBabyAccess();
+        mockWriteAccess();
 
         when(vaccineRepository.findById(vaccineId))
                 .thenReturn(Optional.of(vaccine));
@@ -454,7 +468,7 @@ class VaccinationServiceImplTest{
 
         Vaccine vaccine = mock(Vaccine.class);
 
-        mockBabyAccess();
+        mockWriteAccess();
 
         when(vaccineRepository.findById(vaccineId))
                 .thenReturn(Optional.of(vaccine));
@@ -484,7 +498,7 @@ class VaccinationServiceImplTest{
 
         vaccination.complete(TODAY);
 
-        mockBabyAccess();
+        mockWriteAccess();
 
         when(repository.findById(scheduleId))
                 .thenReturn(Optional.of(vaccination));

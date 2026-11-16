@@ -1,5 +1,7 @@
 package com.select.domain.vaccination.service;
 
+import com.select.domain.baby.entity.BabyMember;
+import com.select.domain.baby.entity.BabyRole;
 import com.select.domain.baby.repository.BabyMemberRepository;
 import com.select.domain.baby.repository.BabyRepository;
 import com.select.domain.vaccination.dto.request.VaccinationScheduleUpdateRequest;
@@ -28,6 +30,7 @@ class VaccinationServiceUpdateTest {
     private VaccineRepository vaccineRepository;
     private BabyRepository babyRepository;
     private BabyMemberRepository babyMemberRepository;
+    private BabyMember babyMember;
     private Clock clock;
 
     private final Long babyId = 1L;
@@ -39,6 +42,7 @@ class VaccinationServiceUpdateTest {
         vaccineRepository = mock(VaccineRepository.class);
         babyRepository = mock(BabyRepository.class);
         babyMemberRepository = mock(BabyMemberRepository.class);
+        babyMember = mock(BabyMember.class);
 
         clock = Clock.fixed(
                 Instant.parse("2026-11-10T03:00:00Z"),
@@ -47,10 +51,13 @@ class VaccinationServiceUpdateTest {
 
         service = new VaccinationServiceImpl(repository, vaccineRepository, babyRepository, babyMemberRepository, clock);
     }
-    private void mockBabyAccess() {
+    private void mockWriteAccess() {
         when(babyRepository.existsById(babyId)).thenReturn(true);
-        when(babyMemberRepository.existsByBabyIdAndUserId(babyId, userId))
-                .thenReturn(true);
+
+        when(babyMemberRepository.findByBabyIdAndUserId(babyId, userId))
+                .thenReturn(Optional.of(babyMember));
+
+        when(babyMember.getRole()).thenReturn(BabyRole.GUARDIAN);
     }
     @Test
     void UPDATE_VACCINATION_SCHEDULE_SUCCESS() {
@@ -72,7 +79,7 @@ class VaccinationServiceUpdateTest {
         BabyVaccination vaccination = mock(BabyVaccination.class);
         Vaccine vaccine = mock(Vaccine.class);
 
-        mockBabyAccess();
+        mockWriteAccess();
         when(repository.findById(scheduleId))
                 .thenReturn(Optional.of(vaccination));
         when(vaccination.getBabyId()).thenReturn(babyId);
@@ -142,7 +149,7 @@ class VaccinationServiceUpdateTest {
                         ""
                 );
 
-        mockBabyAccess();
+        mockWriteAccess();
         when(repository.findById(scheduleId)).thenReturn(Optional.empty());
 
         assertThrows(
@@ -166,7 +173,7 @@ class VaccinationServiceUpdateTest {
                         "",
                         ""
                 );
-
+        mockWriteAccess();
         when(babyRepository.existsById(babyId)).thenReturn(true);
         when(repository.findById(scheduleId))
                 .thenReturn(Optional.of(vaccination));
@@ -198,7 +205,7 @@ class VaccinationServiceUpdateTest {
                         ""
                 );
 
-        mockBabyAccess();
+        mockWriteAccess();
         when(repository.findById(scheduleId))
                 .thenReturn(Optional.of(vaccination));
         when(vaccination.getBabyId()).thenReturn(babyId);
@@ -230,7 +237,7 @@ class VaccinationServiceUpdateTest {
                         ""
                 );
 
-        mockBabyAccess();
+        mockWriteAccess();
         when(repository.findById(scheduleId))
                 .thenReturn(Optional.of(vaccination));
         when(vaccination.getBabyId()).thenReturn(babyId);
