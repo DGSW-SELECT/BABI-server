@@ -83,7 +83,7 @@ class VaccinationHistoryServiceImplTest {
 
         mockViewerAccess();
 
-        when(babyVaccinationRepository.findAllByBabyIdAndCompletedTrue(babyId))
+        when(babyVaccinationRepository.findAllByBabyIdAndCompletedTrueOrderByCompletedDateDescIdDesc(babyId))
                 .thenReturn(List.of(vaccination));
 
         // when
@@ -100,14 +100,14 @@ class VaccinationHistoryServiceImplTest {
         // verify
         verify(babyRepository).existsById(babyId);
         verify(babyVaccinationRepository)
-                .findAllByBabyIdAndCompletedTrue(babyId);
+                .findAllByBabyIdAndCompletedTrueOrderByCompletedDateDescIdDesc(babyId);
 }
 
 @Test
 void VACCINATION_HISTORY_EMPTY() {
     mockViewerAccess();
     // given
-    when(babyVaccinationRepository.findAllByBabyIdAndCompletedTrue(babyId))
+    when(babyVaccinationRepository.findAllByBabyIdAndCompletedTrueOrderByCompletedDateDescIdDesc(babyId))
             .thenReturn(List.of());
 
     // when
@@ -118,7 +118,7 @@ void VACCINATION_HISTORY_EMPTY() {
     assertNotNull(response.items());
     assertTrue(response.items().isEmpty());
 
-    verify(babyVaccinationRepository).findAllByBabyIdAndCompletedTrue(babyId);
+    verify(babyVaccinationRepository).findAllByBabyIdAndCompletedTrueOrderByCompletedDateDescIdDesc(babyId);
 }
 
 @Test

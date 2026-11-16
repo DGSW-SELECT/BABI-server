@@ -6,6 +6,7 @@ public record VaccinationScheduleUpdateResponse(
         Long vaccinationScheduleId,
         Long babyId,
         Long vaccineId,
+        String vaccineName,
         Integer doseNumber,
         LocalDate scheduledDate,
         LocalDate completedDate,

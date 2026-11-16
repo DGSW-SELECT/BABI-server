@@ -33,6 +33,8 @@ class VaccinationServiceUpdateTest {
     private BabyMember babyMember;
     private Clock clock;
 
+    private static final LocalDate TODAY = LocalDate.of(2026, 11, 10);
+
     private final Long babyId = 1L;
     private final Long userId = 10L;
 
@@ -252,5 +254,120 @@ class VaccinationServiceUpdateTest {
 
         verify(vaccination, never())
                 .updateSchedule(any(), any(), any(), any());
+    }
+
+    @Test
+// 기존 일정을 과거 날짜로 변경할 수 있음
+    void UPDATE_VACCINATION_SCHEDULE_TO_PAST_DATE_SUCCESS() {
+        Long scheduleId = 10L;
+        Long vaccineId = 3L;
+        LocalDate pastDate = TODAY.minusDays(5);
+
+        Vaccine vaccine = mock(Vaccine.class);
+        when(vaccine.getId()).thenReturn(vaccineId);
+
+        BabyVaccination vaccination = BabyVaccination.create(
+                babyId, vaccine, TODAY, null, null, null
+        );
+
+        mockWriteAccess();
+
+        when(repository.findById(scheduleId))
+                .thenReturn(Optional.of(vaccination));
+
+        when(vaccineRepository.findById(vaccineId))
+                .thenReturn(Optional.of(vaccine));
+
+        when(vaccine.getDoseNumber()).thenReturn(1);
+
+        var request = new VaccinationScheduleUpdateRequest(
+                vaccineId,
+                1,
+                pastDate,
+                "병원",
+                "과거 일정으로 변경"
+        );
+
+        VaccinationScheduleUpdateResponse response =
+                service.updateVaccinationSchedule(
+                        babyId, userId, scheduleId, request
+                );
+
+        assertEquals(pastDate, response.scheduledDate());
+        assertEquals(pastDate, vaccination.getScheduledDate());
+    }
+    @Test
+// 기존 일정을 미래 날짜로 변경할 수 있음
+    void UPDATE_VACCINATION_SCHEDULE_TO_FUTURE_DATE_SUCCESS() {
+        Long scheduleId = 10L;
+        Long vaccineId = 3L;
+        LocalDate futureDate = TODAY.plusDays(10);
+
+        Vaccine vaccine = mock(Vaccine.class);
+        when(vaccine.getId()).thenReturn(vaccineId);
+
+        BabyVaccination vaccination = BabyVaccination.create(
+                babyId, vaccine, TODAY, null, null, null
+        );
+
+        mockWriteAccess();
+
+        when(repository.findById(scheduleId))
+                .thenReturn(Optional.of(vaccination));
+
+        when(vaccineRepository.findById(vaccineId))
+                .thenReturn(Optional.of(vaccine));
+
+        when(vaccine.getDoseNumber()).thenReturn(1);
+
+        var request = new VaccinationScheduleUpdateRequest(
+                vaccineId,
+                1,
+                futureDate,
+                "병원",
+                "미래 일정으로 변경"
+        );
+
+        VaccinationScheduleUpdateResponse response =
+                service.updateVaccinationSchedule(
+                        babyId, userId, scheduleId, request
+                );
+
+        assertEquals(futureDate, response.scheduledDate());
+        assertEquals(futureDate, vaccination.getScheduledDate());
+    }
+    // 일정 날짜는 유지하고 메모만 수정할 수 있음
+    void UPDATE_VACCINATION_SCHEDULE_MEMO_ONLY_SUCCESS() {
+        Long scheduleId = 10L;
+        Long vaccineId = 3L;
+
+        Vaccine vaccine = mock(Vaccine.class);
+        when(vaccine.getId()).thenReturn(vaccineId);
+
+        BabyVaccination vaccination = BabyVaccination.create(
+                babyId, vaccine, TODAY, null, "기존 병원", "기존 메모"
+        );
+
+        mockWriteAccess();
+
+        when(repository.findById(scheduleId))
+                .thenReturn(Optional.of(vaccination));
+
+        var request = new VaccinationScheduleUpdateRequest(
+                vaccineId,
+                1,
+                TODAY,
+                "기존 병원",
+                "수정된 메모"
+        );
+
+        VaccinationScheduleUpdateResponse response =
+                service.updateVaccinationSchedule(
+                        babyId, userId, scheduleId, request
+                );
+
+        assertEquals(TODAY, response.scheduledDate());
+        assertEquals("수정된 메모", response.memo());
+        assertEquals(TODAY, vaccination.getScheduledDate());
     }
 }

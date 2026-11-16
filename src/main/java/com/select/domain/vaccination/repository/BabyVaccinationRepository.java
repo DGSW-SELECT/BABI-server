@@ -20,7 +20,7 @@ public interface BabyVaccinationRepository extends JpaRepository<BabyVaccination
             Long vaccineId
     );
     @EntityGraph(attributePaths = "vaccine")
-    List<BabyVaccination> findAllByBabyIdAndCompletedTrue(Long babyId);
+    List<BabyVaccination> findAllByBabyIdAndCompletedTrueOrderByCompletedDateDescIdDesc(Long babyId);
 
     boolean existsByBabyIdAndVaccine_IdAndIdNot(
             Long babyId,

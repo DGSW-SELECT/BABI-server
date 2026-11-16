@@ -244,6 +244,7 @@ class VaccinationControllerTest {
                         scheduleId,
                         babyId,
                         3L,
+                        "DTab",
                         1,
                         scheduleDate,
                         completedDate,

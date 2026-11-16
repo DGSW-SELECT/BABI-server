@@ -82,6 +82,7 @@ class VaccinationViewerServiceImplTest {
                         1L,
                         1,
                         LocalDate.of(2026, 11, 20),
+                        null,
                         "병원",
                         "메모"
                 );
@@ -122,7 +123,7 @@ class VaccinationViewerServiceImplTest {
         mockViewerAccess();
 
         VaccinationScheduleSuccessRequest request =
-                new VaccinationScheduleSuccessRequest(true);
+                new VaccinationScheduleSuccessRequest(true, null);
 
         assertThrows(
                 BusinessException.class,
@@ -156,7 +157,7 @@ class VaccinationViewerServiceImplTest {
         );
 
         verify(repository, never())
-                .findAllByBabyIdAndCompletedTrue(anyLong());
+                .findAllByBabyIdAndCompletedTrueOrderByCompletedDateDescIdDesc(anyLong());
     }
     @Test
     void REMOVED_MEMBER_CANNOT_CREATE_VACCINATION_SCHEDULE() {
@@ -170,6 +171,7 @@ class VaccinationViewerServiceImplTest {
                         1L,
                         1,
                         LocalDate.of(2026, 11, 20),
+                        null,
                         "병원",
                         "메모"
                 );
@@ -213,6 +215,7 @@ class VaccinationViewerServiceImplTest {
                         1L,
                         1,
                         LocalDate.of(2026, 11, 20),
+                        null,
                         "병원",
                         "메모"
                 );
@@ -241,7 +244,7 @@ class VaccinationViewerServiceImplTest {
         );
 
         VaccinationScheduleSuccessRequest request =
-                new VaccinationScheduleSuccessRequest(true);
+                new VaccinationScheduleSuccessRequest(true, null);
 
         service.successVaccinationSchedule(1L, 1L, 1L, request);
 

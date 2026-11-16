@@ -3,6 +3,7 @@ package com.select.domain.vaccination.dto.request;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Size;
 
 
 import java.time.LocalDate;
@@ -19,7 +20,10 @@ public record VaccinationScheduleUpdateRequest (
         @NotNull(message = "접종 예방일은 필수입니다.")
         LocalDate scheduledDate,
 
+        @Size(max = 255, message = "기관명은 255자 이하여야 합니다.")
         String institution,
+
+        @Size(max = 255, message = "메모는 255자 이하여야 합니다.")
         String memo
 ){
 }

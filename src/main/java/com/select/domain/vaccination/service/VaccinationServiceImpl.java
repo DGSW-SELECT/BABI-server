@@ -1,6 +1,5 @@
 package com.select.domain.vaccination.service;
 
-import com.select.domain.baby.entity.Baby;
 import com.select.domain.baby.entity.BabyMember;
 import com.select.domain.baby.entity.BabyRole;
 import com.select.domain.baby.repository.BabyMemberRepository;
@@ -173,13 +172,19 @@ public class VaccinationServiceImpl implements VaccinationService {
         // 백신조회
         Vaccine vaccine = vaccineRepository.findById(request.vaccineId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.VACCINE_NOT_FOUND));
+        LocalDate today = LocalDate.now(clock);
         LocalDate scheduledDate = request.scheduledDate();
+        LocalDate completedDate = request.completedDate();
 
         if (!Objects.equals(vaccine.getDoseNumber(), request.doseNumber())) {
             throw new BusinessException(ErrorCode.VACCINATION_INVALID_DOSE_NUMBER);
         }
-        // 접종 예정 검증
-        if (scheduledDate == null || scheduledDate.isBefore(LocalDate.now(clock))) {
+        // 예정일과 완료일이 모두 없는 경우 거부
+        if (scheduledDate == null && completedDate == null) {
+            throw new BusinessException(ErrorCode.VACCINE_INVALID_SCHEDULE_DATE);
+        }
+        // 실제 완료일은 미래일 수 없음
+        if (completedDate != null && completedDate.isAfter(today)) {
             throw new BusinessException(ErrorCode.VACCINE_INVALID_SCHEDULE_DATE);
         }
         // 중복 등록 검사
@@ -188,7 +193,7 @@ public class VaccinationServiceImpl implements VaccinationService {
         }
         // 엔티티 생성 및 저장
         BabyVaccination vaccination =
-                BabyVaccination.create(babyId, vaccine, scheduledDate,request.institution(), request.memo());
+                BabyVaccination.create(babyId, vaccine, scheduledDate, completedDate,request.institution(), request.memo());
 
         BabyVaccination saved;
         try {
@@ -236,19 +241,29 @@ public class VaccinationServiceImpl implements VaccinationService {
         }
 
         if (request.completed()) {
-            if (vaccination.getScheduledDate() != null && vaccination.getScheduledDate().isAfter(LocalDate.now(clock)))
+            LocalDate completedDate =
+                    request.completedDate() != null
+                            ? request.completedDate()
+                            : LocalDate.now(clock);
+
+            if (completedDate.isAfter(LocalDate.now(clock))) {
                 throw new BusinessException(
                         ErrorCode.VACCINE_INVALID_SCHEDULE_DATE
                 );
-            if (!Boolean.TRUE.equals(vaccination.getCompleted()))
-                vaccination.complete(LocalDate.now(clock));
+            }
+
+            if (!Boolean.TRUE.equals(vaccination.getCompleted())) {
+                vaccination.complete(completedDate);
+            }
         } else {
             vaccination.cancelComplete();
         }
+
         return new VaccinationScheduleUpdateResponse(
                 vaccination.getId(),
                 vaccination.getBabyId(),
                 vaccination.getVaccine().getId(),
+                vaccination.getVaccine().getName(),
                 vaccination.getVaccine().getDoseNumber(),
                 vaccination.getScheduledDate(),
                 vaccination.getCompletedDate(),
@@ -261,7 +276,7 @@ public class VaccinationServiceImpl implements VaccinationService {
     public VaccinationHistoryResponse getVaccinationHistory(Long babyId, Long userId) {
         validateBabyReadAccess(babyId, userId);
         List<BabyVaccination> vaccinations =
-                babyVaccinationRepository.findAllByBabyIdAndCompletedTrue(babyId);
+                babyVaccinationRepository.findAllByBabyIdAndCompletedTrueOrderByCompletedDateDescIdDesc(babyId);
 
         List<VaccinationHistoryResponse.Item> items =
                 vaccinations.stream()
@@ -321,13 +336,6 @@ public class VaccinationServiceImpl implements VaccinationService {
             );
         }
 
-        boolean dataChange = !Objects.equals(vaccination.getScheduledDate(), request.scheduledDate());
-        if (dataChange && request.scheduledDate().isBefore(LocalDate.now(clock))) {
-            throw new BusinessException(
-                    ErrorCode.VACCINE_INVALID_SCHEDULE_DATE
-            );
-        }
-
         boolean duplicated =
                 babyVaccinationRepository.existsByBabyIdAndVaccine_IdAndIdNot(
                         babyId,
@@ -352,6 +360,7 @@ public class VaccinationServiceImpl implements VaccinationService {
                 vaccination.getId(),
                 vaccination.getBabyId(),
                 vaccination.getVaccine().getId(),
+                vaccination.getVaccine().getName(),
                 vaccination.getVaccine().getDoseNumber(),
                 vaccination.getScheduledDate(),
                 vaccination.getCompletedDate(),

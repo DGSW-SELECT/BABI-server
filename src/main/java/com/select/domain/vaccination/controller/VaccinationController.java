@@ -28,7 +28,7 @@ public class VaccinationController {
     public VaccinationScheduleResponse getVaccinationSchedules(
             @PathVariable Long babyId,
 
-            @AuthenticationPrincipal String principal,
+            @AuthenticationPrincipal(expression = "toString()") String principal,
 
             @RequestParam
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
@@ -51,7 +51,7 @@ public class VaccinationController {
     @PostMapping("/babies/{babyId}/vaccination-schedules")
     public ResponseEntity<VaccinationScheduleCreateResponse> createVaccinationSchedule(
             @PathVariable Long babyId,
-            @AuthenticationPrincipal String principal,
+            @AuthenticationPrincipal(expression = "toString()") String principal,
             @Valid @RequestBody VaccinationScheduleCreateRequest request
     ) {
         Long userId = Long.parseLong(principal);
@@ -64,9 +64,9 @@ public class VaccinationController {
     @PatchMapping(
             "/babies/{babyId}/vaccination-schedules/{vaccinationScheduleId}/completed"
     )
-    public ResponseEntity<VaccinationScheduleUpdateResponse> updateVaccinationSchedule(
+    public ResponseEntity<VaccinationScheduleUpdateResponse> completedVaccinationSchedule(
             @PathVariable Long babyId,
-            @AuthenticationPrincipal String principal,
+            @AuthenticationPrincipal(expression = "toString()") String principal,
             @PathVariable Long vaccinationScheduleId,
             @Valid @RequestBody VaccinationScheduleSuccessRequest request
     ) {
@@ -84,7 +84,7 @@ public class VaccinationController {
     @GetMapping("/babies/{babyId}/vaccination-history")
     public VaccinationHistoryResponse getVaccinationHistory(
             @PathVariable Long babyId,
-            @AuthenticationPrincipal String principal
+            @AuthenticationPrincipal(expression = "toString()") String principal
     ) {
         Long userId = Long.parseLong(principal);
 
@@ -94,7 +94,7 @@ public class VaccinationController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteVaccinationSchedule(
             @PathVariable Long babyId,
-            @AuthenticationPrincipal String principal,
+            @AuthenticationPrincipal(expression = "toString()") String principal,
             @PathVariable Long vaccinationScheduleId
     ) {
         Long userId = Long.parseLong(principal);
@@ -106,7 +106,7 @@ public class VaccinationController {
     @PatchMapping("/babies/{babyId}/vaccination-schedules/{vaccinationScheduleId}")
     public ResponseEntity<VaccinationScheduleUpdateResponse> updateVaccinationSchedule(
             @PathVariable Long babyId,
-            @AuthenticationPrincipal String principal,
+            @AuthenticationPrincipal(expression = "toString()") String principal,
             @PathVariable Long vaccinationScheduleId,
             @Valid @RequestBody VaccinationScheduleUpdateRequest request
     ) {

@@ -18,6 +18,8 @@ public record VaccinationScheduleCreateRequest(
         @NotNull(message = "접종 예정일은 필수입니다.")
         LocalDate scheduledDate,
 
+        LocalDate completedDate,
+
         @Size(max = 255, message = "기관명은 255자 이하여야 합니다.")
         String institution,
 

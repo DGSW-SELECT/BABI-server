@@ -61,16 +61,22 @@ public class BabyVaccination {
             Long babyId,
             Vaccine vaccine,
             LocalDate scheduledDate,
+            LocalDate completedDate,
             String institution,
             String memo
     ) {
         BabyVaccination vaccination = new BabyVaccination();
+
         vaccination.babyId = babyId;
         vaccination.vaccine = vaccine;
         vaccination.scheduledDate = scheduledDate;
         vaccination.institution = institution;
         vaccination.memo = memo;
-        vaccination.completed = false;
+        if (completedDate != null) {
+            vaccination.complete(completedDate);
+        } else {
+            vaccination.completed = false;
+        }
         return vaccination;
     }
     public void updateSchedule(Vaccine vaccine, LocalDate scheduledDate, String institution, String memo) {

@@ -63,6 +63,7 @@ class VaccinationUpdateControllerTest {
                         10L,
                         1L,
                         3L,
+                        "DTab",
                         1,
                         LocalDate.of(2026, 12, 15),
                         null,
