@@ -21,7 +21,8 @@ import java.time.LocalDateTime;
  *
  * <p>음성 파일은 작업 제출 시 저장소에 보관하고, 워커가 상태를
  * {@code PENDING -> PROCESSING -> COMPLETED/FAILED}로 전이시키며 처리한다.
- * 성공하면 {@link VoiceInput}과 육아기록을 생성하고 작업에는 voiceInputId만 남긴다.</p>
+ * STT 성공 시 transcript만 저장하고, 사용자가 확인하면 그때
+ * {@link VoiceInput}과 육아기록을 생성하고 작업에 voiceInputId를 연결한다.</p>
  */
 @Entity
 @Getter
@@ -132,13 +133,21 @@ public class SttJob {
                 .build();
     }
 
-    public void complete(String transcript, Long voiceInputId, LocalDateTime now) {
+    public void complete(String transcript, LocalDateTime now) {
         this.status = SttStatus.COMPLETED;
         this.transcript = transcript;
-        this.voiceInputId = voiceInputId;
+        this.voiceInputId = null;
         this.lastError = null;
         this.nextAttemptAt = null;
         this.completedAt = now;
+        this.updatedAt = now;
+    }
+
+    /**
+     * 사용자가 확인한 뒤 음성 기록과 연결한다.
+     */
+    public void confirm(Long voiceInputId, LocalDateTime now) {
+        this.voiceInputId = voiceInputId;
         this.updatedAt = now;
     }
 

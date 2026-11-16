@@ -19,6 +19,16 @@ public interface SttJobRepository extends JpaRepository<SttJob, Long> {
     Optional<SttJob> findByIdAndBabyId(Long id, Long babyId);
 
     /**
+     * 사용자가 확인해 저장할 때 같은 작업이 중복 저장되지 않도록 잠근다.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select j from SttJob j where j.id = :id and j.babyId = :babyId")
+    Optional<SttJob> findByIdAndBabyIdForUpdate(
+            @Param("id") Long id,
+            @Param("babyId") Long babyId
+    );
+
+    /**
      * 완료·실패 처리를 직렬화해 같은 작업이 중복 저장되는 것을 막는다.
      */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
