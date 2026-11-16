@@ -8,6 +8,7 @@ public enum ErrorCode {
 
     PROFILE_PHOTO_INVALID(HttpStatus.BAD_REQUEST, "프로필 사진은 5MB 이하의 JPEG 또는 PNG여야 합니다."),
     PROFILE_PHOTO_NOT_FOUND(HttpStatus.NOT_FOUND, "프로필 사진을 찾을 수 없습니다."),
+    PROFILE_PHOTO_BUSY(HttpStatus.SERVICE_UNAVAILABLE, "사진 요청이 많습니다. 잠시 후 다시 시도해 주세요."),
 
     INVALID_CARE_RECORD(HttpStatus.BAD_REQUEST, "기록 내용 또는 연결된 음성 기록을 확인해 주세요."),
     DAILY_REPORT_NO_RECORDS(HttpStatus.BAD_REQUEST, "해당 날짜에 요약할 육아 기록이 없습니다."),

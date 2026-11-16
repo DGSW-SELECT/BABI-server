@@ -11,6 +11,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.concurrent.Semaphore;
 import javax.imageio.ImageIO;
 import javax.imageio.ImageReader;
 import javax.imageio.stream.ImageInputStream;
@@ -22,6 +23,7 @@ import org.springframework.web.multipart.MultipartFile;
 public class ProfilePhotoService {
     private static final long MAX_BYTES = 5 * 1024 * 1024;
     private static final long MAX_PIXELS = 16_000_000;
+    private final Semaphore imageEncoders = new Semaphore(2);
     private final ProfilePhotoRepository photos;
     private final UserRepository users;
 
@@ -32,7 +34,15 @@ public class ProfilePhotoService {
 
     @Transactional
     public void save(long userId, MultipartFile file) {
-        byte[] png = validateAndEncode(file);
+        if (!imageEncoders.tryAcquire()) {
+            throw new BusinessException(ErrorCode.PROFILE_PHOTO_BUSY);
+        }
+        byte[] png;
+        try {
+            png = validateAndEncode(file);
+        } finally {
+            imageEncoders.release();
+        }
         users.findByIdForUpdate(userId).filter(User::isActive)
                 .orElseThrow(() -> new BusinessException(ErrorCode.UNAUTHORIZED));
         ProfilePhoto photo = photos.findById(userId).orElseGet(() -> new ProfilePhoto(userId, png));
