@@ -1,9 +1,8 @@
 package com.select.domain.user.service;
 
 import com.select.domain.user.entity.ProfilePhoto;
-import com.select.domain.user.repository.ProfilePhotoRepository;
-
 import com.select.domain.user.entity.User;
+import com.select.domain.user.repository.ProfilePhotoRepository;
 import com.select.domain.user.repository.UserRepository;
 import com.select.global.exception.BusinessException;
 import com.select.global.exception.ErrorCode;
