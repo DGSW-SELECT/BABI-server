@@ -104,7 +104,7 @@ class AccountLifecycleIntegrationTest {
         assertTrue(json.readTree(upload.body()).path("success").asBoolean());
 
         var photoRequest = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/auth/profile/photo"))
-                .header("Authorization", "Bearer " + token).GET().build();
+                .header("Authorization", "Bearer " + token).header("Accept", "image/*").GET().build();
         var photo = client.send(photoRequest, HttpResponse.BodyHandlers.ofByteArray());
         assertEquals(200, photo.statusCode());
         assertEquals("image/png", photo.headers().firstValue("content-type").orElseThrow());
@@ -113,6 +113,18 @@ class AccountLifecycleIntegrationTest {
         assertNotNull(image);
         assertEquals(2, image.getWidth());
         assertEquals(3, image.getHeight());
+    }
+
+    @Test void missingProfilePhotoReturnsJsonToAnImageRequest() throws Exception {
+        String token = jwt.createAccessToken(user().getId().toString());
+        var request = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/auth/profile/photo"))
+                .header("Authorization", "Bearer " + token).header("Accept", "image/*").GET().build();
+
+        var response = client.send(request, HttpResponse.BodyHandlers.ofString());
+
+        assertEquals(404, response.statusCode(), response.body());
+        assertEquals("application/json", response.headers().firstValue("content-type").orElseThrow());
+        assertEquals("PROFILE_PHOTO_NOT_FOUND", json.readTree(response.body()).path("error").path("code").asText());
     }
 
     @Test void profilePhotoUploadRejectsFilesAbovePhotoLimit() throws Exception {
