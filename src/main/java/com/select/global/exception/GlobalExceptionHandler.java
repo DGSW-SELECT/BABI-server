@@ -1,6 +1,8 @@
 package com.select.global.exception;
 
 import com.select.domain.auth.exception.EmailVerificationException;
+import com.select.domain.baby.exception.BabyNotFoundException;
+import com.select.domain.baby.exception.BabySelectionRequiredException;
 import com.select.domain.user.exception.DuplicateEmailException;
 import com.select.domain.user.exception.InvalidCredentialsException;
 import com.select.domain.user.exception.PasswordMismatchException;
@@ -8,6 +10,8 @@ import com.select.domain.voice.exception.AudioStorageException;
 import com.select.domain.voice.exception.AudioTooLargeException;
 import com.select.domain.voice.exception.InvalidAudioException;
 import com.select.domain.voice.exception.SttFailedException;
+import com.select.domain.voice.exception.SttJobNotCancelableException;
+import com.select.domain.voice.exception.SttJobNotConfirmableException;
 import com.select.domain.voice.exception.SttJobNotFoundException;
 import com.select.domain.voice.exception.SttJobNotRetryableException;
 import com.select.domain.voice.exception.VoiceInputNotFoundException;
@@ -141,6 +145,46 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     ) {
         return createErrorResponse(
                 ErrorCode.STT_JOB_NOT_RETRYABLE,
+                List.of()
+        );
+    }
+
+    @ExceptionHandler(SttJobNotConfirmableException.class)
+    public ResponseEntity<ApiResponse<Void>> handleSttJobNotConfirmable(
+            SttJobNotConfirmableException e
+    ) {
+        return createErrorResponse(
+                ErrorCode.STT_JOB_NOT_CONFIRMABLE,
+                List.of()
+        );
+    }
+
+    @ExceptionHandler(SttJobNotCancelableException.class)
+    public ResponseEntity<ApiResponse<Void>> handleSttJobNotCancelable(
+            SttJobNotCancelableException e
+    ) {
+        return createErrorResponse(
+                ErrorCode.STT_JOB_NOT_CANCELABLE,
+                List.of()
+        );
+    }
+
+    @ExceptionHandler(BabyNotFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> handleBabyNotFound(
+            BabyNotFoundException e
+    ) {
+        return createErrorResponse(
+                ErrorCode.BABY_NOT_FOUND,
+                List.of()
+        );
+    }
+
+    @ExceptionHandler(BabySelectionRequiredException.class)
+    public ResponseEntity<ApiResponse<Void>> handleBabySelectionRequired(
+            BabySelectionRequiredException e
+    ) {
+        return createErrorResponse(
+                ErrorCode.BABY_SELECTION_REQUIRED,
                 List.of()
         );
     }

@@ -1,5 +1,6 @@
 package com.select.domain.voice.service;
 
+import com.select.domain.baby.service.AccountContextService;
 import com.select.domain.parenting.dto.response.ParentingRecordResponse;
 import com.select.domain.parenting.service.ParentingRecordService;
 import com.select.domain.voice.dto.response.SttJobResponse;
@@ -7,6 +8,8 @@ import com.select.domain.voice.entity.SttJob;
 import com.select.domain.voice.entity.SttStatus;
 import com.select.domain.voice.entity.VoiceInput;
 import com.select.domain.voice.exception.AudioStorageException;
+import com.select.domain.voice.exception.SttJobNotCancelableException;
+import com.select.domain.voice.exception.SttJobNotConfirmableException;
 import com.select.domain.voice.exception.SttJobNotFoundException;
 import com.select.domain.voice.exception.SttJobNotRetryableException;
 import com.select.domain.voice.repository.SttJobRepository;
@@ -17,20 +20,23 @@ import com.select.global.config.SttJobProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * 비동기 STT 작업의 제출·조회·재시도와 상태 전이를 담당한다.
+ * 비동기 STT 작업의 제출·조회·재시도·확인 저장과 상태 전이를 담당한다.
  *
  * <p>실제 STT 호출은 {@link SttJobWorker}가 맡고, 이 서비스는 DB 트랜잭션 경계를
- * 보장한다. STT 호출 동안 트랜잭션을 열어 두지 않기 위해 처리 흐름을 분리했다.</p>
+ * 보장한다. STT 호출 동안 트랜잭션을 열어 두지 않기 위해 처리 흐름을 분리했다.
+ * STT가 끝나도 사용자가 확인하기 전에는 {@link VoiceInput}을 만들지 않는다.</p>
  */
 @Service
 public class SttJobService {
@@ -40,6 +46,7 @@ public class SttJobService {
     private final SttJobRepository sttJobRepository;
     private final VoiceInputRepository voiceInputRepository;
     private final ParentingRecordService parentingRecordService;
+    private final AccountContextService accountContextService;
     private final AudioStorage audioStorage;
     private final SttJobProperties properties;
 
@@ -47,12 +54,14 @@ public class SttJobService {
             SttJobRepository sttJobRepository,
             VoiceInputRepository voiceInputRepository,
             ParentingRecordService parentingRecordService,
+            AccountContextService accountContextService,
             AudioStorage audioStorage,
             SttJobProperties properties
     ) {
         this.sttJobRepository = sttJobRepository;
         this.voiceInputRepository = voiceInputRepository;
         this.parentingRecordService = parentingRecordService;
+        this.accountContextService = accountContextService;
         this.audioStorage = audioStorage;
         this.properties = properties;
     }
@@ -61,18 +70,19 @@ public class SttJobService {
      * 음성 파일을 저장하고 STT 작업을 {@code PENDING} 상태로 등록한다.
      */
     @Transactional
-    public SttJobResponse submit(Long babyId, Long familyMemberId, MultipartFile audio) {
+    public SttJobResponse submit(Long babyId, Long userId, MultipartFile audio) {
+        AccountContextService.AccountContext context = accountContextService.resolve(userId, babyId);
         AudioFileSupport.validate(audio);
         String audioPath = audioStorage.store(audio);
 
         try {
             SttJob job = sttJobRepository.saveAndFlush(SttJob.pending(
-                    babyId,
-                    familyMemberId,
+                    context.babyId(),
+                    context.familyMemberId(),
                     audioPath,
                     LocalDateTime.now()
             ));
-            log.info("STT 작업이 등록되었습니다. jobId={}, babyId={}", job.getId(), babyId);
+            log.info("STT 작업이 등록되었습니다. jobId={}, babyId={}", job.getId(), context.babyId());
             return SttJobResponse.of(job, properties.maxAttempts());
         } catch (RuntimeException e) {
             deleteQuietly(audioPath);
@@ -81,8 +91,9 @@ public class SttJobService {
     }
 
     @Transactional(readOnly = true)
-    public SttJobResponse get(Long babyId, Long jobId) {
-        SttJob job = findJob(babyId, jobId);
+    public SttJobResponse get(Long babyId, Long userId, Long jobId) {
+        AccountContextService.AccountContext context = accountContextService.resolve(userId, babyId);
+        SttJob job = findJob(context.babyId(), jobId);
         return SttJobResponse.of(job, properties.maxAttempts(), findParentingRecords(job));
     }
 
@@ -90,8 +101,9 @@ public class SttJobService {
      * 최종 실패한 작업을 사용자가 다시 시도할 수 있게 한다.
      */
     @Transactional
-    public SttJobResponse retry(Long babyId, Long jobId) {
-        SttJob job = findJob(babyId, jobId);
+    public SttJobResponse retry(Long babyId, Long userId, Long jobId) {
+        AccountContextService.AccountContext context = accountContextService.resolve(userId, babyId);
+        SttJob job = findJob(context.babyId(), jobId);
         if (job.getStatus() != SttStatus.FAILED) {
             throw new SttJobNotRetryableException("실패한 음성 변환 작업만 재시도할 수 있습니다.");
         }
@@ -133,7 +145,8 @@ public class SttJobService {
     }
 
     /**
-     * STT 성공 결과를 음성 기록과 육아기록으로 저장하고 작업을 완료 처리한다.
+     * STT 성공 결과만 작업에 기록한다. 음성 기록 저장은 사용자가 확인한 뒤
+     * {@link #confirm(Long, Long, Long)}에서 수행한다.
      */
     @Transactional
     public SttJobResponse complete(Long jobId, String transcript) {
@@ -146,11 +159,32 @@ public class SttJobService {
         }
 
         String trimmedTranscript = transcript.trim();
+        job.complete(trimmedTranscript, LocalDateTime.now());
+        deleteAfterCommit(job.getAudioPath());
+        log.info("STT 작업이 완료되었습니다. jobId={}", jobId);
+        return SttJobResponse.of(job, properties.maxAttempts());
+    }
+
+    /**
+     * 사용자가 미리보기에서 확인한 STT 결과를 음성 기록과 육아기록으로 저장한다.
+     */
+    @Transactional
+    public SttJobResponse confirm(Long babyId, Long userId, Long jobId) {
+        AccountContextService.AccountContext context = accountContextService.resolve(userId, babyId);
+        SttJob job = sttJobRepository.findByIdAndBabyIdForUpdate(jobId, context.babyId())
+                .orElseThrow(SttJobNotFoundException::new);
+        requireOwner(job, context.familyMemberId());
+        if (job.getStatus() != SttStatus.COMPLETED
+                || job.getVoiceInputId() != null
+                || !StringUtils.hasText(job.getTranscript())) {
+            throw new SttJobNotConfirmableException("완료된 음성 변환 작업만 저장할 수 있습니다.");
+        }
+
         LocalDateTime now = LocalDateTime.now();
         VoiceInput voiceInput = voiceInputRepository.save(VoiceInput.builder()
                 .babyId(job.getBabyId())
                 .familyMemberId(job.getFamilyMemberId())
-                .transcript(trimmedTranscript)
+                .transcript(job.getTranscript())
                 .sttStatus(SttStatus.COMPLETED)
                 .build());
 
@@ -161,14 +195,33 @@ public class SttJobService {
                 job.getBabyId(),
                 job.getFamilyMemberId(),
                 voiceInput.getId(),
-                trimmedTranscript,
+                job.getTranscript(),
                 referenceTime
         );
 
-        job.complete(trimmedTranscript, voiceInput.getId(), now);
-        deleteAfterCommit(job.getAudioPath());
-        log.info("STT 작업이 완료되었습니다. jobId={}, voiceInputId={}", jobId, voiceInput.getId());
+        job.confirm(voiceInput.getId(), now);
+        log.info("STT 작업을 사용자가 확인해 저장했습니다. jobId={}, voiceInputId={}",
+                jobId, voiceInput.getId());
         return SttJobResponse.of(job, properties.maxAttempts(), parentingRecords);
+    }
+
+    /**
+     * 사용자가 녹음을 버릴 때 확인 전 작업과 음성 파일을 삭제한다.
+     */
+    @Transactional
+    public void cancel(Long babyId, Long userId, Long jobId) {
+        AccountContextService.AccountContext context = accountContextService.resolve(userId, babyId);
+        SttJob job = sttJobRepository.findByIdAndBabyIdForUpdate(jobId, context.babyId())
+                .orElseThrow(SttJobNotFoundException::new);
+        requireOwner(job, context.familyMemberId());
+        if (job.getStatus() == SttStatus.PROCESSING || job.getVoiceInputId() != null) {
+            throw new SttJobNotCancelableException("처리 중이거나 저장된 음성 변환 작업은 취소할 수 없습니다.");
+        }
+
+        String audioPath = job.getAudioPath();
+        sttJobRepository.delete(job);
+        deleteAfterCommit(audioPath);
+        log.info("STT 작업을 취소했습니다. jobId={}", jobId);
     }
 
     /**
@@ -222,8 +275,14 @@ public class SttJobService {
                 .orElseThrow(SttJobNotFoundException::new);
     }
 
+    private void requireOwner(SttJob job, Long familyMemberId) {
+        if (!job.getFamilyMemberId().equals(familyMemberId)) {
+            throw new AccessDeniedException("음성 변환 작업을 처리할 권한이 없습니다.");
+        }
+    }
+
     private List<ParentingRecordResponse> findParentingRecords(SttJob job) {
-        if (job.getStatus() != SttStatus.COMPLETED || job.getVoiceInputId() == null) {
+        if (job.getVoiceInputId() == null) {
             return List.of();
         }
         return parentingRecordService.findByVoiceInput(job.getBabyId(), job.getVoiceInputId());

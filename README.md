@@ -66,7 +66,83 @@ Gradle로 실행할 경우 프로젝트 루트에서 다음 명령을 실행합�
 
 ## 음성 기록 API
 
-음성 입력은 동기 STT, 비동기 STT 작업, 최종 저장으로 나뉩니다.
+음성 기록은 **미리보기(parse) → 사용자 확인 → 저장(save)** 순서로 처리합니다.
+미리보기 단계에서는 DB에 아무것도 저장하지 않으므로, “다시 녹음하기”는 클라이언트가 미리보기 결과를 버리기만 하면 됩니다.
+
+### 프론트 화면용 API
+
+프론트 음성 기록 화면은 아래 두 API를 사용합니다. 응답은 `ApiResponse`로 감싸지 않고 화면이 기대하는 JSON을 그대로 반환합니다.
+
+| Method | Path | 설명 |
+|---|---|---|
+| `POST` | `/api/voice-records/parse` | `multipart/form-data`의 `audio`를 STT 변환해 `transcript`와 화면 표시용 `items`만 반환. DB 저장 없음 |
+| `POST` | `/api/voice-records` | 사용자가 확인한 `transcript`를 저장하고 육아기록을 자동 분석·저장 |
+
+- 두 API 모두 `Authorization: Bearer {accessToken}` 헤더가 필요합니다.
+- `babyId`는 선택 쿼리 파라미터입니다. JWT 사용자가 속한 아기가 하나면 생략할 수 있고, 여러 아기면 `?babyId=1`을 붙입니다.
+- `familyMemberId`는 요청으로 받지 않습니다. 서버가 JWT 사용자와 `family_members` 연결을 조회해 결정합니다.
+- `items`는 화면 표시용 값입니다. 저장 시 서버는 `items`를 신뢰하지 않고 `transcript`를 다시 분석합니다.
+
+미리보기 요청:
+
+```bash
+curl -X POST 'http://localhost:8080/api/voice-records/parse?babyId=1' \
+  -H 'Authorization: Bearer {accessToken}' \
+  -F 'audio=@voice.webm'
+```
+
+미리보기 응답:
+
+```json
+{
+  "transcript": "방금 막 잠들었어. 분유는 120ml 먹었고 체온은 36.8도야.",
+  "items": [
+    { "type": "feeding", "label": "🍼 분유 120ml" },
+    { "type": "sleep", "label": "😴 수면" }
+  ]
+}
+```
+
+저장 요청:
+
+```json
+{
+  "transcript": "방금 막 잠들었어. 분유는 120ml 먹었고 체온은 36.8도야.",
+  "items": [
+    { "type": "feeding", "label": "🍼 분유 120ml" },
+    { "type": "sleep", "label": "😴 수면" }
+  ]
+}
+```
+
+저장 응답:
+
+```json
+{
+  "ok": true,
+  "voiceInputId": 10,
+  "parentingRecords": [
+    {
+      "parentingRecordId": 100,
+      "babyId": 1,
+      "familyMemberId": 7,
+      "voiceInputId": 10,
+      "recordType": "FEEDING",
+      "occurredAt": "2026-11-16T10:00:00",
+      "amountMl": 120,
+      "durationMinutes": null,
+      "feedingType": "FORMULA",
+      "diaperType": null,
+      "memo": "방금 막 잠들었어. 분유는 120ml 먹었고 체온은 36.8도야.",
+      "createdAt": "2026-11-16T10:00:00"
+    }
+  ]
+}
+```
+
+성공 화면의 “기록 확인하러가기”는 응답의 `voiceInputId`로 아래 단건 조회 API를 호출하거나, `parentingRecords`를 그대로 사용할 수 있습니다.
+
+### 기존 경로 기반 API
 
 | Method | Path | 설명 |
 |---|---|---|
@@ -74,10 +150,13 @@ Gradle로 실행할 경우 프로젝트 루트에서 다음 명령을 실행합�
 | `POST` | `/api/v1/babies/{babyId}/voice-records/stt-jobs` | 음성 파일을 저장하고 비동기 STT 작업 등록 (`202 Accepted`) |
 | `GET` | `/api/v1/babies/{babyId}/voice-records/stt-jobs/{jobId}` | 비동기 STT 작업 상태·결과 조회 |
 | `POST` | `/api/v1/babies/{babyId}/voice-records/stt-jobs/{jobId}/retry` | 최종 실패(`FAILED`)한 작업 재시도 |
+| `POST` | `/api/v1/babies/{babyId}/voice-records/stt-jobs/{jobId}/confirm` | 사용자가 확인한 STT 결과를 저장 |
+| `DELETE` | `/api/v1/babies/{babyId}/voice-records/stt-jobs/{jobId}` | 확인 전 작업과 음성 파일을 삭제 |
 | `POST` | `/api/v1/babies/{babyId}/voice-records` | 사용자가 확인한 transcript를 `voice_inputs`에 저장하고 육아기록을 자동 분석·저장 |
 | `GET` | `/api/v1/babies/{babyId}/voice-records/{voiceInputId}` | 저장된 음성 기록과 자동 저장된 육아기록 단건 조회 |
 
 - 모든 음성 기록 API는 `Authorization: Bearer {accessToken}` 헤더가 필요합니다.
+- 경로의 `babyId`와 JWT 사용자가 실제 가족 구성원인지 서버에서 검증합니다.
 - 음성 파일은 25MB 이하이며 `mp3`, `mp4`, `m4a`, `mpeg`, `mpga`, `wav`, `webm`, `ogg`, `flac`, `aac`를 지원합니다.
 
 ### 비동기 STT 작업
@@ -85,16 +164,18 @@ Gradle로 실행할 경우 프로젝트 루트에서 다음 명령을 실행합�
 비동기 작업은 `stt_jobs` 테이블과 백그라운드 워커로 처리합니다.
 
 ```text
-PENDING -> PROCESSING -> COMPLETED
+PENDING -> PROCESSING -> COMPLETED (transcript만 저장)
                      \-> PENDING (재시도 대기) -> PROCESSING ...
                      \-> FAILED (최대 시도 횟수 초과)
 ```
 
-1. `POST .../stt-jobs?familyMemberId=7`에 `audio` 파일을 보내면 파일을 저장하고 `PENDING` 작업을 만듭니다.
+1. `POST .../stt-jobs`에 `audio` 파일을 보내면 파일을 저장하고 `PENDING` 작업을 만듭니다.
 2. 워커가 작업을 원자적으로 선점해 `PROCESSING`으로 바꾸고 STT를 호출합니다.
-3. 성공하면 `voice_inputs`와 `parenting_records`를 저장하고 작업을 `COMPLETED`로 바꿉니다. 응답의 `voiceInputId`로 저장된 기록을 조회할 수 있습니다.
-4. 실패하면 `stt.jobs.retry-delay` 후 재시도하고, `stt.jobs.max-attempts`를 넘으면 `FAILED`로 남깁니다. `FAILED` 작업은 재시도 API로 다시 등록할 수 있습니다.
-5. 서버 중단으로 `PROCESSING`에 오래 머문 작업은 `stt.jobs.stale-timeout` 이후 자동 복구됩니다.
+3. 성공하면 작업에 `transcript`만 기록하고 `COMPLETED`로 바꿉니다. 이 단계에서는 `voice_inputs`와 `parenting_records`를 만들지 않습니다.
+4. 사용자가 화면에서 “저장하기”를 누르면 `POST .../stt-jobs/{jobId}/confirm`이 `voice_inputs`와 `parenting_records`를 저장하고 `voiceInputId`를 연결합니다.
+5. “다시 녹음하기”를 누르면 `DELETE .../stt-jobs/{jobId}`로 확인 전 작업과 음성 파일을 삭제합니다.
+6. 실패하면 `stt.jobs.retry-delay` 후 재시도하고, `stt.jobs.max-attempts`를 넘으면 `FAILED`로 남깁니다. `FAILED` 작업은 재시도 API로 다시 등록할 수 있습니다.
+7. 서버 중단으로 `PROCESSING`에 오래 머문 작업은 `stt.jobs.stale-timeout` 이후 자동 복구됩니다.
 
 작업 등록 응답 예시:
 
@@ -119,7 +200,7 @@ PENDING -> PROCESSING -> COMPLETED
 }
 ```
 
-완료 조회 응답의 `data`에는 `status: "COMPLETED"`, `transcript`, `voiceInputId`, `parentingRecords`가 채워집니다.
+완료 직후 조회 응답의 `data`에는 `status: "COMPLETED"`, `transcript`가 채워지고 `voiceInputId`는 `null`입니다. 확인 저장 후에는 `voiceInputId`와 `parentingRecords`가 채워집니다.
 
 비동기 STT 주요 설정:
 
@@ -141,8 +222,7 @@ PENDING -> PROCESSING -> COMPLETED
 
 ```json
 {
-  "transcript": "2시에 분유 100ml 먹였어",
-  "familyMemberId": 1
+  "transcript": "2시에 분유 100ml 먹였어"
 }
 ```
 
@@ -189,7 +269,8 @@ PENDING -> PROCESSING -> COMPLETED
 
 > 현재 분석기는 MVP용 규칙 기반 구현입니다. `ParentingRecordAnalyzer` 인터페이스를 유지하고 있으므로 이후 LLM 기반 분석기로 교체할 수 있습니다.
 
-> family 도메인은 추가되어 있지만, 현재 음성 기록 API는 `familyMemberId`를 요청으로 받습니다. JWT 사용자와 가족 구성원을 연결해 서버에서 ID를 결정하는 작업은 아직 반영되지 않았습니다.
+> 음성 기록의 `familyMemberId`는 더 이상 클라이언트가 보내지 않습니다. JWT 사용자와 `family_members` 연결을 서버에서 조회해 결정하며, 사용자가 여러 아기에 속한 경우에만 `babyId`를 명시해야 합니다.
+
 
 ## Swagger API 문서
 
