@@ -2,6 +2,7 @@ package com.select.domain.user.service;
 
 import com.select.domain.auth.service.EmailVerificationService;
 import com.select.global.util.EmailNormalizer;
+import com.select.domain.user.dto.response.ProfileResponse;
 import com.select.domain.user.dto.request.LoginRequest;
 import com.select.domain.user.dto.request.SignupRequest;
 import com.select.domain.user.dto.response.LoginResponse;
@@ -23,6 +24,21 @@ import java.util.Optional;
 
 @Service
 public class UserService {
+
+    @Transactional(readOnly = true)
+    public ProfileResponse profile(Long userId) {
+        User user = userRepository.findById(userId).filter(User::isActive)
+                .orElseThrow(InvalidCredentialsException::new);
+        return new ProfileResponse(user.getId(), user.getEmail(), user.getNickname());
+    }
+
+    @Transactional
+    public ProfileResponse updateProfile(Long userId, String nickname) {
+        User user = userRepository.findByIdForUpdate(userId).filter(User::isActive)
+                .orElseThrow(InvalidCredentialsException::new);
+        user.changeNickname(nickname);
+        return new ProfileResponse(user.getId(), user.getEmail(), user.getNickname());
+    }
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;

@@ -77,6 +77,8 @@ public class AccountLifecycleService {
             member.deactivate();
         }
         invitations.cancelAndAnonymize(userId, user.getEmail());
+        entityManager.createNativeQuery("DELETE FROM user_profile_photos WHERE user_id = :userId")
+                .setParameter("userId", userId).executeUpdate();
         user.withdraw();
     }
 }

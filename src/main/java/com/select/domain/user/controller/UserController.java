@@ -1,5 +1,8 @@
 package com.select.domain.user.controller;
 
+import com.select.domain.user.dto.request.ProfileUpdateRequest;
+import com.select.domain.user.dto.response.ProfileResponse;
+import org.springframework.web.bind.annotation.PatchMapping;
 import com.select.domain.user.dto.request.LoginRequest;
 import com.select.domain.user.dto.request.SignupRequest;
 import com.select.domain.user.dto.response.LoginResponse;
@@ -33,6 +36,18 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/auth")
 @RequiredArgsConstructor
 public class UserController {
+
+    @GetMapping("/profile")
+    public ApiResponse<ProfileResponse> profile(@AuthenticationPrincipal String principal) {
+        return new ApiResponse<>(true, "프로필을 조회했습니다.", userService.profile(Long.valueOf(principal)));
+    }
+
+    @PatchMapping("/profile")
+    public ApiResponse<ProfileResponse> updateProfile(
+            @AuthenticationPrincipal String principal,
+            @Valid @RequestBody ProfileUpdateRequest request) {
+        return new ApiResponse<>(true, "프로필을 수정했습니다.", userService.updateProfile(Long.valueOf(principal), request.nickname()));
+    }
 
     private final UserService userService;
     private final AccountLifecycleService accountLifecycle;

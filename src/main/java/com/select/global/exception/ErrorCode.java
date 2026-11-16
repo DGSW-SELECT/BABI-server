@@ -6,6 +6,9 @@ import org.springframework.http.HttpStatus;
 @Getter
 public enum ErrorCode {
 
+    PROFILE_PHOTO_INVALID(HttpStatus.BAD_REQUEST, "프로필 사진은 5MB 이하의 JPEG 또는 PNG여야 합니다."),
+    PROFILE_PHOTO_NOT_FOUND(HttpStatus.NOT_FOUND, "프로필 사진을 찾을 수 없습니다."),
+
     INVALID_CARE_RECORD(HttpStatus.BAD_REQUEST, "기록 내용 또는 연결된 음성 기록을 확인해 주세요."),
     DAILY_REPORT_NO_RECORDS(HttpStatus.BAD_REQUEST, "해당 날짜에 요약할 육아 기록이 없습니다."),
     DAILY_REPORT_GENERATION_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "AI 리포트 생성을 일시적으로 사용할 수 없습니다."),
