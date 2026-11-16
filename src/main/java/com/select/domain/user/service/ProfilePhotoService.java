@@ -1,4 +1,7 @@
-package com.select.domain.user.photo;
+package com.select.domain.user.service;
+
+import com.select.domain.user.entity.ProfilePhoto;
+import com.select.domain.user.repository.ProfilePhotoRepository;
 
 import com.select.domain.user.entity.User;
 import com.select.domain.user.repository.UserRepository;
@@ -12,7 +15,6 @@ import java.util.Iterator;
 import javax.imageio.ImageIO;
 import javax.imageio.ImageReader;
 import javax.imageio.stream.ImageInputStream;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -21,11 +23,11 @@ import org.springframework.web.multipart.MultipartFile;
 public class ProfilePhotoService {
     private static final long MAX_BYTES = 5 * 1024 * 1024;
     private static final long MAX_PIXELS = 16_000_000;
-    private final JdbcTemplate jdbc;
+    private final ProfilePhotoRepository photos;
     private final UserRepository users;
 
-    public ProfilePhotoService(JdbcTemplate jdbc, UserRepository users) {
-        this.jdbc = jdbc;
+    public ProfilePhotoService(ProfilePhotoRepository photos, UserRepository users) {
+        this.photos = photos;
         this.users = users;
     }
 
@@ -34,20 +36,16 @@ public class ProfilePhotoService {
         byte[] png = validateAndEncode(file);
         users.findByIdForUpdate(userId).filter(User::isActive)
                 .orElseThrow(() -> new BusinessException(ErrorCode.UNAUTHORIZED));
-        Integer count = jdbc.queryForObject("SELECT COUNT(*) FROM user_profile_photos WHERE user_id = ?", Integer.class, userId);
-        if (count != null && count > 0) {
-            jdbc.update("UPDATE user_profile_photos SET image_data = ? WHERE user_id = ?", png, userId);
-        } else {
-            jdbc.update("INSERT INTO user_profile_photos (user_id, image_data) VALUES (?, ?)", userId, png);
-        }
+        ProfilePhoto photo = photos.findById(userId).orElseGet(() -> new ProfilePhoto(userId, png));
+        photo.replace(png);
+        photos.save(photo);
     }
 
     @Transactional(readOnly = true)
     public byte[] get(long userId) {
         users.findById(userId).filter(User::isActive)
                 .orElseThrow(() -> new BusinessException(ErrorCode.UNAUTHORIZED));
-        return jdbc.query("SELECT image_data FROM user_profile_photos WHERE user_id = ?",
-                rs -> rs.next() ? rs.getBytes(1) : null, userId);
+        return photos.findById(userId).map(ProfilePhoto::getImageData).orElse(null);
     }
 
     private byte[] validateAndEncode(MultipartFile file) {

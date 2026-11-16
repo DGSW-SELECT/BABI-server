@@ -1,6 +1,7 @@
 package com.select.domain.user.photo;
 
 import com.select.domain.user.entity.User;
+import com.select.domain.user.service.ProfilePhotoService;
 import com.select.domain.user.repository.UserRepository;
 import com.select.global.exception.BusinessException;
 import com.select.global.exception.ErrorCode;
@@ -44,5 +45,32 @@ class ProfilePhotoIntegrationTest {
         assertEquals(ErrorCode.PROFILE_PHOTO_INVALID, assertThrows(BusinessException.class, () -> photos.save(user.getId(), invalid)).getErrorCode());
         var large = new MockMultipartFile("file", "a.png", "image/png", new byte[5 * 1024 * 1024 + 1]);
         assertEquals(ErrorCode.PROFILE_PHOTO_INVALID, assertThrows(BusinessException.class, () -> photos.save(user.getId(), large)).getErrorCode());
+    }
+
+    @Test
+    void rejectsUnsupportedImageAndTooManyPixels() throws Exception {
+        User user = users.saveAndFlush(User.builder().email("photo-formats@example.invalid").nickname("a").passwordHash("hash").build());
+        BufferedImage image = new BufferedImage(2, 2, BufferedImage.TYPE_INT_RGB);
+        ByteArrayOutputStream gif = new ByteArrayOutputStream();
+        ImageIO.write(image, "gif", gif);
+        var unsupported = new MockMultipartFile("file", "image.gif", "image/gif", gif.toByteArray());
+        assertEquals(ErrorCode.PROFILE_PHOTO_INVALID, assertThrows(BusinessException.class, () -> photos.save(user.getId(), unsupported)).getErrorCode());
+        BufferedImage huge = new BufferedImage(4001, 4000, BufferedImage.TYPE_BYTE_GRAY);
+        ByteArrayOutputStream png = new ByteArrayOutputStream();
+        ImageIO.write(huge, "png", png);
+        var tooManyPixels = new MockMultipartFile("file", "image.png", "image/png", png.toByteArray());
+        assertEquals(ErrorCode.PROFILE_PHOTO_INVALID, assertThrows(BusinessException.class, () -> photos.save(user.getId(), tooManyPixels)).getErrorCode());
+    }
+
+    @Test
+    void withdrawnAccountCannotReadOrUploadPhoto() throws Exception {
+        User user = users.saveAndFlush(User.builder().email("photo-withdrawn@example.invalid").nickname("a").passwordHash("hash").build());
+        user.withdraw();
+        users.saveAndFlush(user);
+        assertEquals(ErrorCode.UNAUTHORIZED, assertThrows(BusinessException.class, () -> photos.get(user.getId())).getErrorCode());
+        ByteArrayOutputStream png = new ByteArrayOutputStream();
+        ImageIO.write(new BufferedImage(2, 2, BufferedImage.TYPE_INT_RGB), "png", png);
+        var file = new MockMultipartFile("file", "image.png", "image/png", png.toByteArray());
+        assertEquals(ErrorCode.UNAUTHORIZED, assertThrows(BusinessException.class, () -> photos.save(user.getId(), file)).getErrorCode());
     }
 }

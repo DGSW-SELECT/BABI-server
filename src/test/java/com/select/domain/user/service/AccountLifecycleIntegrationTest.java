@@ -70,11 +70,26 @@ class AccountLifecycleIntegrationTest {
     }
     @Test void withdrawalAnonymizesAndRejectsAllTokens() throws Exception {
         User u=user(); String oldEmail=u.getEmail(); String token=jwt.createAccessToken(u.getId().toString());
+        jdbc.update("INSERT INTO user_profile_photos (user_id, image_data) VALUES (?, ?)", u.getId(), new byte[]{1, 2, 3});
         assertEquals(200, request("DELETE","/auth/account",token,json.writeValueAsString(Map.of("password","Test1234!"))).statusCode());
+        assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM user_profile_photos WHERE user_id = ?", Integer.class, u.getId()));
         assertEquals(401, request("GET","/babies",token,null).statusCode());
         var stored=users.findById(u.getId()).orElseThrow();
         assertFalse(stored.isActive()); assertNotNull(stored.getWithdrawnAt());
         assertFalse(users.existsByEmail(oldEmail)); assertEquals("!",stored.getPasswordHash());
+    }
+    @Test void profileValidationAndPhotoAccess() throws Exception {
+        User u = user();
+        String token = jwt.createAccessToken(u.getId().toString());
+        assertEquals(400, request("PATCH", "/auth/profile", token, "{\"nickname\":\"   \"}").statusCode());
+        assertEquals(400, request("PATCH", "/auth/profile", token, json.writeValueAsString(Map.of("nickname", "가".repeat(51)))).statusCode());
+        assertEquals(404, request("GET", "/auth/profile/photo", token, null).statusCode());
+        var unauthenticated = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/auth/profile/photo")).GET().build();
+        assertEquals(401, client.send(unauthenticated, HttpResponse.BodyHandlers.discarding()).statusCode());
+        jdbc.update("INSERT INTO user_profile_photos (user_id, image_data) VALUES (?, ?)", u.getId(), new byte[]{1, 2, 3});
+        var photo = request("GET", "/auth/profile/photo", token, null);
+        assertEquals(200, photo.statusCode());
+        assertTrue(photo.headers().firstValue("cache-control").orElse("").contains("no-store"));
     }
     @Test void withdrawalAndBabyCreationAreSerialized() throws Exception {
         User u = user();
@@ -100,13 +115,16 @@ class AccountLifecycleIntegrationTest {
 
     @Test void ownerMustTransferBeforeWithdrawalAndBadPasswordDoesNotDelete() throws Exception {
         User owner=user(), guest=user(); long babyId=babies.createBaby(new BabyCreateRequest("baby", LocalDate.of(2025,1,1)), owner.getId()).babyId();
+        jdbc.update("INSERT INTO user_profile_photos (user_id, image_data) VALUES (?, ?)", owner.getId(), new byte[]{1, 2, 3});
         members.saveAndFlush(BabyMember.builder().babyId(babyId).userId(guest.getId()).role(BabyRole.GUARDIAN).build());
         String token=jwt.createAccessToken(owner.getId().toString());
         assertEquals(400, request("DELETE","/auth/account",token,json.writeValueAsString(Map.of("password","wrong"))).statusCode());
         assertEquals(409, request("DELETE","/auth/account",token,json.writeValueAsString(Map.of("password","Test1234!"))).statusCode());
         assertTrue(users.findById(owner.getId()).orElseThrow().isActive());
+        assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM user_profile_photos WHERE user_id = ?", Integer.class, owner.getId()));
         babies.transferOwnership(babyId,owner.getId(),guest.getId());
         assertEquals(200, request("DELETE","/auth/account",token,json.writeValueAsString(Map.of("password","Test1234!"))).statusCode());
+        assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM user_profile_photos WHERE user_id = ?", Integer.class, owner.getId()));
         assertFalse(members.existsByBabyIdAndUserId(babyId,owner.getId()));
     }
 }

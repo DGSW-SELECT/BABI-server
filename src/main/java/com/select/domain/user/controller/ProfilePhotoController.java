@@ -1,4 +1,6 @@
-package com.select.domain.user.photo;
+package com.select.domain.user.controller;
+
+import com.select.domain.user.service.ProfilePhotoService;
 
 import com.select.global.exception.BusinessException;
 import com.select.global.exception.ErrorCode;

@@ -6,6 +6,7 @@ import com.select.domain.baby.repository.BabyPermissionRepository;
 import com.select.domain.baby.repository.BabyRepository;
 import com.select.domain.user.exception.InvalidCredentialsException;
 import com.select.domain.user.repository.UserRepository;
+import com.select.domain.user.repository.ProfilePhotoRepository;
 import com.select.global.exception.ErrorCode;
 import com.select.domain.user.exception.AccountLifecycleException;
 import com.select.global.security.jwt.JwtProvider;
@@ -22,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class AccountLifecycleService {
     private final UserRepository users;
+    private final ProfilePhotoRepository photos;
     private final BabyMemberRepository members;
     private final BabyPermissionRepository permissions;
     private final BabyRepository babies;
@@ -33,10 +35,10 @@ public class AccountLifecycleService {
     private final EntityManager entityManager;
     private final WithdrawalRateLimiter withdrawalRateLimiter;
 
-    public AccountLifecycleService(UserRepository users, BabyMemberRepository members, BabyPermissionRepository permissions,
+    public AccountLifecycleService(UserRepository users, ProfilePhotoRepository photos, BabyMemberRepository members, BabyPermissionRepository permissions,
             BabyRepository babies, PasswordEncoder passwords, AccountInvitationCleanupRepository invitations, JwtProvider jwt, TokenRevocationService revocations,
             EntityManager entityManager, RefreshSessionService sessions, WithdrawalRateLimiter withdrawalRateLimiter) {
-        this.users = users; this.members = members; this.permissions = permissions; this.babies = babies;
+        this.users = users; this.photos = photos; this.members = members; this.permissions = permissions; this.babies = babies;
         this.passwords = passwords; this.invitations = invitations; this.jwt = jwt; this.revocations = revocations; this.entityManager = entityManager; this.sessions = sessions; this.withdrawalRateLimiter = withdrawalRateLimiter;
     }
 
@@ -77,8 +79,7 @@ public class AccountLifecycleService {
             member.deactivate();
         }
         invitations.cancelAndAnonymize(userId, user.getEmail());
-        entityManager.createNativeQuery("DELETE FROM user_profile_photos WHERE user_id = :userId")
-                .setParameter("userId", userId).executeUpdate();
+        photos.deleteById(userId);
         user.withdraw();
     }
 }
