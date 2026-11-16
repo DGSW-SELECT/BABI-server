@@ -18,6 +18,12 @@ CREATE TABLE IF NOT EXISTS `users` (
             OR (`status` = 'WITHDRAWN' AND `withdrawn_at` IS NOT NULL))
 );
 
+CREATE TABLE IF NOT EXISTS user_profile_photos (
+    user_id BIGINT PRIMARY KEY,
+    image_data LONGBLOB NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
 CREATE TABLE IF NOT EXISTS `babies` (
     `id`                 BIGINT       NOT NULL AUTO_INCREMENT,
     `created_by_user_id` BIGINT       NOT NULL,

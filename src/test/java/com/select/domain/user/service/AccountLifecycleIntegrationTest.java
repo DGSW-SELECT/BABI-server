@@ -20,9 +20,14 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import tools.jackson.databind.ObjectMapper;
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.net.URI;
 import java.net.http.*;
 import java.time.LocalDate;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.*;
@@ -70,11 +75,83 @@ class AccountLifecycleIntegrationTest {
     }
     @Test void withdrawalAnonymizesAndRejectsAllTokens() throws Exception {
         User u=user(); String oldEmail=u.getEmail(); String token=jwt.createAccessToken(u.getId().toString());
+        jdbc.update("INSERT INTO user_profile_photos (user_id, image_data) VALUES (?, ?)", u.getId(), new byte[]{1, 2, 3});
         assertEquals(200, request("DELETE","/auth/account",token,json.writeValueAsString(Map.of("password","Test1234!"))).statusCode());
+        assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM user_profile_photos WHERE user_id = ?", Integer.class, u.getId()));
         assertEquals(401, request("GET","/babies",token,null).statusCode());
         var stored=users.findById(u.getId()).orElseThrow();
         assertFalse(stored.isActive()); assertNotNull(stored.getWithdrawnAt());
         assertFalse(users.existsByEmail(oldEmail)); assertEquals("!",stored.getPasswordHash());
+    }
+    @Test void profileValidationAndPhotoAccess() throws Exception {
+        User u = user();
+        String token = jwt.createAccessToken(u.getId().toString());
+        assertEquals(400, request("PATCH", "/auth/profile", token, "{\"nickname\":\"   \"}").statusCode());
+        assertEquals(400, request("PATCH", "/auth/profile", token, json.writeValueAsString(Map.of("nickname", "가".repeat(51)))).statusCode());
+        assertEquals(404, request("GET", "/auth/profile/photo", token, null).statusCode());
+        var unauthenticated = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/auth/profile/photo")).GET().build();
+        assertEquals(401, client.send(unauthenticated, HttpResponse.BodyHandlers.discarding()).statusCode());
+    }
+
+    @Test void profilePhotoUploadAcceptsJpegAndReturnsPngOnRead() throws Exception {
+        User user = user();
+        String token = jwt.createAccessToken(user.getId().toString());
+        var jpeg = new ByteArrayOutputStream();
+        assertTrue(ImageIO.write(new BufferedImage(2, 3, BufferedImage.TYPE_INT_RGB), "jpeg", jpeg));
+
+        var upload = uploadPhoto(token, jpeg.toByteArray());
+        assertEquals(200, upload.statusCode(), upload.body());
+        assertTrue(json.readTree(upload.body()).path("success").asBoolean());
+
+        var photoRequest = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/auth/profile/photo"))
+                .header("Authorization", "Bearer " + token).header("Accept", "image/*").GET().build();
+        var photo = client.send(photoRequest, HttpResponse.BodyHandlers.ofByteArray());
+        assertEquals(200, photo.statusCode());
+        assertEquals("image/png", photo.headers().firstValue("content-type").orElseThrow());
+        assertTrue(photo.headers().firstValue("cache-control").orElse("").contains("no-store"));
+        var image = ImageIO.read(new ByteArrayInputStream(photo.body()));
+        assertNotNull(image);
+        assertEquals(2, image.getWidth());
+        assertEquals(3, image.getHeight());
+    }
+
+    @Test void missingProfilePhotoReturnsJsonToAnImageRequest() throws Exception {
+        String token = jwt.createAccessToken(user().getId().toString());
+        var request = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/auth/profile/photo"))
+                .header("Authorization", "Bearer " + token).header("Accept", "image/*").GET().build();
+
+        var response = client.send(request, HttpResponse.BodyHandlers.ofString());
+
+        assertEquals(404, response.statusCode(), response.body());
+        assertEquals("application/json", response.headers().firstValue("content-type").orElseThrow());
+        assertEquals("PROFILE_PHOTO_NOT_FOUND", json.readTree(response.body()).path("error").path("code").asText());
+    }
+
+    @Test void profilePhotoUploadRejectsFilesAbovePhotoLimit() throws Exception {
+        User user = user();
+        String token = jwt.createAccessToken(user.getId().toString());
+        var jpeg = new ByteArrayOutputStream();
+        assertTrue(ImageIO.write(new BufferedImage(2, 3, BufferedImage.TYPE_INT_RGB), "jpeg", jpeg));
+        byte[] oversized = Arrays.copyOf(jpeg.toByteArray(), 5 * 1024 * 1024 + 1);
+        assertNotNull(ImageIO.read(new ByteArrayInputStream(oversized)));
+        var upload = uploadPhoto(token, oversized);
+        assertEquals(400, upload.statusCode(), upload.body());
+        assertEquals("PROFILE_PHOTO_INVALID", json.readTree(upload.body()).path("error").path("code").asText());
+        assertEquals(404, request("GET", "/auth/profile/photo", token, null).statusCode());
+    }
+
+    private HttpResponse<String> uploadPhoto(String token, byte[] contents) throws Exception {
+        String boundary = UUID.randomUUID().toString();
+        var header = HttpRequest.BodyPublishers.ofString("--" + boundary + "\r\n"
+                + "Content-Disposition: form-data; name=\"file\"; filename=\"profile.jpeg\"\r\n"
+                + "Content-Type: image/jpeg\r\n\r\n");
+        var data = HttpRequest.BodyPublishers.ofByteArray(contents);
+        var footer = HttpRequest.BodyPublishers.ofString("\r\n--" + boundary + "--\r\n");
+        var request = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/auth/profile/photo"))
+                .header("Authorization", "Bearer " + token)
+                .header("Content-Type", "multipart/form-data; boundary=" + boundary)
+                .POST(HttpRequest.BodyPublishers.concat(header, data, footer)).build();
+        return client.send(request, HttpResponse.BodyHandlers.ofString());
     }
     @Test void withdrawalAndBabyCreationAreSerialized() throws Exception {
         User u = user();
@@ -100,13 +177,16 @@ class AccountLifecycleIntegrationTest {
 
     @Test void ownerMustTransferBeforeWithdrawalAndBadPasswordDoesNotDelete() throws Exception {
         User owner=user(), guest=user(); long babyId=babies.createBaby(new BabyCreateRequest("baby", LocalDate.of(2025,1,1)), owner.getId()).babyId();
+        jdbc.update("INSERT INTO user_profile_photos (user_id, image_data) VALUES (?, ?)", owner.getId(), new byte[]{1, 2, 3});
         members.saveAndFlush(BabyMember.builder().babyId(babyId).userId(guest.getId()).role(BabyRole.GUARDIAN).build());
         String token=jwt.createAccessToken(owner.getId().toString());
         assertEquals(400, request("DELETE","/auth/account",token,json.writeValueAsString(Map.of("password","wrong"))).statusCode());
         assertEquals(409, request("DELETE","/auth/account",token,json.writeValueAsString(Map.of("password","Test1234!"))).statusCode());
         assertTrue(users.findById(owner.getId()).orElseThrow().isActive());
+        assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM user_profile_photos WHERE user_id = ?", Integer.class, owner.getId()));
         babies.transferOwnership(babyId,owner.getId(),guest.getId());
         assertEquals(200, request("DELETE","/auth/account",token,json.writeValueAsString(Map.of("password","Test1234!"))).statusCode());
+        assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM user_profile_photos WHERE user_id = ?", Integer.class, owner.getId()));
         assertFalse(members.existsByBabyIdAndUserId(babyId,owner.getId()));
     }
 }

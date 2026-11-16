@@ -1,28 +1,31 @@
 package com.select.domain.user.controller;
 
 import com.select.domain.user.dto.request.LoginRequest;
+import com.select.domain.user.dto.request.ProfileUpdateRequest;
 import com.select.domain.user.dto.request.SignupRequest;
-import com.select.domain.user.dto.response.LoginResponse;
-import com.select.domain.user.dto.response.SignupResponse;
-import com.select.domain.user.service.UserService;
-import com.select.domain.user.service.AuthSessionService;
-import com.select.domain.user.service.AccountLifecycleService;
 import com.select.domain.user.dto.request.WithdrawRequest;
+import com.select.domain.user.dto.response.LoginResponse;
+import com.select.domain.user.dto.response.ProfileResponse;
+import com.select.domain.user.dto.response.SignupResponse;
 import com.select.domain.user.exception.AccountLifecycleException;
+import com.select.domain.user.service.AccountLifecycleService;
+import com.select.domain.user.service.AuthSessionService;
+import com.select.domain.user.service.UserService;
 import com.select.global.exception.ErrorCode;
+import com.select.global.response.ApiResponse;
 import com.select.global.security.jwt.AuthCookies;
+import io.swagger.v3.oas.annotations.Operation;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import io.swagger.v3.oas.annotations.Operation;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.http.HttpHeaders;
-import java.util.Map;
-import com.select.global.response.ApiResponse;
 import jakarta.validation.Valid;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -38,6 +41,18 @@ public class UserController {
     private final AccountLifecycleService accountLifecycle;
     private final AuthSessionService sessions;
     private final AuthCookies cookies;
+
+    @GetMapping("/profile")
+    public ApiResponse<ProfileResponse> profile(@AuthenticationPrincipal String principal) {
+        return new ApiResponse<>(true, "프로필을 조회했습니다.", userService.profile(Long.valueOf(principal)));
+    }
+
+    @PatchMapping("/profile")
+    public ApiResponse<ProfileResponse> updateProfile(
+            @AuthenticationPrincipal String principal,
+            @Valid @RequestBody ProfileUpdateRequest request) {
+        return new ApiResponse<>(true, "프로필을 수정했습니다.", userService.updateProfile(Long.valueOf(principal), request.nickname()));
+    }
 
     @GetMapping("/csrf")
     public ApiResponse<Map<String, String>> csrf(HttpServletRequest request, HttpServletResponse response) {
