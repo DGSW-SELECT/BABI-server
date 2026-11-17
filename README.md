@@ -38,7 +38,9 @@ docker port babi-discord-demo-redis 6379
 
 서버를 중단한 뒤 **본인이 생성한 전용 컨테이너만** `docker stop babi-discord-demo-mysql babi-discord-demo-redis`로 종료합니다. 임시 DB와 Redis 데이터는 사라집니다. 기존 Compose 컨테이너나 볼륨은 건드리지 마세요.
 
-`.env.example`을 `.env`로 복사하고 전용 연결 정보와 무작위 비밀값을 입력하세요. `.env`는 Git에 포함하지 마세요. `local`은 작업 디렉터리의 `.env`를 읽으며, 환경변수가 같은 이름의 값보다 우선합니다. 기존 `.env`가 있다면 덮어쓰지 마세요.
+`.env.example`을 `.env`로 복사하고 전용 연결 정보와 무작위 비밀값을 입력하세요. `.env`는 Git에 포함하지 마세요. `local`은 작업 디렉터리의 `.env`를 읽으며, 환경변수가 같은 이름의 값보다 우선합니다. 기존 `.env`가 있다면 덮어쓰지 마세요. 음성 STT를 사용하려면 `OPENAI_API_KEY`도 실제 키로 변경합니다.
+
+`OPENAI_API_KEY`는 음성 입력 STT를 호출할 때 필요합니다. 값이 없어도 서버는 시작되지만 음성 변환 API는 `STT_FAILED`로 실패합니다. 실제 키는 Git에 커밋하지 않습니다.
 
 | 변수 | 설명 |
 | --- | --- |
@@ -51,6 +53,8 @@ docker port babi-discord-demo-redis 6379
 | `BABI_DEMO_REDIS_MARKER` | 전용 Redis에 미리 저장한 48자 이상의 소문자 16진수 확인값 |
 | `JWT_SECRET`, `EMAIL_VERIFICATION_SECRET` | 각각 별도의 무작위 비밀값 |
 | `BABY_INVITATION_LINK_BASE_URL` | 기존 초대 API에 필요한 HTTPS 주소. Discord로 전송하지 않습니다. |
+
+일반 `local`/`aws` 프로필에서 Gmail 발송을 사용하려면 `.env`의 `MAIL_USERNAME`과 `MAIL_PASSWORD`를 실제 Gmail 주소와 앱 비밀번호로 설정합니다. `discord-demo` 프로필에서는 Discord가 발송을 담당하므로 해당 값이 필요하지 않습니다.
 
 ### 웹후크 주소 변경
 
@@ -101,12 +105,46 @@ Discord 연결은 최대 3초, 요청은 최대 5초로 제한합니다. 응답 
 
 | Method | Endpoint | 동작 |
 |---|---|---|
-| POST | `/babi/api/babies/{babyId}/daily-reports` | 생성 (`reportDate`, `summary`) |
-| GET | `/babi/api/babies/{babyId}/daily-reports/{date}` | 조회 |
-| PATCH | `/babi/api/babies/{babyId}/daily-reports/{date}` | 요약 수정 (`summary`) |
-| DELETE | `/babi/api/babies/{babyId}/daily-reports/{date}` | 삭제 |
+| POST | `/babies/{babyId}/daily-reports` | 생성 (`reportDate`, `summary`) |
+| GET | `/babies/{babyId}/daily-reports/{date}` | 조회 |
+| PATCH | `/babies/{babyId}/daily-reports/{date}` | 요약 수정 (`summary`) |
+| DELETE | `/babies/{babyId}/daily-reports/{date}` | 삭제 |
 
 7일 통계는 리포트 날짜 6일 전 00:00부터 다음 날 00:00 직전까지 계산합니다. 경계를 넘는 수면은 구간과 겹치는 시간만 포함합니다.
+
+## 음성 기록 API
+
+음성 입력은 STT 변환과 최종 저장을 분리합니다. STT 단계에서는 DB에 저장하지 않습니다.
+
+| Method | Content-Type | Path | 설명 |
+|---|---|---|---|
+| `POST` | `multipart/form-data` | `/api/v1/babies/{babyId}/voice-records/stt` | `audio` 파일을 STT 변환해 transcript만 반환 |
+| `POST` | `application/json` | `/api/v1/babies/{babyId}/voice-records` | 사용자가 확인·수정한 transcript를 `voice_inputs`에 저장 |
+| `GET` | - | `/api/v1/babies/{babyId}/voice-records/{voiceInputId}` | 저장된 음성 기록 단건 조회 |
+| `PATCH` | `application/json` | `/api/v1/babies/{babyId}/voice-records/{voiceInputId}` | 저장된 음성 기록의 transcript 수정 |
+
+- STT 변환 결과는 DB에 저장하지 않으며, 사용자가 내용을 확인·수정한 뒤 저장 API를 호출합니다.
+- 저장된 기록도 `PATCH` API로 다시 수정할 수 있습니다.
+- 모든 음성 기록 API는 `Authorization: Bearer {accessToken}` 헤더가 필요합니다.
+- 요청자는 해당 아기의 활성 구성원이어야 하며, 아니면 `403 FORBIDDEN`을 반환합니다. 아기가 없으면 `404 NOT_FOUND`를 반환합니다.
+- 음성 파일은 25MB 이하이며 `mp3`, `mp4`, `m4a`, `mpeg`, `mpga`, `wav`, `webm`, `ogg`, `flac`, `aac`를 지원합니다.
+- 저장 요청 예시:
+
+```json
+{
+  "transcript": "2시에 분유 100ml 먹였어"
+}
+```
+
+- 수정 요청 예시:
+
+```json
+{
+  "transcript": "2시에 분유 120ml 먹였어"
+}
+```
+
+> `familyMemberId`는 클라이언트가 보내지 않고, 인증된 사용자의 `baby_members.id`를 서버에서 결정합니다.
 
 ## 검증
 
@@ -114,6 +152,7 @@ Discord 연결은 최대 3초, 요청은 최대 5초로 제한합니다. 응답 
 ./gradlew test
 ./gradlew build
 ```
+
 ## Swagger API 문서
 
 서버 실행 후 다음 주소에서 현재 브랜치의 Controller와 DTO를 기반으로 생성한 API 문서를 확인할 수 있습니다.
@@ -136,14 +175,21 @@ com.select
 │   ├── response
 │   └── security
 └── domain
-    └── user
+    ├── auth
+    ├── baby
+    ├── report
+    ├── user
+    └── voice
+        ├── client
         ├── controller
         ├── dto
         │   ├── request
         │   └── response
         ├── entity
+        ├── exception
         ├── repository
-        └── service
+        ├── service
+        └── support
 ```
 
 새 핵심 기능은 `domain` 아래에 같은 계층으로 추가합니다.

@@ -354,7 +354,7 @@ public class DailyReportGenerationIntegrationTest {
                 .passwordHash("unused-test-hash").nickname("테스트 보호자").build()).getId();
     }
 
-    private String base() { return "/babi/api/babies/" + babyId + "/daily-reports"; }
+    private String base() { return "/babies/" + babyId + "/daily-reports"; }
 
     private HttpResponse<String> generate(Long userId) throws Exception {
         return request("POST", base() + "/2026-11-08/generate", userId, null);

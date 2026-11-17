@@ -70,7 +70,7 @@ GET /api/v1/babies/1/records?date=2026-11-08&recordType=FEEDING&authorMemberId=2
 ## OpenAI 리포트 생성
 
 ```text
-POST /babi/api/babies/{babyId}/daily-reports/{date}/generate
+POST /babies/{babyId}/daily-reports/{date}/generate
 ```
 
 본문은 없다. 성공은 기존 `DailyReportResponse`를 담은 `201`이며 기존 수동 CRUD 경로와 응답은 유지한다. 수유·수면·체온·기저귀·울음의 해당 날짜 통계를 [OpenAI Responses API](https://developers.openai.com/api/docs/guides/text)에 보내 한국어 요약을 저장한다. 이름·이메일·아기/사용자 ID·자유 텍스트 메모·음성 원문은 보내지 않는다. `store=false`를 사용하며 이는 OpenAI의 모든 데이터 보존 정책을 대체하는 설정은 아니다.

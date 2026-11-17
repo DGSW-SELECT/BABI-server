@@ -43,6 +43,7 @@ public class BabyService {
         Baby baby = Baby.builder()
                 .name(request.name())
                 .birthDate(request.birthDate())
+                .sex(request.sex())
                 .createdByUserId(userId)
                 .build();
         Baby savedBaby = babyRepository.save(baby);
@@ -56,7 +57,7 @@ public class BabyService {
         return new BabyCreateResponse(
                 savedBaby.getId(),
                 savedBaby.getName(),
-                savedBaby.getBirthDate());
+                savedBaby.getBirthDate(), savedBaby.getSex());
     }
 
     @Transactional(readOnly = true)
@@ -70,7 +71,7 @@ public class BabyService {
             throw new AccessDeniedException("접근 권한이 없습니다.");
         }
 
-        return new BabyReadResponse(baby.getId(),baby.getName(),baby.getBirthDate());
+        return new BabyReadResponse(baby.getId(),baby.getName(),baby.getBirthDate(),baby.getSex());
     }
 
     @Transactional
@@ -80,8 +81,8 @@ public class BabyService {
         if (!babyMemberRepository.existsByBabyIdAndUserIdAndRole(babyId, userId, BabyRole.OWNER)) {
             throw new AccessDeniedException("아기 관리 권한이 없습니다.");
         }
-        baby.updateDetails(request.name(), request.birthDate());
-        return new BabyReadResponse(baby.getId(), baby.getName(), baby.getBirthDate());
+        baby.updateDetails(request.name(), request.birthDate(), request.sex());
+        return new BabyReadResponse(baby.getId(), baby.getName(), baby.getBirthDate(), baby.getSex());
     }
 
     @Transactional(readOnly = true)
@@ -95,7 +96,7 @@ public class BabyService {
                 .map(baby -> new BabyReadResponse(
                 baby.getId(),
                 baby.getName(),
-                baby.getBirthDate()
+                baby.getBirthDate(), baby.getSex()
         )).toList();
     }
 

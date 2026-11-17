@@ -4,19 +4,25 @@ import com.select.domain.care.exception.CareRecordException;
 import com.select.domain.handover.exception.HandoverMemoException;
 import com.select.domain.report.exception.DailyReportGenerationException;
 import com.select.domain.auth.exception.EmailVerificationException;
-import com.select.domain.baby.exception.BabyNotFoundException;
 import com.select.domain.baby.exception.BabyInvitationException;
+import com.select.domain.baby.exception.BabyNotFoundException;
 import com.select.domain.baby.exception.InvalidOwnershipTransferException;
+import com.select.domain.report.exception.DailyReportAlreadyExistsException;
+import com.select.domain.report.exception.DailyReportNotFoundException;
 import com.select.domain.user.exception.AccountLifecycleException;
 import com.select.domain.user.exception.DuplicateEmailException;
 import com.select.domain.user.exception.InvalidCredentialsException;
 import com.select.domain.user.exception.PasswordMismatchException;
+import com.select.domain.voice.exception.AudioTooLargeException;
+import com.select.domain.voice.exception.InvalidAudioException;
+import com.select.domain.voice.exception.SttFailedException;
+import com.select.domain.voice.exception.VoiceInputNotFoundException;
 import com.select.global.response.ApiError;
 import com.select.global.response.ApiResponse;
 import com.select.global.response.ErrorDetail;
+import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.jspecify.annotations.Nullable;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -28,10 +34,8 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
-import com.select.domain.report.exception.DailyReportAlreadyExistsException;
-import com.select.domain.report.exception.DailyReportNotFoundException;
-
 
 import java.util.ArrayList;
 import java.util.List;
@@ -141,6 +145,47 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         );
     }
 
+    @ExceptionHandler(InvalidAudioException.class)
+    public ResponseEntity<ApiResponse<Void>> handleInvalidAudio(
+            InvalidAudioException e
+    ) {
+        return createErrorResponse(
+                ErrorCode.INVALID_AUDIO,
+                List.of()
+        );
+    }
+
+    @ExceptionHandler(AudioTooLargeException.class)
+    public ResponseEntity<ApiResponse<Void>> handleAudioTooLarge(
+            AudioTooLargeException e
+    ) {
+        return createErrorResponse(
+                ErrorCode.AUDIO_TOO_LARGE,
+                List.of()
+        );
+    }
+
+    @ExceptionHandler(SttFailedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleSttFailed(
+            SttFailedException e
+    ) {
+        log.warn("음성 변환에 실패했습니다: {}", e.getMessage());
+        return createErrorResponse(
+                ErrorCode.STT_FAILED,
+                List.of()
+        );
+    }
+
+    @ExceptionHandler(VoiceInputNotFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> handleVoiceInputNotFound(
+            VoiceInputNotFoundException e
+    ) {
+        return createErrorResponse(
+                ErrorCode.VOICE_INPUT_NOT_FOUND,
+                List.of()
+        );
+    }
+
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ResponseEntity<ApiResponse<Void>> handleTypeMismatch(
             MethodArgumentTypeMismatchException e
@@ -161,6 +206,19 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return createErrorResponse(
                 ErrorCode.VALIDATION_ERROR,
                 List.of()
+        );
+    }
+
+    @Override
+    protected @Nullable ResponseEntity<Object> handleMaxUploadSizeExceededException(
+            MaxUploadSizeExceededException e,
+            HttpHeaders headers,
+            HttpStatusCode status,
+            WebRequest request
+    ) {
+        return handleExceptionInternal(
+                e, createErrorResponseBody(ErrorCode.AUDIO_TOO_LARGE, List.of()),
+                headers, status, request
         );
     }
 
@@ -252,5 +310,14 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     ) {
         ApiError error = new ApiError(errorCode.name(), details);
         return new ApiResponse<>(false, errorCode.getMessage(), null, error);
+    }
+    @ExceptionHandler(BusinessException.class)
+    public ResponseEntity<ApiResponse<Void>> handleBusinessException(
+            BusinessException e
+    ) {
+        return createErrorResponse(
+                e.getErrorCode(),
+                List.of()
+        );
     }
 }

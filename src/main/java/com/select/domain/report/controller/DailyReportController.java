@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.*;
 import java.time.LocalDate;
 
 @RestController
-@RequestMapping("/babi/api/babies/{babyId}/daily-reports")
+@RequestMapping("/babies/{babyId}/daily-reports")
 public class DailyReportController {
 
     private final DailyReportService dailyReportService;
