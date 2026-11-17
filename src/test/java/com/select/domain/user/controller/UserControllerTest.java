@@ -51,10 +51,23 @@ class UserControllerTest {
     @BeforeEach
     void setUp() {
         userService = mock(UserService.class);
+        var sessions = mock(com.select.domain.user.service.AuthSessionService.class);
+        when(sessions.login(any())).thenAnswer(invocation -> {
+            var response = userService.login(invocation.getArgument(0));
+            return new com.select.domain.user.service.AuthSessionService.Tokens(response.accessToken(), "refresh");
+        });
         mockMvc = MockMvcBuilders
-                .standaloneSetup(new UserController(userService))
+                .standaloneSetup(new UserController(userService, mock(com.select.domain.user.service.AccountLifecycleService.class), sessions, mock(com.select.global.security.jwt.AuthCookies.class)))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
+    }
+
+    @Test
+    void loginRejectsSimpleCrossSiteFormContentType() throws Exception {
+        mockMvc.perform(post(LOGIN_URL).contentType(MediaType.TEXT_PLAIN)
+                        .content("{\"email\":\"attacker@example.invalid\",\"password\":\"x\"}"))
+                .andExpect(status().isUnsupportedMediaType());
+        verifyNoInteractions(userService);
     }
 
     @Test
@@ -155,7 +168,7 @@ class UserControllerTest {
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         MockMvc signupMockMvc = MockMvcBuilders
-                .standaloneSetup(new UserController(new UserService(userRepository, passwordEncoder, mock(JwtProvider.class), mock(EmailVerificationService.class))))
+                .standaloneSetup(new UserController(new UserService(userRepository, passwordEncoder, mock(JwtProvider.class), mock(EmailVerificationService.class)), mock(com.select.domain.user.service.AccountLifecycleService.class), mock(com.select.domain.user.service.AuthSessionService.class), mock(com.select.global.security.jwt.AuthCookies.class)))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
 

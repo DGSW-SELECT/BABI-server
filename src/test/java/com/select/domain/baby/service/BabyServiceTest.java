@@ -66,6 +66,8 @@ class BabyServiceTest {
     @Test
     void createBabySavesRegisteringUserAsOwnerAndReturnsBabyId() {
         BabyCreateRequest request = new BabyCreateRequest("아기", BIRTH_DATE);
+        when(userRepository.findByIdForUpdate(OWNER_USER_ID)).thenReturn(java.util.Optional.of(
+                User.builder().email("owner@example.invalid").nickname("owner").passwordHash("test").build()));
         when(babyRepository.save(any(Baby.class))).thenAnswer(invocation -> {
             Baby baby = invocation.getArgument(0);
             ReflectionTestUtils.setField(baby, "id", BABY_ID);

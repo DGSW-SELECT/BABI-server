@@ -56,6 +56,28 @@ class UserServiceTest {
         userService = new UserService(userRepository, passwordEncoder, mock(JwtProvider.class), emailVerificationService);
     }
 
+    @Test
+    void profileUpdateChangesOnlyAuthenticatedUsersNickname() {
+        User user = User.builder().email("person@example.invalid").nickname("기존").passwordHash("hash").build();
+        when(userRepository.findByIdForUpdate(7L)).thenReturn(Optional.of(user));
+
+        var response = userService.updateProfile(7L, "새 이름");
+
+        assertEquals("새 이름", response.nickname());
+        assertEquals("새 이름", user.getNickname());
+        assertEquals("person@example.invalid", user.getEmail());
+        verify(userRepository).findByIdForUpdate(7L);
+    }
+
+    @Test
+    void withdrawnUserCannotUpdateProfile() {
+        User user = User.builder().email("person@example.invalid").nickname("기존").passwordHash("hash").build();
+        user.withdraw();
+        when(userRepository.findByIdForUpdate(7L)).thenReturn(Optional.of(user));
+        assertThrows(InvalidCredentialsException.class, () -> userService.updateProfile(7L, "새 이름"));
+        assertEquals("탈퇴한 사용자", user.getNickname());
+    }
+
     @ParameterizedTest
     @MethodSource("emailConstraintNames")
     void signUpConvertsKnownEmailConstraintViolationToDuplicateEmail(String constraintName) {

@@ -1,5 +1,9 @@
 package com.select.domain.auth.mail;
 
+import com.select.domain.auth.exception.EmailVerificationException;
+import com.select.global.exception.ErrorCode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import tools.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -11,6 +15,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
 
@@ -21,7 +26,7 @@ public class DiscordWebhookEmailSender implements EmailSender {
     private static final Pattern TEST_ADDRESS = Pattern.compile("[a-zA-Z0-9._%+\\-]+@example\\.invalid", Pattern.CASE_INSENSITIVE);
     private static final Pattern VERIFY = Pattern.compile("\\ABABI 이메일 인증번호는 ([0-9]{6})입니다\\.\\n인증번호는 5분 동안 유효합니다\\.\\z");
     private static final Pattern INVITE = Pattern.compile("\\ABABI 아기 보호자로 초대되었습니다\\.\\n초대 코드: ([A-Z0-9]{6})\\n초대 링크: [^\\n]+\\n이메일 초대 유효기간: ([0-9TZ:.-]+)\\n로그인한 후 초대 코드를 입력해 주세요\\.\\z");
-    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(DiscordWebhookEmailSender.class);
+    private static final Logger log = LoggerFactory.getLogger(DiscordWebhookEmailSender.class);
     private final URI webhook;
     private final HttpClient client;
     private final ObjectMapper json;
@@ -60,7 +65,7 @@ public class DiscordWebhookEmailSender implements EmailSender {
     @Override
     public void validateRecipient(String to) {
         if (to == null || !TEST_ADDRESS.matcher(to).matches())
-            throw new com.select.domain.auth.exception.EmailVerificationException(com.select.global.exception.ErrorCode.EMAIL_DEMO_ADDRESS_REQUIRED);
+            throw new EmailVerificationException(ErrorCode.EMAIL_DEMO_ADDRESS_REQUIRED);
     }
 
     @Override
@@ -76,7 +81,7 @@ public class DiscordWebhookEmailSender implements EmailSender {
         } else throw new IllegalArgumentException("Unsupported demo message");
         int status;
         try {
-            String payload = json.writeValueAsString(Map.of("content", message, "allowed_mentions", Map.of("parse", java.util.List.of())));
+            String payload = json.writeValueAsString(Map.of("content", message, "allowed_mentions", Map.of("parse", List.of())));
             HttpRequest request = HttpRequest.newBuilder(webhook).timeout(Duration.ofSeconds(5))
                     .header("Content-Type", "application/json").POST(HttpRequest.BodyPublishers.ofString(payload)).build();
             // Discord's response body is not needed. Close it immediately after the headers

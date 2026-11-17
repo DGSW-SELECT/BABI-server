@@ -1,5 +1,6 @@
 package com.select.domain.baby.request;
 
+import com.select.domain.baby.entity.BabySex;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PastOrPresent;
@@ -14,6 +15,8 @@ public record BabyCreateRequest(
 
         @NotNull
         @PastOrPresent
-        LocalDate birthDate
+        LocalDate birthDate,
+        BabySex sex
 ) {
+    public BabyCreateRequest(String name, LocalDate birthDate) { this(name, birthDate, null); }
 }

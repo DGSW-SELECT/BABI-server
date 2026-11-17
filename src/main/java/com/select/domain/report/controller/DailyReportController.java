@@ -14,13 +14,21 @@ import org.springframework.web.bind.annotation.*;
 import java.time.LocalDate;
 
 @RestController
-@RequestMapping("/babi/api/babies/{babyId}/daily-reports")
+@RequestMapping("/babies/{babyId}/daily-reports")
 public class DailyReportController {
 
     private final DailyReportService dailyReportService;
 
     public DailyReportController(DailyReportService dailyReportService) {
         this.dailyReportService = dailyReportService;
+    }
+
+    @PostMapping("/{date}/generate")
+    @ResponseStatus(HttpStatus.CREATED)
+    public ApiResponse<DailyReportResponse> generate(@AuthenticationPrincipal String userId, @PathVariable Long babyId,
+            @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+        return new ApiResponse<>(true, "AI 데일리 리포트를 생성했습니다.",
+                dailyReportService.generate(Long.valueOf(userId), babyId, date));
     }
 
     @PostMapping
