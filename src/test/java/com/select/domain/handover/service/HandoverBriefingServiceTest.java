@@ -122,7 +122,7 @@ class HandoverBriefingServiceTest {
     @Test
     void returnsLatestSavedBriefingToReader() {
         HandoverBriefing saved = briefing(LocalDate.of(2026, 10, 27), "저장된 브리핑");
-        when(briefings.findTopByBabyIdOrderByGeneratedAtDesc(2L)).thenReturn(Optional.of(saved));
+        when(briefings.findTopByBabyIdOrderByGeneratedAtDescIdDesc(2L)).thenReturn(Optional.of(saved));
 
         HandoverBriefingResponse response = service.getLatestBriefing(1L, 2L);
 
@@ -133,7 +133,7 @@ class HandoverBriefingServiceTest {
 
     @Test
     void throwsWhenLatestBriefingDoesNotExist() {
-        when(briefings.findTopByBabyIdOrderByGeneratedAtDesc(2L)).thenReturn(Optional.empty());
+        when(briefings.findTopByBabyIdOrderByGeneratedAtDescIdDesc(2L)).thenReturn(Optional.empty());
 
         assertThrows(HandoverBriefingNotFoundException.class,
                 () -> service.getLatestBriefing(1L, 2L));

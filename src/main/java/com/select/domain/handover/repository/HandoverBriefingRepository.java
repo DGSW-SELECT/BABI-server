@@ -7,7 +7,7 @@ import java.util.Optional;
 
 public interface HandoverBriefingRepository extends JpaRepository<HandoverBriefing, Long> {
 
-    Optional<HandoverBriefing> findTopByBabyIdOrderByGeneratedAtDesc(
+    Optional<HandoverBriefing> findTopByBabyIdOrderByGeneratedAtDescIdDesc(
             Long babyId
     );
 }

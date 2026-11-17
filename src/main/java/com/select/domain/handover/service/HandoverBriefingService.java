@@ -86,7 +86,7 @@ public class HandoverBriefingService {
     public HandoverBriefingResponse getLatestBriefing(Long userId, Long babyId) {
         requireReadAccess(userId, babyId);
         HandoverBriefing briefing = handoverBriefingRepository
-                .findTopByBabyIdOrderByGeneratedAtDesc(babyId)
+                .findTopByBabyIdOrderByGeneratedAtDescIdDesc(babyId)
                 .orElseThrow(HandoverBriefingNotFoundException::new);
 
         return toResponse(briefing);
