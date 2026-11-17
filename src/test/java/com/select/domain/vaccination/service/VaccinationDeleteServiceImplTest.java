@@ -1,9 +1,6 @@
 package com.select.domain.vaccination.service;
 
-import com.select.domain.baby.entity.BabyMember;
-import com.select.domain.baby.entity.BabyRole;
 import com.select.domain.baby.repository.BabyAccessRepository;
-import com.select.domain.baby.repository.BabyMemberRepository;
 import com.select.domain.baby.repository.BabyRepository;
 import com.select.domain.vaccination.entity.BabyVaccination;
 import com.select.domain.vaccination.repository.BabyVaccinationRepository;
