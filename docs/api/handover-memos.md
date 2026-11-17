@@ -84,7 +84,7 @@ handover_memos 테이블에 baby_id, author_member_id, content, created_at을 �
 메모 테이블은 첨부 원본 DB에 없어서 신규 DDL이 필요하다.
 
 신규 초기화 스키마는 src/main/resources/schema.sql, H2 테스트 스키마는 src/test/resources/schema-test.sql에 반영했다.
-기존 DB 추가용 파일은 docs/schema/handover-memos.mysql.sql이다. DROP이나 기존 데이터 수정은 포함하지 않는다.
+별도 마이그레이션 SQL 파일은 제공하지 않으며, 테이블 정의의 기준은 src/main/resources/schema.sql이다.
 팀 승인 후 DB 담당자가 대상 스키마, 부모 테이블 및 타입, InnoDB/utf8mb4 기본값을 확인하고 DDL을 적용한 다음 서버를 배포한다.
 이 PR은 실제 DB 적용이나 배포를 수행하지 않는다. 프론트엔드 연동 확인은 남아 있다.
 서버 롤백 시에도 작성된 메모 테이블과 데이터는 보존한다.
