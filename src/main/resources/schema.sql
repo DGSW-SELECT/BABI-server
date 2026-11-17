@@ -1,4 +1,5 @@
--- Source: babi_DB_Real.sql. Active DROP TABLE statements intentionally excluded.
+-- Sources: babi_DB_Real.sql and approved invitation/handover extensions.
+-- Active DROP TABLE statements intentionally excluded.
 
 -- =====================================================================
 -- 육아 기록 앱 스키마 (MySQL 8.0.16+ 기준, CHECK 제약 사용)
@@ -458,6 +459,27 @@ CREATE TABLE IF NOT EXISTS `handoff_briefings` (
         ON UPDATE NO ACTION ON DELETE NO ACTION
 );
 
+-- Handover extension approved 2026-11-17 (BABI_handover_tables_20261117.sql).
+CREATE TABLE IF NOT EXISTS `handover_memos` (
+    `id`               BIGINT        NOT NULL AUTO_INCREMENT,
+    `baby_id`          BIGINT        NOT NULL,
+    `author_member_id` BIGINT        NOT NULL,
+    `content`          VARCHAR(1000) NOT NULL,
+    `created_at`       DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    KEY `idx_handover_memos_baby_created` (`baby_id`, `created_at`, `id`),
+    KEY `idx_handover_memos_author` (`baby_id`, `author_member_id`),
+    CONSTRAINT `chk_handover_memos_content`
+        CHECK (CHAR_LENGTH(TRIM(`content`)) > 0),
+    CONSTRAINT `fk_handover_memos_baby`
+        FOREIGN KEY (`baby_id`) REFERENCES `babies` (`id`)
+        ON UPDATE NO ACTION ON DELETE NO ACTION,
+    CONSTRAINT `fk_handover_memos_author`
+        FOREIGN KEY (`baby_id`, `author_member_id`)
+        REFERENCES `baby_members` (`baby_id`, `id`)
+        ON UPDATE NO ACTION ON DELETE NO ACTION
+);
+
 -- ---------------------------------------------------------------------
 -- 15. 백신 마스터 (회차별로 1행)
 -- ---------------------------------------------------------------------
@@ -712,7 +734,7 @@ CREATE TABLE IF NOT EXISTS `baby_email_invitations` (
 --   - 활성 구성원이 0명이 된 아기의 데이터를 어떻게 할지 정책 결정
 --       (a) 일정 기간 보관 후 삭제  (b) 즉시 삭제  (c) 계속 보관
 --     삭제한다면 FK 가 NO ACTION 이므로 자식부터 순서대로:
---       baby_permissions -> 각종 *_records, daily_reports, handoff_briefings,
+--       baby_permissions -> 각종 *_records, daily_reports, handoff_briefings, handover_memos,
 --       baby_vaccinations, activity_recommendations, family_invitations
 --       -> voice_inputs -> baby_members -> babies
 --   - 음성 파일(voice_inputs.audio_url, cry_records.audio_url)과 transcript 에

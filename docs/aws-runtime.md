@@ -3,7 +3,15 @@
 - 계정 `380536267838`, 리전 `ap-northeast-3`, EC2 `i-0215d1d42af778314` 한 대에서 API·MySQL·Caddy·Redis를 실행한다.
 - 공개 주소: `https://api.babi.prot.kr`. API `8080`, MySQL `3307`, Redis `6379`는 loopback 전용이다. DNS는 임시 공인 IP를 사용하므로 EC2 중지·시작 후 IP 변경 시 수정이 필요하다.
 - `select-1-babi-start`, `select-1-babi-stop`은 사용자 요청으로 모두 `DISABLED`다. 6만 원은 예산 기준이며 자동 비용 차단은 없다. 직접 중지할 때까지 요금이 발생한다.
-- MySQL의 기존 20개 테이블·`active_baby_members` 뷰를 유지한다. `aws` 프로필은 `spring.sql.init.mode=never`, Hibernate `validate`를 사용한다. 자동 배포는 DB schema나 Volume을 변경하지 않는다.
+- MySQL의 기존 테이블에 승인된 `handover_memos`를 추가해 총 21개 테이블·`active_baby_members` 뷰를 유지한다. `aws` 프로필은 `spring.sql.init.mode=never`, Hibernate `validate`를 사용한다. 자동 배포는 DB schema나 Volume을 변경하지 않는다.
+
+## 인수인계 스키마 적용 (2026-11-17)
+
+사용자가 제공한 `BABI_handover_tables_20261117.sql`을 `scripts/migrations/`에 보관했다(`SHA-256: 579e6c0c7daf7be18c721c194debc4669f131c405683e38ee8dab7595ac24555`). 기존 `handoff_briefings` 정의는 동일하며 `handover_memos`만 추가한다. 기존 행을 변경하거나 삭제하는 SQL은 없다.
+
+사용자 승인 후 기존 AWS MySQL 8.4.13 `babi` DB에 적용했다. 적용 전 전체 백업은 `/var/backups/babi/before-handover-20261117T075705Z/database.sql.gz`에 보관했다(`root:root`, 디렉터리 `0700`, 파일 `0600`). 기존 스키마·행 수·검증 결과도 같은 디렉터리에 있다. 일회성 백업이며 정기 백업은 아니다.
+
+기존 20개 테이블 정의·행 수는 동일하며, 새 외래키 2개와 CHECK 1개를 확인했다. 격리한 MySQL 8.4에서 반복 적용, 기존 데이터 보존, 공백·NULL·1,001자 거부, 한글 1,000자 저장, 다른 아기의 작성자 참조 거부와 브리핑 기간 제약을 검증했다. 서버 초기화 스키마와 migration 파일도 갱신했다. 이 migration은 자동 배포 시 실행되지 않는다.
 
 ## 자동 배포
 
