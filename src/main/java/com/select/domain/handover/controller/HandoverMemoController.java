@@ -5,6 +5,7 @@ import com.select.domain.handover.dto.response.HandoverMemoResponse;
 import com.select.domain.handover.service.HandoverMemoService;
 import com.select.global.response.ApiResponse;
 import jakarta.validation.Valid;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestAttribute;
@@ -30,5 +31,14 @@ public class HandoverMemoController {
     ) {
         HandoverMemoResponse response = handoverMemoService.createMemo(babyId, Long.valueOf(userId), request);
         return new ApiResponse<>(true, "인수인계 메모가 등록되었습니다.", response);
+    }
+
+    @GetMapping("/latest")
+    public ApiResponse<HandoverMemoResponse> getLatestMemo(
+            @PathVariable Long babyId,
+            @RequestAttribute("userId") String userId
+    ) {
+        HandoverMemoResponse response = handoverMemoService.getLatestMemo(babyId, Long.valueOf(userId));
+        return new ApiResponse<>(true, "최신 인수인계 메모를 조회했습니다.", response);
     }
 }

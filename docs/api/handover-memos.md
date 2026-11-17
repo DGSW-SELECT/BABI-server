@@ -1,11 +1,12 @@
-# 인수인계 메모 등록 (TS-76)
+# 인수인계 메모 등록·최신 조회 (TS-76)
 
-기존 메모 브랜치에서 등록 기능만 분리하고 현재 아기 멤버·JWT 구조에 맞춘 PR이다.
+기존 메모 브랜치에서 등록과 최신 조회 기능을 분리하고 현재 아기 멤버·JWT 구조에 맞춘 PR이다.
 경로 및 응답 필드 변경은 프론트엔드 협의 대상이다. 기존 문서에서 확정된 명세라고 간주하지 않는다.
 
 ## API
 
 - POST /babi/api/babies/{babyId}/handover-memos
+- GET /babi/api/babies/{babyId}/handover-memos/latest
 - Authorization: Bearer <accessToken>
 - Content-Type: application/json
 - 기존 쿠키 인증도 공통 보안 필터를 따른다. 쿠키 요청은 기존 CSRF 절차와 X-CSRF-Token이 필요하다.
@@ -38,6 +39,25 @@ content는 필수이며 공백만 입력할 수 없고 최대 1000자이다.
 createdAt은 Asia/Seoul 기준 작성 시각이며 응답에는 시간대 오프셋이 붙지 않는다.
 메모는 보호자가 직접 작성한 원문이고 AI 생성 결과가 아니다.
 
+최신 메모 조회 성공 응답 (HTTP 200):
+
+```json
+{
+  "success": true,
+  "message": "최신 인수인계 메모를 조회했습니다.",
+  "data": {
+    "memoId": 15,
+    "content": "낮잠 후 장난감을 정리했습니다.",
+    "createdAt": "2026-11-10T17:00:00"
+  }
+}
+```
+
+조회는 활성 계정과 해당 아기의 OWNER 또는 CARE_ALL/CARE_READ 권한을 가진 활성 멤버에게 허용한다.
+VIEWER도 CARE_ALL 또는 CARE_READ 권한이 있으면 조회할 수 있지만 등록할 수는 없다.
+메모가 없으면 HTTP 404와 `HANDOVER_MEMO_NOT_FOUND`를 반환한다.
+프론트엔드의 `인수할 정보 확인하기`는 최신 브리핑 조회 API와 이 최신 메모 조회 API를 함께 호출한다.
+
 | 상황 | HTTP | error.code |
 | --- | --- | --- |
 | 입력 누락·공백·1000자 초과 | 400 | VALIDATION_ERROR |
@@ -50,6 +70,7 @@ createdAt은 Asia/Seoul 기준 작성 시각이며 응답에는 시간대 오프
 | 분당 등록 제한 초과 | 429 | HANDOVER_MEMO_RATE_LIMITED |
 | 메모 요청 제한 저장소 장애 | 503 | HANDOVER_MEMO_UNAVAILABLE |
 | 예상하지 못한 저장 오류 | 500 | INTERNAL_SERVER_ERROR |
+| 조회할 메모 없음 | 404 | HANDOVER_MEMO_NOT_FOUND |
 
 분당 등록 제한을 초과한 `429` 응답은 `Retry-After: 60` 헤더를 함께 반환한다.
 
@@ -97,7 +118,7 @@ handover_memos 테이블에 baby_id, author_member_id, content, created_at을 �
 
 ## 범위
 
-이번 PR은 등록 API와 저장 검증만 포함한다.
+이번 PR은 등록 API, 최신 메모 한 건 조회, 저장·조회 검증을 포함한다.
 목록 조회 API, 수정·삭제, 메모의 AI 브리핑 포함은 이번 변경에 포함하지 않는다.
 AI 브리핑 연동 요구는 별도 후속 작업으로 남겨 두며 기존 브리핑 코드를 함께 가져오지 않았다.
 

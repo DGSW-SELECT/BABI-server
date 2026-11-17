@@ -5,7 +5,9 @@ import com.select.domain.baby.repository.BabyRepository;
 import com.select.domain.handover.dto.request.HandoverMemoCreateRequest;
 import com.select.domain.handover.dto.response.HandoverMemoResponse;
 import com.select.domain.handover.entity.HandoverMemo;
+import com.select.domain.handover.exception.HandoverMemoException;
 import com.select.domain.handover.repository.HandoverMemoRepository;
+import com.select.global.exception.ErrorCode;
 import com.select.domain.user.entity.User;
 import com.select.domain.user.repository.UserRepository;
 import org.springframework.security.access.AccessDeniedException;
@@ -53,12 +55,29 @@ public class HandoverMemoService {
             Long authorMemberId = requireAuthor(userId, babyId);
             HandoverMemo memo = memos.save(new HandoverMemo(
                     babyId, authorMemberId, request.content(), LocalDateTime.now(SEOUL_ZONE)));
-            return new HandoverMemoResponse(memo.getId(), memo.getContent(), memo.getCreatedAt());
+            return toResponse(memo);
         });
+    }
+
+    @Transactional(readOnly = true)
+    public HandoverMemoResponse getLatestMemo(Long babyId, Long userId) {
+        requireReader(userId, babyId);
+        HandoverMemo memo = memos.findTopByBabyIdOrderByCreatedAtDescIdDesc(babyId)
+                .orElseThrow(() -> new HandoverMemoException(ErrorCode.HANDOVER_MEMO_NOT_FOUND));
+        return toResponse(memo);
     }
 
     private Long requireAuthor(Long userId, Long babyId) {
         return access.findMemberId(userId, babyId, "CARE_WRITE", true)
                 .orElseThrow(() -> new AccessDeniedException("메모 작성 권한이 없습니다."));
+    }
+
+    private void requireReader(Long userId, Long babyId) {
+        access.findMemberId(userId, babyId, "CARE_READ", false)
+                .orElseThrow(() -> new AccessDeniedException("메모 조회 권한이 없습니다."));
+    }
+
+    private HandoverMemoResponse toResponse(HandoverMemo memo) {
+        return new HandoverMemoResponse(memo.getId(), memo.getContent(), memo.getCreatedAt());
     }
 }

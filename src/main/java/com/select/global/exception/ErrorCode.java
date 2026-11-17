@@ -16,6 +16,7 @@ public enum ErrorCode {
 
     HANDOVER_MEMO_RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "인수인계 메모 등록 횟수를 초과했습니다."),
     HANDOVER_MEMO_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "인수인계 메모 등록을 일시적으로 사용할 수 없습니다."),
+    HANDOVER_MEMO_NOT_FOUND(HttpStatus.NOT_FOUND, "확인할 인수인계 메모가 없습니다."),
     PAYLOAD_TOO_LARGE(HttpStatus.CONTENT_TOO_LARGE, "요청 본문이 너무 큽니다."),
 
     INVITATION_INVALID(HttpStatus.BAD_REQUEST, "유효한 보호자 초대를 확인할 수 없습니다."),

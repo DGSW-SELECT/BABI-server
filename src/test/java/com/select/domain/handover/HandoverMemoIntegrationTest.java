@@ -6,6 +6,7 @@ import com.select.domain.baby.entity.BabyRole;
 import com.select.domain.baby.repository.BabyMemberRepository;
 import com.select.domain.baby.repository.BabyRepository;
 import com.select.domain.handover.dto.request.HandoverMemoCreateRequest;
+import com.select.domain.handover.entity.HandoverMemo;
 import com.select.domain.handover.repository.HandoverMemoRepository;
 import com.select.domain.handover.service.HandoverMemoRateLimiter;
 import com.select.domain.handover.service.HandoverMemoService;
@@ -34,6 +35,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.UUID;
 
@@ -82,6 +84,63 @@ class HandoverMemoIntegrationTest {
         assertEquals(saved.getContent(), data.path("content").asString());
         assertFalse(data.has("authorMemberId"));
         assertNotNull(saved.getCreatedAt());
+    }
+
+    @Test
+    void authorizedMemberGetsLatestMemoForSelectedBaby() throws Exception {
+        Long readerId = createUser();
+        createMember(readerId, babyId, BabyRole.GUARDIAN, "CARE_READ");
+        memos.saveAndFlush(new HandoverMemo(
+                babyId, ownerMemberId, "이전 메모", LocalDateTime.of(2026, 11, 17, 9, 0)));
+        var latest = memos.saveAndFlush(new HandoverMemo(
+                babyId, ownerMemberId, "최신 메모", LocalDateTime.of(2026, 11, 17, 10, 0)));
+
+        var response = getLatest(babyId, token(readerId));
+
+        assertStatus(200, response);
+        var data = mapper.readTree(response.body()).path("data");
+        assertEquals(latest.getId(), data.path("memoId").asLong());
+        assertEquals("최신 메모", data.path("content").asString());
+        assertEquals("2026-11-17T10:00:00", data.path("createdAt").asString());
+        assertFalse(data.has("authorMemberId"));
+    }
+
+    @Test
+    void viewerWithReadPermissionCanGetLatestMemo() throws Exception {
+        Long viewerId = createUser();
+        createMember(viewerId, babyId, BabyRole.VIEWER, "CARE_READ");
+        memos.saveAndFlush(new HandoverMemo(
+                babyId, ownerMemberId, "읽기 전용 메모", LocalDateTime.of(2026, 11, 17, 10, 0)));
+
+        assertStatus(200, getLatest(babyId, token(viewerId)));
+    }
+
+    @Test
+    void latestMemoReturns404WhenNoMemoExists() throws Exception {
+        var response = getLatest(babyId, token(ownerId));
+
+        assertStatus(404, response);
+        assertEquals("HANDOVER_MEMO_NOT_FOUND",
+                mapper.readTree(response.body()).path("error").path("code").asString());
+    }
+
+    @Test
+    void latestMemoRejectsUnauthorizedRemovedAndOtherBabyMembers() throws Exception {
+        Long noPermissionId = createUser();
+        createMember(noPermissionId, babyId, BabyRole.GUARDIAN, "CARE_WRITE");
+        Long removedId = createUser();
+        Long removedMemberId = createMember(removedId, babyId, BabyRole.GUARDIAN, "CARE_READ");
+        jdbc.update("UPDATE baby_members SET removed_at = CURRENT_TIMESTAMP WHERE id = ?", removedMemberId);
+        Long otherUserId = createUser();
+        Long otherBabyId = createBaby(otherUserId);
+        createMember(otherUserId, otherBabyId, BabyRole.OWNER, null);
+        memos.saveAndFlush(new HandoverMemo(
+                babyId, ownerMemberId, "보호할 메모", LocalDateTime.of(2026, 11, 17, 10, 0)));
+
+        assertStatus(403, getLatest(babyId, token(noPermissionId)));
+        assertStatus(403, getLatest(babyId, token(removedId)));
+        assertStatus(403, getLatest(babyId, token(otherUserId)));
+        assertStatus(403, getLatest(otherBabyId, token(ownerId)));
     }
 
     @ParameterizedTest
@@ -265,6 +324,14 @@ class HandoverMemoIntegrationTest {
         if (token != null) request.header("Authorization", "Bearer " + token);
         return client.send(request.POST(HttpRequest.BodyPublishers.ofString(body)).build(),
                 HttpResponse.BodyHandlers.ofString());
+    }
+
+    private HttpResponse<String> getLatest(Long targetBabyId, String token) throws Exception {
+        var request = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port
+                        + "/babi/api/babies/" + targetBabyId + "/handover-memos/latest"))
+                .timeout(Duration.ofSeconds(15));
+        if (token != null) request.header("Authorization", "Bearer " + token);
+        return client.send(request.GET().build(), HttpResponse.BodyHandlers.ofString());
     }
 
     private void assertStatus(int expected, HttpResponse<String> response) {
