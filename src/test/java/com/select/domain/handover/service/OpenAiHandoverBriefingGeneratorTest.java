@@ -23,6 +23,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class OpenAiHandoverBriefingGeneratorTest {
 
@@ -31,7 +32,7 @@ class OpenAiHandoverBriefingGeneratorTest {
     private final AtomicReference<String> authorization = new AtomicReference<>();
     private final AtomicReference<String> responseBody = new AtomicReference<>("""
             {"status":"completed","output":[
-              {"type":"message","content":[{"type":"output_text","text":"수유 2회와 수면 60분을 기록했습니다."}]}
+              {"type":"message","content":[{"type":"output_text","text":"수유 2회와 수면 60분을 기록했습니다.\\n한 줄 정리: 수유와 수면 기록을 확인했습니다."}]}
             ]}
             """);
     private final AtomicInteger calls = new AtomicInteger();
@@ -63,12 +64,15 @@ class OpenAiHandoverBriefingGeneratorTest {
     void sendsOnlyAnonymousNumericFactsToResponsesApi() {
         OpenAiHandoverBriefingGenerator generator = generator("test-api-key");
 
-        assertEquals("수유 2회와 수면 60분을 기록했습니다.", generator.generate(facts()));
+        assertEquals("수유 2회와 수면 60분을 기록했습니다.\n한 줄 정리: 수유와 수면 기록을 확인했습니다.",
+                generator.generate(facts()));
 
         var request = mapper.readTree(requestBody.get());
         assertEquals("gpt-5-mini", request.path("model").asString());
         assertFalse(request.path("store").asBoolean());
         assertEquals(1200, request.path("max_output_tokens").asInt());
+        assertTrue(request.path("instructions").asString()
+                .contains("반드시 '한 줄 정리: '로 시작하세요"));
         assertEquals("Bearer test-api-key", authorization.get());
         var input = mapper.readTree(request.path("input").asString());
         assertEquals(240, input.path("totalFeedingMl").asLong());
@@ -116,6 +120,25 @@ class OpenAiHandoverBriefingGeneratorTest {
                 "output", java.util.List.of(Map.of(
                         "type", "message",
                         "content", java.util.List.of(Map.of("type", "output_text", "text", "x".repeat(8001)))
+                ))
+        )));
+
+        assertThrows(HandoverBriefingGenerationException.class,
+                () -> generator("test-api-key").generate(facts()));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "수유 2회를 기록했습니다.",
+            "수유 2회를 기록했습니다.\n한 줄 정리: ",
+            "한 줄 정리: 수유 기록을 확인했습니다.\n추가 본문"
+    })
+    void outputWithoutFinalOneLineSummaryIsRejected(String output) {
+        responseBody.set(mapper.writeValueAsString(Map.of(
+                "status", "completed",
+                "output", java.util.List.of(Map.of(
+                        "type", "message",
+                        "content", java.util.List.of(Map.of("type", "output_text", "text", output))
                 ))
         )));
 
