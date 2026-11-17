@@ -1,5 +1,6 @@
 package com.select.domain.vaccination.service;
 
+import com.select.domain.baby.entity.Baby;
 import com.select.domain.baby.entity.BabyMember;
 import com.select.domain.baby.entity.BabyRole;
 import com.select.domain.baby.repository.BabyMemberRepository;
@@ -172,6 +173,8 @@ public class VaccinationServiceImpl implements VaccinationService {
         // 백신조회
         Vaccine vaccine = vaccineRepository.findById(request.vaccineId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.VACCINE_NOT_FOUND));
+        Baby baby = babyRepository.findById(babyId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.BABY_NOT_FOUND));
         LocalDate today = LocalDate.now(clock);
         LocalDate scheduledDate = request.scheduledDate();
         LocalDate completedDate = request.completedDate();
@@ -185,6 +188,14 @@ public class VaccinationServiceImpl implements VaccinationService {
         }
         // 실제 완료일은 미래일 수 없음
         if (completedDate != null && completedDate.isAfter(today)) {
+            throw new BusinessException(ErrorCode.VACCINE_INVALID_SCHEDULE_DATE);
+        }
+        if (completedDate != null
+                && completedDate.isBefore(baby.getBirthDate())) {
+            throw new BusinessException(ErrorCode.VACCINE_INVALID_SCHEDULE_DATE);
+        }
+        if (scheduledDate != null
+                && scheduledDate.isBefore(baby.getBirthDate())) {
             throw new BusinessException(ErrorCode.VACCINE_INVALID_SCHEDULE_DATE);
         }
         // 중복 등록 검사
@@ -244,17 +255,34 @@ public class VaccinationServiceImpl implements VaccinationService {
             LocalDate completedDate =
                     request.completedDate() != null
                             ? request.completedDate()
+                            : Boolean.TRUE.equals(vaccination.getCompleted())
+                            ? vaccination.getCompletedDate()
                             : LocalDate.now(clock);
 
-            if (completedDate.isAfter(LocalDate.now(clock))) {
+            LocalDate today = LocalDate.now(clock);
+
+            if (completedDate == null) {
+                throw new BusinessException(ErrorCode.VACCINE_INVALID_SCHEDULE_DATE);
+            }
+
+            if (completedDate.isAfter(today)) {
                 throw new BusinessException(
                         ErrorCode.VACCINE_INVALID_SCHEDULE_DATE
                 );
             }
 
-            if (!Boolean.TRUE.equals(vaccination.getCompleted())) {
-                vaccination.complete(completedDate);
+            Baby baby = babyRepository.findById(babyId)
+                    .orElseThrow(() -> new BusinessException(ErrorCode.BABY_NOT_FOUND));
+
+            if (completedDate.isBefore(baby.getBirthDate())) {
+                throw new BusinessException(
+                        ErrorCode.VACCINE_INVALID_SCHEDULE_DATE
+                );
             }
+
+
+            vaccination.complete(completedDate);
+
         } else {
             vaccination.cancelComplete();
         }
@@ -309,6 +337,9 @@ public class VaccinationServiceImpl implements VaccinationService {
                         new BusinessException(ErrorCode.VACCINATION_SCHEDULE_NOT_FOUND)
                 );
 
+        Baby baby = babyRepository.findById(babyId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.BABY_NOT_FOUND));
+
         // 해당 아기의 예방접종인지 확인
         if(!vaccination.getBabyId().equals(babyId)) {
             throw new BusinessException(ErrorCode.VACCINATION_SCHEDULE_NOT_FOUND);
@@ -330,7 +361,7 @@ public class VaccinationServiceImpl implements VaccinationService {
         if (!Objects.equals(vaccine.getDoseNumber(), request.doseNumber())) {
             throw new BusinessException(ErrorCode.VACCINATION_INVALID_DOSE_NUMBER);
         }
-        if (request.scheduledDate() == null) {
+        if (request.scheduledDate() == null || request.scheduledDate().isBefore(baby.getBirthDate())) {
             throw new BusinessException(
                     ErrorCode.VACCINE_INVALID_SCHEDULE_DATE
             );

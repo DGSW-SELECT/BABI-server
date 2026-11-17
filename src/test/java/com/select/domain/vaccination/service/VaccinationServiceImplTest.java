@@ -1,5 +1,6 @@
 package com.select.domain.vaccination.service;
 
+import com.select.domain.baby.entity.Baby;
 import com.select.domain.baby.entity.BabyMember;
 import com.select.domain.baby.entity.BabyRole;
 import com.select.domain.baby.repository.BabyMemberRepository;
@@ -180,6 +181,15 @@ class VaccinationServiceImplTest{
         Vaccine vaccine = mock(Vaccine.class);
 
         mockWriteAccess();
+
+        Baby baby = mock(Baby.class);
+
+        when(babyRepository.findById(1L))
+                .thenReturn(Optional.of(baby));
+
+        when(baby.getBirthDate())
+                .thenReturn(LocalDate.of(2025, 1, 1));
+
         when(vaccineRepository.findById(vaccineId))
                 .thenReturn(Optional.of(vaccine));
 
@@ -311,6 +321,15 @@ class VaccinationServiceImplTest{
         );
 
         mockWriteAccess();
+
+        Baby baby = mock(Baby.class);
+
+        when(babyRepository.findById(1L))
+                .thenReturn(Optional.of(baby));
+
+        when(baby.getBirthDate())
+                .thenReturn(LocalDate.of(2025, 1, 1));
+
         when(repository.findById(scheduleId))
                 .thenReturn(Optional.of(vaccination));
 
@@ -458,6 +477,14 @@ class VaccinationServiceImplTest{
 
         mockWriteAccess();
 
+        Baby baby = mock(Baby.class);
+
+        when(babyRepository.findById(1L))
+                .thenReturn(Optional.of(baby));
+
+        when(baby.getBirthDate())
+                .thenReturn(LocalDate.of(2025, 1, 1));
+
         when(vaccineRepository.findById(vaccineId))
                 .thenReturn(Optional.of(vaccine));
         when(vaccine.getDoseNumber()).thenReturn(1);
@@ -546,6 +573,14 @@ class VaccinationServiceImplTest{
         BabyVaccination saved = mock(BabyVaccination.class);
 
         mockWriteAccess();
+
+        Baby baby = mock(Baby.class);
+
+        when(babyRepository.findById(1L))
+                .thenReturn(Optional.of(baby));
+
+        when(baby.getBirthDate())
+                .thenReturn(LocalDate.of(2025, 1, 1));
 
         when(vaccineRepository.findById(vaccineId))
                 .thenReturn(Optional.of(vaccine));

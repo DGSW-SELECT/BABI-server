@@ -1,5 +1,6 @@
 package com.select.domain.vaccination.service;
 
+import com.select.domain.baby.entity.Baby;
 import com.select.domain.baby.entity.BabyMember;
 import com.select.domain.baby.entity.BabyRole;
 import com.select.domain.baby.repository.BabyMemberRepository;
@@ -82,6 +83,15 @@ class VaccinationServiceUpdateTest {
         Vaccine vaccine = mock(Vaccine.class);
 
         mockWriteAccess();
+
+        Baby baby = mock(Baby.class);
+
+        when(babyRepository.findById(1L))
+                .thenReturn(Optional.of(baby));
+
+        when(baby.getBirthDate())
+                .thenReturn(LocalDate.of(2025, 1, 1));
+
         when(repository.findById(scheduleId))
                 .thenReturn(Optional.of(vaccination));
         when(vaccination.getBabyId()).thenReturn(babyId);
@@ -272,6 +282,14 @@ class VaccinationServiceUpdateTest {
 
         mockWriteAccess();
 
+        Baby baby = mock(Baby.class);
+
+        when(babyRepository.findById(1L))
+                .thenReturn(Optional.of(baby));
+
+        when(baby.getBirthDate())
+                .thenReturn(LocalDate.of(2025, 1, 1));
+
         when(repository.findById(scheduleId))
                 .thenReturn(Optional.of(vaccination));
 
@@ -311,6 +329,14 @@ class VaccinationServiceUpdateTest {
         );
 
         mockWriteAccess();
+
+        Baby baby = mock(Baby.class);
+
+        when(babyRepository.findById(1L))
+                .thenReturn(Optional.of(baby));
+
+        when(baby.getBirthDate())
+                .thenReturn(LocalDate.of(2025, 1, 1));
 
         when(repository.findById(scheduleId))
                 .thenReturn(Optional.of(vaccination));

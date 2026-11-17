@@ -1,5 +1,6 @@
 package com.select.domain.vaccination.service;
 
+import com.select.domain.baby.entity.Baby;
 import com.select.domain.baby.entity.BabyMember;
 import com.select.domain.baby.entity.BabyRole;
 import com.select.domain.baby.repository.BabyMemberRepository;
@@ -83,6 +84,14 @@ class VaccinationCompleteServiceImplTest {
 
         mockWriteAccess();
 
+        Baby baby = mock(Baby.class);
+
+        when(babyRepository.findById(1L))
+                .thenReturn(Optional.of(baby));
+
+        when(baby.getBirthDate())
+                .thenReturn(LocalDate.of(2025, 1, 1));
+
         when(repository.findById(scheduleId))
                 .thenReturn(Optional.of(vaccination));
 
@@ -111,6 +120,14 @@ class VaccinationCompleteServiceImplTest {
 
         mockWriteAccess();
 
+        Baby baby = mock(Baby.class);
+
+        when(babyRepository.findById(1L))
+                .thenReturn(Optional.of(baby));
+
+        when(baby.getBirthDate())
+                .thenReturn(LocalDate.of(2025, 1, 1));
+
         when(repository.findById(scheduleId))
                 .thenReturn(Optional.of(vaccination));
 
@@ -131,7 +148,7 @@ class VaccinationCompleteServiceImplTest {
 // 이미 완료된 접종을 다시 완료 처리해도 기존 완료일 유지
     void ALREADY_COMPLETED_VACCINATION_DATE_NOT_CHANGED() {
         Long scheduleId = 10L;
-        LocalDate originalCompletedDate = TODAY.minusDays(5);
+        LocalDate originalCompletedDate = TODAY.minusDays(2);
 
         Vaccine vaccine = mock(Vaccine.class);
 
@@ -147,6 +164,14 @@ class VaccinationCompleteServiceImplTest {
         vaccination.complete(originalCompletedDate);
 
         mockWriteAccess();
+
+        Baby baby = mock(Baby.class);
+
+        when(babyRepository.findById(1L))
+                .thenReturn(Optional.of(baby));
+
+        when(baby.getBirthDate())
+                .thenReturn(LocalDate.of(2025, 1, 1));
 
         when(repository.findById(scheduleId))
                 .thenReturn(Optional.of(vaccination));

@@ -200,7 +200,7 @@ CREATE TABLE IF NOT EXISTS `baby_vaccinations` (
     CONSTRAINT `fk_baby_vaccinations_baby`
     FOREIGN KEY (`baby_id`) REFERENCES `babies` (`id`)
     ON UPDATE NO ACTION ON DELETE NO ACTION,
-    CONSTRAINT uk_baby_vaccine_dose
+    CONSTRAINT uk_baby_vaccine
     UNIQUE (baby_id, vaccine_id),
     CONSTRAINT `fk_baby_vaccinations_vaccine`
     FOREIGN KEY (`vaccine_id`) REFERENCES `vaccines` (`id`)

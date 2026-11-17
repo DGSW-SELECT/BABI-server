@@ -1,39 +1,32 @@
 -- =========================================================
 -- 20261115_add_vaccine.sql
--- 기존 MySQL DB의 예방접종 스키마 정합성 보정
--- MySQL 8.0.16+
+-- vaccines.dose_number NOT NULL 보장
+-- MySQL 8.0+ / DDL은 암묵적 커밋되므로 실행 전 백업 필수
 -- =========================================================
 
--- 1. 백신 차수 NULL 데이터 확인
-SELECT
-    id,
-    vaccine_name,
-    dose_number
-FROM vaccines
-WHERE dose_number IS NULL;
+-- 1. NULL 차수 데이터 확인
+SELECT v.id, v.vaccine_name, v.dose_number,
+       (SELECT COUNT(*) FROM baby_vaccinations bv
+        WHERE bv.vaccine_id = v.id) AS referenced_by
+FROM vaccines v
+WHERE v.dose_number IS NULL;
 
--- 주의:
--- 결과가 존재하면 아래 ALTER를 실행하기 전에
--- 실제 백신 차수에 맞게 데이터를 먼저 보정해야 한다.
--- 임의로 1을 넣으면 잘못된 접종 차수 데이터가 만들어질 수 있다.
+-- 결과가 1건이라도 있으면 아래 2번을 실행하지 말고
+-- 실제 백신 차수로 먼저 UPDATE 한다. (임의로 1을 넣지 않는다)
+-- 예) UPDATE vaccines SET dose_number = 1 WHERE id = ?;
+-- 주의: (vaccine_name, dose_number) 유니크라 같은 이름의 차수는 겹치면 안 된다.
 
--- 2. 백신 차수 NOT NULL 보장
+-- 2. NOT NULL 적용
 ALTER TABLE vaccines
     MODIFY COLUMN dose_number INT NOT NULL;
 
--- 3. 기존 UNIQUE 인덱스 제거
--- 기존 인덱스가 uk_baby_vaccine_dose라는 이름이고
--- (baby_id, vaccine_id) 두 컬럼으로 구성되어 있다는 전제
-ALTER TABLE baby_vaccinations
-DROP INDEX uk_baby_vaccine_dose;
+-- 3. 검증 (uk_baby_vaccine 이 (baby_id, vaccine_id) 유니크인지 확인)
+SELECT index_name, non_unique, seq_in_index, column_name
+FROM information_schema.statistics
+WHERE table_schema = DATABASE()
+  AND table_name = 'baby_vaccinations'
+  AND index_name = 'uk_baby_vaccine'
+ORDER BY seq_in_index;
+-- 기대 결과: non_unique=0, 1행 baby_id, 2행 vaccine_id
 
--- 4. 현재 코드와 일치하는 UNIQUE 제약조건 추가
-ALTER TABLE baby_vaccinations
-    ADD CONSTRAINT uk_baby_vaccine
-        UNIQUE (baby_id, vaccine_id);
-
--- 5. 최종 구조 확인
 SHOW CREATE TABLE vaccines;
-SHOW CREATE TABLE baby_vaccinations;
-
-SHOW INDEX FROM baby_vaccinations;

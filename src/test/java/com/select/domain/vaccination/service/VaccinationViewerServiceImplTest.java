@@ -1,5 +1,6 @@
 package com.select.domain.vaccination.service;
 
+import com.select.domain.baby.entity.Baby;
 import com.select.domain.baby.entity.BabyMember;
 import com.select.domain.baby.entity.BabyRole;
 import com.select.domain.baby.repository.BabyMemberRepository;
@@ -189,6 +190,14 @@ class VaccinationViewerServiceImplTest {
 
         Vaccine vaccine = mock(Vaccine.class);
 
+        Baby baby = mock(Baby.class);
+
+        when(babyRepository.findById(1L))
+                .thenReturn(Optional.of(baby));
+
+        when(baby.getBirthDate())
+                .thenReturn(LocalDate.of(2025, 1, 1));
+
         when(vaccineRepository.findById(1L))
                 .thenReturn(Optional.of(vaccine));
 
@@ -229,6 +238,14 @@ class VaccinationViewerServiceImplTest {
     void ALREADY_COMPLETED_VACCINATION_DATE_NOT_CHANGED() {
         mockWriteAccess();
 
+        Baby baby = mock(Baby.class);
+
+        when(babyRepository.findById(1L))
+                .thenReturn(Optional.of(baby));
+
+        when(baby.getBirthDate())
+                .thenReturn(LocalDate.of(2025, 1, 1));
+
         BabyVaccination vaccination = mock(BabyVaccination.class);
 
         when(repository.findById(1L))
@@ -243,11 +260,16 @@ class VaccinationViewerServiceImplTest {
                 LocalDate.now(clock)
         );
 
+        LocalDate completedDate = LocalDate.of(2026, 10, 15);
+
+        when(vaccination.getCompletedDate())
+                .thenReturn(completedDate);
+
         VaccinationScheduleSuccessRequest request =
                 new VaccinationScheduleSuccessRequest(true, null);
 
         service.successVaccinationSchedule(1L, 1L, 1L, request);
 
-        verify(vaccination, never()).complete(any(LocalDate.class));
+        verify(vaccination).complete(completedDate);
     }
 }
