@@ -1,9 +1,10 @@
 package com.select.domain.handover.service;
 
+import com.select.domain.report.dto.response.DailyReportFacts;
+
 import java.time.LocalDate;
-import java.util.List;
 
 public interface DailyCareRecordProvider {
 
-    List<String> findToday(Long babyId, LocalDate date);
+    DailyReportFacts findToday(Long babyId, LocalDate date);
 }

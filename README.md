@@ -38,9 +38,9 @@ docker port babi-discord-demo-redis 6379
 
 서버를 중단한 뒤 **본인이 생성한 전용 컨테이너만** `docker stop babi-discord-demo-mysql babi-discord-demo-redis`로 종료합니다. 임시 DB와 Redis 데이터는 사라집니다. 기존 Compose 컨테이너나 볼륨은 건드리지 마세요.
 
-`.env.example`을 `.env`로 복사하고 전용 연결 정보와 무작위 비밀값을 입력하세요. `.env`는 Git에 포함하지 마세요. `local`은 작업 디렉터리의 `.env`를 읽으며, 환경변수가 같은 이름의 값보다 우선합니다. 기존 `.env`가 있다면 덮어쓰지 마세요. 음성 STT를 사용하려면 `OPENAI_API_KEY`도 실제 키로 변경합니다.
+`.env.example`을 `.env`로 복사하고 전용 연결 정보와 무작위 비밀값을 입력하세요. `.env`는 Git에 포함하지 마세요. `local`은 작업 디렉터리의 `.env`를 읽으며, 환경변수가 같은 이름의 값보다 우선합니다. 기존 `.env`가 있다면 덮어쓰지 마세요. 음성 STT·AI 리포트·AI 인수인계 브리핑을 사용하려면 `OPENAI_API_KEY`도 실제 키로 변경합니다.
 
-`OPENAI_API_KEY`는 음성 입력 STT를 호출할 때 필요합니다. 값이 없어도 서버는 시작되지만 음성 변환 API는 `STT_FAILED`로 실패합니다. 실제 키는 Git에 커밋하지 않습니다.
+`OPENAI_API_KEY`가 없어도 서버는 시작되지만 OpenAI를 사용하는 API는 명시적인 실패 응답을 반환합니다. 실제 키는 Git에 커밋하지 않습니다.
 
 | 변수 | 설명 |
 | --- | --- |

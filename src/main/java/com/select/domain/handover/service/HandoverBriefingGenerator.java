@@ -1,9 +1,8 @@
 package com.select.domain.handover.service;
 
-import java.time.LocalDate;
-import java.util.List;
+import com.select.domain.report.dto.response.DailyReportFacts;
 
 public interface HandoverBriefingGenerator {
 
-    String generate(Long babyId, LocalDate date, List<String> careRecords);
+    String generate(DailyReportFacts facts);
 }

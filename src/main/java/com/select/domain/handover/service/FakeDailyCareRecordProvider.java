@@ -1,17 +1,18 @@
 package com.select.domain.handover.service;
 
+import com.select.domain.report.dto.response.DailyReportFacts;
 import org.springframework.stereotype.Component;
 import org.springframework.context.annotation.Profile;
 
 import java.time.LocalDate;
-import java.util.List;
 
 @Component
-@Profile("local")
+@Profile("handover-fake")
 public class FakeDailyCareRecordProvider implements DailyCareRecordProvider {
 
     @Override
-    public List<String> findToday(Long babyId, LocalDate date) {
-        return List.of("학습용 수유 기록", "학습용 수면 기록", "학습용 체온 기록");
+    public DailyReportFacts findToday(Long babyId, LocalDate date) {
+        return new DailyReportFacts(date, 2, 2, 240, 1, 0, 60,
+                1, 36.7, 36.7, 36.7, 1, 0);
     }
 }
