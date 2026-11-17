@@ -1,8 +1,7 @@
 package com.select.domain.voice.controller;
 
-import com.select.domain.parenting.dto.response.ParentingRecordResponse;
-import com.select.domain.parenting.entity.FeedingType;
-import com.select.domain.parenting.entity.ParentingRecordType;
+import com.select.domain.care.dto.response.CareRecordResponse;
+import com.select.domain.care.entity.CareRecordType;
 import com.select.domain.voice.dto.request.ParsedVoiceRecordRequest;
 import com.select.domain.voice.dto.response.ParsedVoiceItemResponse;
 import com.select.domain.voice.dto.response.ParsedVoiceRecordResponse;
@@ -69,7 +68,8 @@ class VoiceRecordAppControllerTest {
         );
         ParsedVoiceRecordResponse response = new ParsedVoiceRecordResponse(
                 "분유 120ml 먹였어",
-                List.of(new ParsedVoiceItemResponse("feeding", "🍼 분유 120ml"))
+                List.of(new ParsedVoiceItemResponse("feeding", "🍼 분유 120ml")),
+                LocalDateTime.of(2026, 11, 16, 10, 0)
         );
         when(voiceRecordService.parse(eq(USER_ID), eq(1L), any(MultipartFile.class)))
                 .thenReturn(response);
@@ -88,10 +88,10 @@ class VoiceRecordAppControllerTest {
 
     @Test
     void saveReturnsFrontendSavedShape() throws Exception {
-        ParentingRecordResponse record = new ParentingRecordResponse(
-                100L, 1L, 7L, 10L, ParentingRecordType.FEEDING,
-                LocalDateTime.of(2026, 11, 16, 10, 0), 120, null,
-                FeedingType.FORMULA, null, "분유 120ml 먹였어",
+        CareRecordResponse record = new CareRecordResponse(
+                100L, 1L, 7L, "보호자", 10L, CareRecordType.FEEDING,
+                LocalDateTime.of(2026, 11, 16, 10, 0), "FORMULA", 120, null,
+                null, null, null, null, "분유 120ml 먹였어",
                 LocalDateTime.of(2026, 11, 16, 10, 0)
         );
         when(voiceRecordService.saveParsed(eq(USER_ID), eq(1L), any(ParsedVoiceRecordRequest.class)))
@@ -111,7 +111,7 @@ class VoiceRecordAppControllerTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.ok").value(true))
                 .andExpect(jsonPath("$.voiceInputId").value(10L))
-                .andExpect(jsonPath("$.parentingRecords[0].recordType").value("FEEDING"))
+                .andExpect(jsonPath("$.careRecords[0].recordType").value("FEEDING"))
                 .andExpect(jsonPath("$.success").doesNotExist());
 
         verify(voiceRecordService)

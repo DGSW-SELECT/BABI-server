@@ -1,20 +1,20 @@
 package com.select.domain.voice.service;
 
+import com.select.domain.baby.exception.BabyNotFoundException;
+import com.select.domain.baby.repository.BabyRepository;
 import com.select.domain.baby.service.AccountContextService;
-import com.select.domain.parenting.analyzer.ParentingRecordAnalyzer;
-import com.select.domain.parenting.analyzer.ParentingRecordDraft;
-import com.select.domain.parenting.dto.response.ParentingRecordResponse;
-import com.select.domain.parenting.entity.FeedingType;
-import com.select.domain.parenting.entity.ParentingRecordType;
-import com.select.domain.parenting.service.ParentingRecordService;
+import com.select.domain.care.analyzer.CareRecordAnalyzer;
+import com.select.domain.care.entity.CareRecordType;
+import com.select.domain.care.entity.FeedingType;
+import com.select.domain.care.service.CareRecordWriter;
 import com.select.domain.voice.client.SttClient;
 import com.select.domain.voice.client.dto.response.SttResponse;
 import com.select.domain.voice.dto.request.ParsedVoiceRecordRequest;
 import com.select.domain.voice.dto.request.VoiceRecordRequest;
+import com.select.domain.voice.dto.request.VoiceRecordUpdateRequest;
 import com.select.domain.voice.dto.response.ParsedVoiceRecordResponse;
 import com.select.domain.voice.dto.response.SttTranscriptResponse;
 import com.select.domain.voice.dto.response.VoiceInputResponse;
-import com.select.domain.voice.dto.response.VoiceRecordSavedResponse;
 import com.select.domain.voice.entity.SttStatus;
 import com.select.domain.voice.entity.VoiceInput;
 import com.select.domain.voice.exception.AudioTooLargeException;
@@ -23,6 +23,7 @@ import com.select.domain.voice.exception.SttFailedException;
 import com.select.domain.voice.exception.VoiceInputNotFoundException;
 import com.select.domain.voice.repository.VoiceInputRepository;
 import com.select.domain.voice.support.AudioFileSupport;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -30,7 +31,11 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.SimpleTransactionStatus;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.nio.charset.StandardCharsets;
@@ -41,7 +46,10 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -50,39 +58,61 @@ import static org.mockito.Mockito.when;
 class VoiceRecordServiceTest {
 
     private static final Long BABY_ID = 1L;
-    private static final Long FAMILY_MEMBER_ID = 7L;
     private static final Long USER_ID = 42L;
+    private static final Long MEMBER_ID = 7L;
 
     @Mock
     private VoiceInputRepository voiceInputRepository;
 
     @Mock
+    private CareRecordWriter careRecordWriter;
+
+    @Mock
+    private CareRecordAnalyzer careRecordAnalyzer;
+
+    @Mock
     private SttClient sttClient;
 
     @Mock
-    private ParentingRecordService parentingRecordService;
-
-    @Mock
-    private ParentingRecordAnalyzer parentingRecordAnalyzer;
+    private BabyRepository babyRepository;
 
     @Mock
     private AccountContextService accountContextService;
 
+    @Mock
+    private PlatformTransactionManager transactionManager;
+
     @InjectMocks
     private VoiceRecordService voiceRecordService;
 
+    @BeforeEach
+    void setUp() {
+        lenient().when(transactionManager.getTransaction(any(TransactionDefinition.class)))
+                .thenReturn(new SimpleTransactionStatus());
+        lenient().when(accountContextService.resolveForRead(USER_ID, BABY_ID))
+                .thenReturn(context(BABY_ID));
+        lenient().when(accountContextService.resolveForWrite(USER_ID, BABY_ID))
+                .thenReturn(context(BABY_ID));
+        lenient().when(babyRepository.findByIdForUpdate(BABY_ID))
+                .thenReturn(Optional.of(com.select.domain.baby.entity.Baby.builder()
+                        .name("아기")
+                        .birthDate(java.time.LocalDate.of(2025, 1, 15))
+                        .createdByUserId(USER_ID)
+                        .build()));
+    }
+
     @Test
     void transcribeReturnsTrimmedTranscriptWithoutSaving() {
-        MultipartFile audio = audio();
-        when(accountContextService.resolve(USER_ID, BABY_ID))
-                .thenReturn(new AccountContextService.AccountContext(BABY_ID, FAMILY_MEMBER_ID));
+        MultipartFile audio = new MockMultipartFile(
+                "audio", "voice.mp3", "audio/mpeg", "audio".getBytes(StandardCharsets.UTF_8)
+        );
         when(sttClient.transcribe(audio)).thenReturn(new SttResponse("  분유 먹였어  "));
 
         SttTranscriptResponse response = voiceRecordService.transcribe(BABY_ID, USER_ID, audio);
 
         assertThat(response.transcript()).isEqualTo("분유 먹였어");
         verify(sttClient).transcribe(audio);
-        verifyNoInteractions(voiceInputRepository, parentingRecordService);
+        verifyNoInteractions(voiceInputRepository);
     }
 
     @Test
@@ -123,9 +153,9 @@ class VoiceRecordServiceTest {
 
     @Test
     void transcribeFailsWhenSttReturnsBlankText() {
-        MultipartFile audio = audio();
-        when(accountContextService.resolve(USER_ID, BABY_ID))
-                .thenReturn(new AccountContextService.AccountContext(BABY_ID, FAMILY_MEMBER_ID));
+        MultipartFile audio = new MockMultipartFile(
+                "audio", "voice.mp3", "audio/mpeg", "audio".getBytes(StandardCharsets.UTF_8)
+        );
         when(sttClient.transcribe(audio)).thenReturn(new SttResponse("   "));
 
         assertThatThrownBy(() -> voiceRecordService.transcribe(BABY_ID, USER_ID, audio))
@@ -135,57 +165,60 @@ class VoiceRecordServiceTest {
     }
 
     @Test
-    void parseReturnsTranscriptAndItemsWithoutSaving() {
-        MultipartFile audio = audio();
-        when(accountContextService.resolve(USER_ID, BABY_ID))
-                .thenReturn(new AccountContextService.AccountContext(BABY_ID, FAMILY_MEMBER_ID));
-        when(sttClient.transcribe(audio))
-                .thenReturn(new SttResponse("분유 120ml 먹였고 30분 잤어"));
-        when(parentingRecordAnalyzer.analyze(any(), any(LocalDateTime.class)))
-                .thenReturn(List.of(
-                        new ParentingRecordDraft(
-                                ParentingRecordType.FEEDING,
-                                LocalDateTime.of(2026, 11, 16, 10, 0),
-                                120,
-                                null,
-                                FeedingType.FORMULA,
-                                null,
-                                "분유 120ml"
-                        ),
-                        new ParentingRecordDraft(
-                                ParentingRecordType.SLEEP,
-                                LocalDateTime.of(2026, 11, 16, 10, 0),
-                                null,
-                                30,
-                                null,
-                                null,
-                                "30분 잤어"
-                        )
-                ));
+    void transcribeFailsWhenBabyDoesNotExist() {
+        MultipartFile audio = new MockMultipartFile(
+                "audio", "voice.mp3", "audio/mpeg", "audio".getBytes(StandardCharsets.UTF_8)
+        );
+        when(accountContextService.resolveForRead(USER_ID, BABY_ID))
+                .thenThrow(new BabyNotFoundException());
+
+        assertThatThrownBy(() -> voiceRecordService.transcribe(BABY_ID, USER_ID, audio))
+                .isInstanceOf(BabyNotFoundException.class);
+
+        verifyNoInteractions(sttClient, voiceInputRepository);
+    }
+
+    @Test
+    void parseReturnsPreviewWithoutSaving() {
+        MultipartFile audio = new MockMultipartFile(
+                "audio", "voice.webm", "audio/webm", "audio".getBytes(StandardCharsets.UTF_8)
+        );
+        when(sttClient.transcribe(audio)).thenReturn(new SttResponse("분유 120ml 먹였어요"));
+        when(careRecordAnalyzer.analyze(any(), any())).thenReturn(List.of(
+                new com.select.domain.care.analyzer.CareRecordDraft(
+                        CareRecordType.FEEDING,
+                        LocalDateTime.of(2026, 11, 16, 10, 0),
+                        120,
+                        null,
+                        FeedingType.FORMULA,
+                        null,
+                        "분유 120ml 먹였어요"
+                )
+        ));
 
         ParsedVoiceRecordResponse response = voiceRecordService.parse(USER_ID, BABY_ID, audio);
 
-        assertThat(response.transcript()).isEqualTo("분유 120ml 먹였고 30분 잤어");
-        assertThat(response.items()).hasSize(2);
-        assertThat(response.items().get(0).type()).isEqualTo("feeding");
-        assertThat(response.items().get(0).label()).contains("분유", "120ml");
-        assertThat(response.items().get(1).type()).isEqualTo("sleep");
-        assertThat(response.items().get(1).label()).contains("30분");
-        verifyNoInteractions(voiceInputRepository, parentingRecordService);
+        assertThat(response.transcript()).isEqualTo("분유 120ml 먹였어요");
+        assertThat(response.items()).hasSize(1);
+        assertThat(response.items().getFirst().type()).isEqualTo("feeding");
+        assertThat(response.items().getFirst().label()).contains("120ml");
+        assertThat(response.parsedAt()).isNotNull();
+        verifyNoInteractions(voiceInputRepository);
     }
 
     @Test
     void saveStoresConfirmedTranscriptInVoiceInputs() {
         LocalDateTime createdAt = LocalDateTime.of(2026, 10, 25, 12, 0);
-        VoiceInput saved = savedVoiceInput(createdAt);
-        when(accountContextService.resolve(USER_ID, BABY_ID))
-                .thenReturn(new AccountContextService.AccountContext(BABY_ID, FAMILY_MEMBER_ID));
+        VoiceInput saved = VoiceInput.builder()
+                .babyId(BABY_ID)
+                .familyMemberId(MEMBER_ID)
+                .transcript("분유 먹였어")
+                .sttStatus(SttStatus.COMPLETED)
+                .build();
+        ReflectionTestUtils.setField(saved, "id", 10L);
+        ReflectionTestUtils.setField(saved, "createdAt", createdAt);
+        ReflectionTestUtils.setField(saved, "updatedAt", createdAt);
         when(voiceInputRepository.save(any(VoiceInput.class))).thenReturn(saved);
-
-        ParentingRecordResponse parentingRecord = parentingRecord(createdAt);
-        when(parentingRecordService.analyzeAndSave(
-                BABY_ID, FAMILY_MEMBER_ID, 10L, "분유 먹였어", createdAt
-        )).thenReturn(List.of(parentingRecord));
 
         VoiceInputResponse response = voiceRecordService.save(
                 BABY_ID, USER_ID, new VoiceRecordRequest("  분유 먹였어  ")
@@ -196,99 +229,135 @@ class VoiceRecordServiceTest {
         VoiceInput captured = captor.getValue();
 
         assertThat(captured.getBabyId()).isEqualTo(BABY_ID);
-        assertThat(captured.getFamilyMemberId()).isEqualTo(FAMILY_MEMBER_ID);
+        assertThat(captured.getFamilyMemberId()).isEqualTo(MEMBER_ID);
         assertThat(captured.getAudioUrl()).isNull();
         assertThat(captured.getTranscript()).isEqualTo("분유 먹였어");
         assertThat(captured.getSttStatus()).isEqualTo(SttStatus.COMPLETED);
 
         assertThat(response.voiceInputId()).isEqualTo(10L);
         assertThat(response.babyId()).isEqualTo(BABY_ID);
-        assertThat(response.familyMemberId()).isEqualTo(FAMILY_MEMBER_ID);
+        assertThat(response.familyMemberId()).isEqualTo(MEMBER_ID);
         assertThat(response.transcript()).isEqualTo("분유 먹였어");
         assertThat(response.sttStatus()).isEqualTo(SttStatus.COMPLETED);
         assertThat(response.createdAt()).isEqualTo(createdAt);
-        assertThat(response.parentingRecords()).containsExactly(parentingRecord);
+        assertThat(response.updatedAt()).isEqualTo(createdAt);
     }
 
     @Test
-    void saveParsedResolvesSingleBabyAndStoresRecord() {
-        LocalDateTime createdAt = LocalDateTime.of(2026, 10, 25, 12, 0);
-        VoiceInput saved = savedVoiceInput(createdAt);
-        when(accountContextService.resolve(USER_ID, null))
-                .thenReturn(new AccountContextService.AccountContext(BABY_ID, FAMILY_MEMBER_ID));
+    void saveParsedStoresCareRecordsUsingPreviewReferenceTime() {
+        LocalDateTime parsedAt = LocalDateTime.of(2026, 11, 16, 10, 0);
+        VoiceInput saved = VoiceInput.builder()
+                .babyId(BABY_ID)
+                .familyMemberId(MEMBER_ID)
+                .transcript("분유 120ml 먹였어요")
+                .sttStatus(SttStatus.COMPLETED)
+                .build();
+        ReflectionTestUtils.setField(saved, "id", 10L);
         when(voiceInputRepository.save(any(VoiceInput.class))).thenReturn(saved);
+        when(careRecordWriter.analyzeAndSave(
+                anyLong(), anyLong(), anyLong(), any(), any(LocalDateTime.class)
+        )).thenReturn(List.of());
 
-        ParentingRecordResponse parentingRecord = parentingRecord(createdAt);
-        when(parentingRecordService.analyzeAndSave(
-                BABY_ID, FAMILY_MEMBER_ID, 10L, "분유 먹였어", createdAt
-        )).thenReturn(List.of(parentingRecord));
-
-        VoiceRecordSavedResponse response = voiceRecordService.saveParsed(
+        voiceRecordService.saveParsed(
                 USER_ID,
-                null,
-                new ParsedVoiceRecordRequest("분유 먹였어", List.of())
+                BABY_ID,
+                new ParsedVoiceRecordRequest("분유 120ml 먹였어요", List.of(), parsedAt)
         );
 
-        assertThat(response.ok()).isTrue();
-        assertThat(response.voiceInputId()).isEqualTo(10L);
-        assertThat(response.parentingRecords()).containsExactly(parentingRecord);
-        verify(accountContextService).resolve(USER_ID, null);
+        verify(careRecordWriter).analyzeAndSave(
+                BABY_ID, MEMBER_ID, 10L, "분유 120ml 먹였어요", parsedAt
+        );
+    }
+
+    @Test
+    void saveFailsWhenUserIsNotMember() {
+        when(accountContextService.resolveForWrite(USER_ID, BABY_ID))
+                .thenThrow(new AccessDeniedException("해당 아기의 구성원이 아닙니다."));
+
+        assertThatThrownBy(() -> voiceRecordService.save(
+                BABY_ID, USER_ID, new VoiceRecordRequest("분유 먹였어")
+        )).isInstanceOf(AccessDeniedException.class);
+
+        verifyNoInteractions(voiceInputRepository);
     }
 
     @Test
     void getReturnsSavedVoiceInput() {
         LocalDateTime createdAt = LocalDateTime.of(2026, 10, 25, 12, 0);
-        VoiceInput saved = savedVoiceInput(createdAt);
-        when(accountContextService.resolve(USER_ID, BABY_ID))
-                .thenReturn(new AccountContextService.AccountContext(BABY_ID, FAMILY_MEMBER_ID));
-        when(voiceInputRepository.findByIdAndBabyId(10L, BABY_ID)).thenReturn(Optional.of(saved));
-
-        ParentingRecordResponse parentingRecord = parentingRecord(createdAt);
-        when(parentingRecordService.findByVoiceInput(BABY_ID, 10L))
-                .thenReturn(List.of(parentingRecord));
-
-        VoiceInputResponse response = voiceRecordService.get(BABY_ID, USER_ID, 10L);
-
-        assertThat(response.voiceInputId()).isEqualTo(10L);
-        assertThat(response.transcript()).isEqualTo("분유 먹였어");
-        assertThat(response.parentingRecords()).containsExactly(parentingRecord);
-    }
-
-    @Test
-    void getFailsWhenVoiceInputDoesNotExist() {
-        when(accountContextService.resolve(USER_ID, BABY_ID))
-                .thenReturn(new AccountContextService.AccountContext(BABY_ID, FAMILY_MEMBER_ID));
-        when(voiceInputRepository.findByIdAndBabyId(10L, BABY_ID)).thenReturn(Optional.empty());
-
-        assertThatThrownBy(() -> voiceRecordService.get(BABY_ID, USER_ID, 10L))
-                .isInstanceOf(VoiceInputNotFoundException.class);
-
-        verifyNoInteractions(parentingRecordService);
-    }
-
-    private static MultipartFile audio() {
-        return new MockMultipartFile(
-                "audio", "voice.mp3", "audio/mpeg", "audio".getBytes(StandardCharsets.UTF_8)
-        );
-    }
-
-    private static VoiceInput savedVoiceInput(LocalDateTime createdAt) {
         VoiceInput saved = VoiceInput.builder()
                 .babyId(BABY_ID)
-                .familyMemberId(FAMILY_MEMBER_ID)
+                .familyMemberId(MEMBER_ID)
                 .transcript("분유 먹였어")
                 .sttStatus(SttStatus.COMPLETED)
                 .build();
         ReflectionTestUtils.setField(saved, "id", 10L);
         ReflectionTestUtils.setField(saved, "createdAt", createdAt);
-        return saved;
+        ReflectionTestUtils.setField(saved, "updatedAt", createdAt);
+        when(voiceInputRepository.findByIdAndBabyId(10L, BABY_ID)).thenReturn(Optional.of(saved));
+
+        VoiceInputResponse response = voiceRecordService.get(BABY_ID, USER_ID, 10L);
+
+        assertThat(response.voiceInputId()).isEqualTo(10L);
+        assertThat(response.transcript()).isEqualTo("분유 먹였어");
     }
 
-    private static ParentingRecordResponse parentingRecord(LocalDateTime createdAt) {
-        return new ParentingRecordResponse(
-                100L, BABY_ID, FAMILY_MEMBER_ID, 10L, ParentingRecordType.FEEDING,
-                LocalDateTime.of(2026, 10, 25, 12, 0), 100, null,
-                FeedingType.FORMULA, null, "분유 먹였어", createdAt
+    @Test
+    void getFailsWhenVoiceInputDoesNotExist() {
+        when(voiceInputRepository.findByIdAndBabyId(10L, BABY_ID)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> voiceRecordService.get(BABY_ID, USER_ID, 10L))
+                .isInstanceOf(VoiceInputNotFoundException.class);
+    }
+
+    @Test
+    void updateChangesTranscriptAndReturnsUpdatedVoiceInput() {
+        LocalDateTime createdAt = LocalDateTime.of(2026, 10, 25, 12, 0);
+        LocalDateTime updatedAt = LocalDateTime.of(2026, 10, 26, 9, 30);
+        VoiceInput saved = VoiceInput.builder()
+                .babyId(BABY_ID)
+                .familyMemberId(MEMBER_ID)
+                .transcript("분유 먹였어")
+                .sttStatus(SttStatus.COMPLETED)
+                .build();
+        ReflectionTestUtils.setField(saved, "id", 10L);
+        ReflectionTestUtils.setField(saved, "createdAt", createdAt);
+        ReflectionTestUtils.setField(saved, "updatedAt", createdAt);
+        when(voiceInputRepository.findByIdAndBabyId(10L, BABY_ID)).thenReturn(Optional.of(saved));
+        when(voiceInputRepository.saveAndFlush(saved)).thenAnswer(invocation -> {
+            ReflectionTestUtils.setField(saved, "updatedAt", updatedAt);
+            return saved;
+        });
+
+        VoiceInputResponse response = voiceRecordService.update(
+                BABY_ID,
+                USER_ID,
+                10L,
+                new VoiceRecordUpdateRequest("  수정된 분유 기록  ")
         );
+
+        assertThat(saved.getTranscript()).isEqualTo("수정된 분유 기록");
+        assertThat(response.voiceInputId()).isEqualTo(10L);
+        assertThat(response.transcript()).isEqualTo("수정된 분유 기록");
+        assertThat(response.createdAt()).isEqualTo(createdAt);
+        assertThat(response.updatedAt()).isEqualTo(updatedAt);
+        verify(voiceInputRepository).saveAndFlush(saved);
+    }
+
+    @Test
+    void updateFailsWhenVoiceInputDoesNotExist() {
+        when(voiceInputRepository.findByIdAndBabyId(10L, BABY_ID)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> voiceRecordService.update(
+                BABY_ID,
+                USER_ID,
+                10L,
+                new VoiceRecordUpdateRequest("수정된 분유 기록")
+        )).isInstanceOf(VoiceInputNotFoundException.class);
+
+        verify(voiceInputRepository, never()).saveAndFlush(any(VoiceInput.class));
+    }
+
+    private static AccountContextService.AccountContext context(Long babyId) {
+        return new AccountContextService.AccountContext(babyId, MEMBER_ID);
     }
 }

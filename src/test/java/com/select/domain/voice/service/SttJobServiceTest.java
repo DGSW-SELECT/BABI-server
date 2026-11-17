@@ -1,10 +1,10 @@
 package com.select.domain.voice.service;
 
+import com.select.domain.baby.repository.BabyRepository;
 import com.select.domain.baby.service.AccountContextService;
-import com.select.domain.parenting.dto.response.ParentingRecordResponse;
-import com.select.domain.parenting.entity.FeedingType;
-import com.select.domain.parenting.entity.ParentingRecordType;
-import com.select.domain.parenting.service.ParentingRecordService;
+import com.select.domain.care.dto.response.CareRecordResponse;
+import com.select.domain.care.entity.CareRecordType;
+import com.select.domain.care.service.CareRecordWriter;
 import com.select.domain.voice.dto.response.SttJobResponse;
 import com.select.domain.voice.entity.SttJob;
 import com.select.domain.voice.entity.SttStatus;
@@ -28,6 +28,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.SimpleTransactionStatus;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.nio.charset.StandardCharsets;
@@ -40,6 +43,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -61,10 +66,13 @@ class SttJobServiceTest {
     private VoiceInputRepository voiceInputRepository;
 
     @Mock
-    private ParentingRecordService parentingRecordService;
+    private CareRecordWriter careRecordWriter;
 
     @Mock
     private AccountContextService accountContextService;
+
+    @Mock
+    private BabyRepository babyRepository;
 
     @Mock
     private AudioStorage audioStorage;
@@ -80,20 +88,31 @@ class SttJobServiceTest {
                 Duration.ofMinutes(10),
                 new SttJobProperties.Worker(5, Duration.ofSeconds(5), Duration.ofSeconds(10))
         );
+        PlatformTransactionManager transactionManager = mock(PlatformTransactionManager.class);
+        lenient().when(transactionManager.getTransaction(any(TransactionDefinition.class)))
+                .thenReturn(new SimpleTransactionStatus());
         sttJobService = new SttJobService(
                 sttJobRepository,
                 voiceInputRepository,
-                parentingRecordService,
+                careRecordWriter,
                 accountContextService,
+                babyRepository,
                 audioStorage,
-                properties
+                properties,
+                transactionManager
         );
+        lenient().when(babyRepository.findByIdForUpdate(BABY_ID))
+                .thenReturn(Optional.of(com.select.domain.baby.entity.Baby.builder()
+                        .name("테스트 아기")
+                        .birthDate(java.time.LocalDate.of(2026, 1, 1))
+                        .createdByUserId(USER_ID)
+                        .build()));
     }
 
     @Test
     void submitStoresAudioAndCreatesPendingJob() {
         MultipartFile audio = audio();
-        when(accountContextService.resolve(USER_ID, BABY_ID)).thenReturn(context());
+        when(accountContextService.resolveForWrite(USER_ID, BABY_ID)).thenReturn(context());
         when(audioStorage.store(audio)).thenReturn(AUDIO_PATH);
         when(sttJobRepository.saveAndFlush(any(SttJob.class))).thenAnswer(invocation -> {
             SttJob job = invocation.getArgument(0);
@@ -124,7 +143,7 @@ class SttJobServiceTest {
         MultipartFile audio = new MockMultipartFile(
                 "audio", "voice.txt", "text/plain", "not-audio".getBytes(StandardCharsets.UTF_8)
         );
-        when(accountContextService.resolve(USER_ID, BABY_ID)).thenReturn(context());
+        when(accountContextService.resolveForWrite(USER_ID, BABY_ID)).thenReturn(context());
 
         assertThatThrownBy(() -> sttJobService.submit(BABY_ID, USER_ID, audio))
                 .isInstanceOf(InvalidAudioException.class);
@@ -135,7 +154,7 @@ class SttJobServiceTest {
     @Test
     void submitDeletesStoredAudioWhenJobSaveFails() {
         MultipartFile audio = audio();
-        when(accountContextService.resolve(USER_ID, BABY_ID)).thenReturn(context());
+        when(accountContextService.resolveForWrite(USER_ID, BABY_ID)).thenReturn(context());
         when(audioStorage.store(audio)).thenReturn(AUDIO_PATH);
         when(sttJobRepository.saveAndFlush(any(SttJob.class)))
                 .thenThrow(new IllegalStateException("db error"));
@@ -147,50 +166,33 @@ class SttJobServiceTest {
     }
 
     @Test
-    void getReturnsCompletedJobWithParentingRecords() {
+    void getReturnsCompletedJob() {
         SttJob job = completedJob(10L);
-        when(accountContextService.resolve(USER_ID, BABY_ID)).thenReturn(context());
+        when(accountContextService.resolveForRead(USER_ID, BABY_ID)).thenReturn(context());
         when(sttJobRepository.findByIdAndBabyId(JOB_ID, BABY_ID)).thenReturn(Optional.of(job));
-
-        ParentingRecordResponse record = parentingRecord();
-        when(parentingRecordService.findByVoiceInput(BABY_ID, 10L)).thenReturn(List.of(record));
 
         SttJobResponse response = sttJobService.get(BABY_ID, USER_ID, JOB_ID);
 
         assertThat(response.status()).isEqualTo(SttStatus.COMPLETED);
         assertThat(response.transcript()).isEqualTo("분유 120ml 먹였어요");
         assertThat(response.voiceInputId()).isEqualTo(10L);
-        assertThat(response.parentingRecords()).containsExactly(record);
+        assertThat(response.careRecords()).isEmpty();
     }
 
     @Test
-    void getCompletedJobBeforeConfirmationHasNoParentingRecords() {
-        SttJob job = completedJob(null);
-        when(accountContextService.resolve(USER_ID, BABY_ID)).thenReturn(context());
+    void getRejectsJobOwnedByAnotherMember() {
+        SttJob job = completedJob(10L);
+        ReflectionTestUtils.setField(job, "familyMemberId", 8L);
+        when(accountContextService.resolveForRead(USER_ID, BABY_ID)).thenReturn(context());
         when(sttJobRepository.findByIdAndBabyId(JOB_ID, BABY_ID)).thenReturn(Optional.of(job));
 
-        SttJobResponse response = sttJobService.get(BABY_ID, USER_ID, JOB_ID);
-
-        assertThat(response.voiceInputId()).isNull();
-        assertThat(response.parentingRecords()).isEmpty();
-        verifyNoInteractions(parentingRecordService);
-    }
-
-    @Test
-    void getPendingJobDoesNotLookUpParentingRecords() {
-        SttJob job = job(SttStatus.PENDING, 0);
-        when(accountContextService.resolve(USER_ID, BABY_ID)).thenReturn(context());
-        when(sttJobRepository.findByIdAndBabyId(JOB_ID, BABY_ID)).thenReturn(Optional.of(job));
-
-        SttJobResponse response = sttJobService.get(BABY_ID, USER_ID, JOB_ID);
-
-        assertThat(response.parentingRecords()).isEmpty();
-        verifyNoInteractions(parentingRecordService);
+        assertThatThrownBy(() -> sttJobService.get(BABY_ID, USER_ID, JOB_ID))
+                .isInstanceOf(AccessDeniedException.class);
     }
 
     @Test
     void getMissingJobThrowsNotFound() {
-        when(accountContextService.resolve(USER_ID, BABY_ID)).thenReturn(context());
+        when(accountContextService.resolveForRead(USER_ID, BABY_ID)).thenReturn(context());
         when(sttJobRepository.findByIdAndBabyId(JOB_ID, BABY_ID)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> sttJobService.get(BABY_ID, USER_ID, JOB_ID))
@@ -199,18 +201,9 @@ class SttJobServiceTest {
 
     @Test
     void retryResetsFailedJob() {
-        SttJob job = SttJob.builder()
-                .babyId(BABY_ID)
-                .familyMemberId(FAMILY_MEMBER_ID)
-                .audioPath(AUDIO_PATH)
-                .status(SttStatus.FAILED)
-                .attemptCount(3)
-                .lastError("음성 변환에 실패했습니다.")
-                .createdAt(LocalDateTime.now())
-                .updatedAt(LocalDateTime.now())
-                .build();
-        ReflectionTestUtils.setField(job, "id", JOB_ID);
-        when(accountContextService.resolve(USER_ID, BABY_ID)).thenReturn(context());
+        SttJob job = job(SttStatus.FAILED, 3);
+        ReflectionTestUtils.setField(job, "lastError", "음성 변환에 실패했습니다.");
+        when(accountContextService.resolveForWrite(USER_ID, BABY_ID)).thenReturn(context());
         when(sttJobRepository.findByIdAndBabyId(JOB_ID, BABY_ID)).thenReturn(Optional.of(job));
         when(audioStorage.exists(AUDIO_PATH)).thenReturn(true);
 
@@ -223,9 +216,22 @@ class SttJobServiceTest {
     }
 
     @Test
+    void retryRejectsJobOwnedByAnotherMember() {
+        SttJob job = job(SttStatus.FAILED, 3);
+        ReflectionTestUtils.setField(job, "familyMemberId", 8L);
+        when(accountContextService.resolveForWrite(USER_ID, BABY_ID)).thenReturn(context());
+        when(sttJobRepository.findByIdAndBabyId(JOB_ID, BABY_ID)).thenReturn(Optional.of(job));
+
+        assertThatThrownBy(() -> sttJobService.retry(BABY_ID, USER_ID, JOB_ID))
+                .isInstanceOf(AccessDeniedException.class);
+
+        verifyNoInteractions(audioStorage);
+    }
+
+    @Test
     void retryRejectsJobThatIsNotFailed() {
         SttJob job = completedJob(null);
-        when(accountContextService.resolve(USER_ID, BABY_ID)).thenReturn(context());
+        when(accountContextService.resolveForWrite(USER_ID, BABY_ID)).thenReturn(context());
         when(sttJobRepository.findByIdAndBabyId(JOB_ID, BABY_ID)).thenReturn(Optional.of(job));
 
         assertThatThrownBy(() -> sttJobService.retry(BABY_ID, USER_ID, JOB_ID))
@@ -237,7 +243,7 @@ class SttJobServiceTest {
     @Test
     void retryFailsWhenStoredAudioIsMissing() {
         SttJob job = job(SttStatus.FAILED, 3);
-        when(accountContextService.resolve(USER_ID, BABY_ID)).thenReturn(context());
+        when(accountContextService.resolveForWrite(USER_ID, BABY_ID)).thenReturn(context());
         when(sttJobRepository.findByIdAndBabyId(JOB_ID, BABY_ID)).thenReturn(Optional.of(job));
         when(audioStorage.exists(AUDIO_PATH)).thenReturn(false);
 
@@ -255,9 +261,9 @@ class SttJobServiceTest {
         assertThat(response.status()).isEqualTo(SttStatus.COMPLETED);
         assertThat(response.transcript()).isEqualTo("분유 120ml 먹였어요");
         assertThat(response.voiceInputId()).isNull();
-        assertThat(response.parentingRecords()).isEmpty();
+        assertThat(response.careRecords()).isEmpty();
         assertThat(job.getCompletedAt()).isNotNull();
-        verifyNoInteractions(voiceInputRepository, parentingRecordService);
+        verifyNoInteractions(voiceInputRepository, careRecordWriter);
         verify(audioStorage).delete(AUDIO_PATH);
     }
 
@@ -268,14 +274,14 @@ class SttJobServiceTest {
 
         sttJobService.complete(JOB_ID, "중복 완료");
 
-        verifyNoInteractions(voiceInputRepository, parentingRecordService);
+        verifyNoInteractions(voiceInputRepository, careRecordWriter);
         verify(audioStorage, never()).delete(any());
     }
 
     @Test
-    void confirmCreatesVoiceInputAndParentingRecords() {
+    void confirmCreatesVoiceInputAndCareRecords() {
         SttJob job = completedJob(null);
-        when(accountContextService.resolve(USER_ID, BABY_ID)).thenReturn(context());
+        when(accountContextService.resolveForWrite(USER_ID, BABY_ID)).thenReturn(context());
         when(sttJobRepository.findByIdAndBabyIdForUpdate(JOB_ID, BABY_ID))
                 .thenReturn(Optional.of(job));
         when(voiceInputRepository.save(any(VoiceInput.class))).thenAnswer(invocation -> {
@@ -284,8 +290,8 @@ class SttJobServiceTest {
             ReflectionTestUtils.setField(voiceInput, "createdAt", LocalDateTime.now());
             return voiceInput;
         });
-        ParentingRecordResponse record = parentingRecord();
-        when(parentingRecordService.analyzeAndSave(
+        CareRecordResponse record = careRecord();
+        when(careRecordWriter.analyzeAndSave(
                 anyLong(), anyLong(), anyLong(), any(String.class), any(LocalDateTime.class)
         )).thenReturn(List.of(record));
 
@@ -293,7 +299,7 @@ class SttJobServiceTest {
 
         assertThat(response.status()).isEqualTo(SttStatus.COMPLETED);
         assertThat(response.voiceInputId()).isEqualTo(10L);
-        assertThat(response.parentingRecords()).containsExactly(record);
+        assertThat(response.careRecords()).containsExactly(record);
         assertThat(job.getVoiceInputId()).isEqualTo(10L);
 
         ArgumentCaptor<VoiceInput> captor = ArgumentCaptor.forClass(VoiceInput.class);
@@ -307,46 +313,46 @@ class SttJobServiceTest {
     void confirmRejectsJobOwnedByAnotherMember() {
         SttJob job = completedJob(null);
         ReflectionTestUtils.setField(job, "familyMemberId", 8L);
-        when(accountContextService.resolve(USER_ID, BABY_ID)).thenReturn(context());
+        when(accountContextService.resolveForWrite(USER_ID, BABY_ID)).thenReturn(context());
         when(sttJobRepository.findByIdAndBabyIdForUpdate(JOB_ID, BABY_ID))
                 .thenReturn(Optional.of(job));
 
         assertThatThrownBy(() -> sttJobService.confirm(BABY_ID, USER_ID, JOB_ID))
                 .isInstanceOf(AccessDeniedException.class);
 
-        verifyNoInteractions(voiceInputRepository, parentingRecordService);
+        verifyNoInteractions(voiceInputRepository, careRecordWriter);
     }
 
     @Test
     void confirmRejectsJobThatIsNotCompleted() {
         SttJob job = job(SttStatus.PROCESSING, 1);
-        when(accountContextService.resolve(USER_ID, BABY_ID)).thenReturn(context());
+        when(accountContextService.resolveForWrite(USER_ID, BABY_ID)).thenReturn(context());
         when(sttJobRepository.findByIdAndBabyIdForUpdate(JOB_ID, BABY_ID))
                 .thenReturn(Optional.of(job));
 
         assertThatThrownBy(() -> sttJobService.confirm(BABY_ID, USER_ID, JOB_ID))
                 .isInstanceOf(SttJobNotConfirmableException.class);
 
-        verifyNoInteractions(voiceInputRepository, parentingRecordService);
+        verifyNoInteractions(voiceInputRepository, careRecordWriter);
     }
 
     @Test
     void confirmRejectsAlreadyConfirmedJob() {
         SttJob job = completedJob(10L);
-        when(accountContextService.resolve(USER_ID, BABY_ID)).thenReturn(context());
+        when(accountContextService.resolveForWrite(USER_ID, BABY_ID)).thenReturn(context());
         when(sttJobRepository.findByIdAndBabyIdForUpdate(JOB_ID, BABY_ID))
                 .thenReturn(Optional.of(job));
 
         assertThatThrownBy(() -> sttJobService.confirm(BABY_ID, USER_ID, JOB_ID))
                 .isInstanceOf(SttJobNotConfirmableException.class);
 
-        verifyNoInteractions(voiceInputRepository, parentingRecordService);
+        verifyNoInteractions(voiceInputRepository, careRecordWriter);
     }
 
     @Test
     void cancelDeletesUnconfirmedJobAndAudio() {
         SttJob job = completedJob(null);
-        when(accountContextService.resolve(USER_ID, BABY_ID)).thenReturn(context());
+        when(accountContextService.resolveForWrite(USER_ID, BABY_ID)).thenReturn(context());
         when(sttJobRepository.findByIdAndBabyIdForUpdate(JOB_ID, BABY_ID))
                 .thenReturn(Optional.of(job));
 
@@ -357,9 +363,23 @@ class SttJobServiceTest {
     }
 
     @Test
+    void cancelRejectsJobOwnedByAnotherMember() {
+        SttJob job = completedJob(null);
+        ReflectionTestUtils.setField(job, "familyMemberId", 8L);
+        when(accountContextService.resolveForWrite(USER_ID, BABY_ID)).thenReturn(context());
+        when(sttJobRepository.findByIdAndBabyIdForUpdate(JOB_ID, BABY_ID))
+                .thenReturn(Optional.of(job));
+
+        assertThatThrownBy(() -> sttJobService.cancel(BABY_ID, USER_ID, JOB_ID))
+                .isInstanceOf(AccessDeniedException.class);
+
+        verify(sttJobRepository, never()).delete(any());
+    }
+
+    @Test
     void cancelRejectsProcessingJob() {
         SttJob job = job(SttStatus.PROCESSING, 1);
-        when(accountContextService.resolve(USER_ID, BABY_ID)).thenReturn(context());
+        when(accountContextService.resolveForWrite(USER_ID, BABY_ID)).thenReturn(context());
         when(sttJobRepository.findByIdAndBabyIdForUpdate(JOB_ID, BABY_ID))
                 .thenReturn(Optional.of(job));
 
@@ -372,7 +392,7 @@ class SttJobServiceTest {
     @Test
     void cancelRejectsConfirmedJob() {
         SttJob job = completedJob(10L);
-        when(accountContextService.resolve(USER_ID, BABY_ID)).thenReturn(context());
+        when(accountContextService.resolveForWrite(USER_ID, BABY_ID)).thenReturn(context());
         when(sttJobRepository.findByIdAndBabyIdForUpdate(JOB_ID, BABY_ID))
                 .thenReturn(Optional.of(job));
 
@@ -462,11 +482,11 @@ class SttJobServiceTest {
         return job;
     }
 
-    private static ParentingRecordResponse parentingRecord() {
-        return new ParentingRecordResponse(
-                100L, BABY_ID, FAMILY_MEMBER_ID, 10L, ParentingRecordType.FEEDING,
-                LocalDateTime.of(2026, 10, 25, 12, 0), 120, null,
-                FeedingType.FORMULA, null, "분유 120ml 먹였어요",
+    private static CareRecordResponse careRecord() {
+        return new CareRecordResponse(
+                100L, BABY_ID, FAMILY_MEMBER_ID, "보호자", 10L, CareRecordType.FEEDING,
+                LocalDateTime.of(2026, 10, 25, 12, 0), "FORMULA", 120, null,
+                null, null, null, null, "분유 120ml 먹였어요",
                 LocalDateTime.of(2026, 10, 25, 12, 0)
         );
     }

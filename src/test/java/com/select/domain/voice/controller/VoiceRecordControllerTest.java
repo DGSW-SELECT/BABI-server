@@ -1,19 +1,12 @@
 package com.select.domain.voice.controller;
 
-import com.select.domain.parenting.dto.response.ParentingRecordResponse;
-import com.select.domain.parenting.entity.FeedingType;
-import com.select.domain.parenting.entity.ParentingRecordType;
 import com.select.domain.voice.dto.request.VoiceRecordRequest;
-import com.select.domain.voice.dto.response.SttJobResponse;
+import com.select.domain.voice.dto.request.VoiceRecordUpdateRequest;
 import com.select.domain.voice.dto.response.SttTranscriptResponse;
 import com.select.domain.voice.dto.response.VoiceInputResponse;
 import com.select.domain.voice.entity.SttStatus;
 import com.select.domain.voice.exception.InvalidAudioException;
 import com.select.domain.voice.exception.SttFailedException;
-import com.select.domain.voice.exception.SttJobNotCancelableException;
-import com.select.domain.voice.exception.SttJobNotConfirmableException;
-import com.select.domain.voice.exception.SttJobNotFoundException;
-import com.select.domain.voice.exception.SttJobNotRetryableException;
 import com.select.domain.voice.exception.VoiceInputNotFoundException;
 import com.select.domain.voice.service.SttJobService;
 import com.select.domain.voice.service.VoiceRecordService;
@@ -30,19 +23,19 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.nio.charset.StandardCharsets;
+import java.io.InputStream;
 import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -54,14 +47,12 @@ class VoiceRecordControllerTest {
 
     private MockMvc mockMvc;
     private VoiceRecordService voiceRecordService;
-    private SttJobService sttJobService;
 
     @BeforeEach
     void setUp() {
         voiceRecordService = mock(VoiceRecordService.class);
-        sttJobService = mock(SttJobService.class);
         mockMvc = MockMvcBuilders
-                .standaloneSetup(new VoiceRecordController(voiceRecordService, sttJobService))
+                .standaloneSetup(new VoiceRecordController(voiceRecordService, mock(SttJobService.class)))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver())
                 .build();
@@ -79,8 +70,15 @@ class VoiceRecordControllerTest {
 
     @Test
     void transcribeReturnsTranscript() throws Exception {
+        byte[] wavAudio;
+        try (InputStream input = getClass().getResourceAsStream("/audio/babi-voice-input-test.wav")) {
+            if (input == null) {
+                throw new IllegalStateException("음성 입력 테스트 파일을 찾을 수 없습니다.");
+            }
+            wavAudio = input.readAllBytes();
+        }
         MockMultipartFile audio = new MockMultipartFile(
-                "audio", "voice.mp3", "audio/mpeg", "audio".getBytes(StandardCharsets.UTF_8)
+                "audio", "babi-voice-input-test.wav", "audio/wav", wavAudio
         );
         when(voiceRecordService.transcribe(eq(1L), eq(USER_ID), any(MultipartFile.class)))
                 .thenReturn(new SttTranscriptResponse("분유 먹였어"));
@@ -130,15 +128,10 @@ class VoiceRecordControllerTest {
 
     @Test
     void saveReturnsCreatedVoiceInput() throws Exception {
-        LocalDateTime createdAt = LocalDateTime.of(2026, 10, 25, 12, 0);
-        ParentingRecordResponse parentingRecord = new ParentingRecordResponse(
-                100L, 1L, 7L, 10L, ParentingRecordType.FEEDING,
-                LocalDateTime.of(2026, 10, 25, 12, 0), 100, null,
-                FeedingType.FORMULA, null, "분유 먹였어", createdAt
-        );
         VoiceInputResponse response = new VoiceInputResponse(
                 10L, 1L, 7L, "분유 먹였어", SttStatus.COMPLETED,
-                createdAt, List.of(parentingRecord)
+                LocalDateTime.of(2026, 10, 25, 12, 0),
+                LocalDateTime.of(2026, 10, 25, 12, 0)
         );
         when(voiceRecordService.save(eq(1L), eq(USER_ID), any(VoiceRecordRequest.class)))
                 .thenReturn(response);
@@ -157,11 +150,7 @@ class VoiceRecordControllerTest {
                 .andExpect(jsonPath("$.data.familyMemberId").value(7L))
                 .andExpect(jsonPath("$.data.transcript").value("분유 먹였어"))
                 .andExpect(jsonPath("$.data.sttStatus").value("COMPLETED"))
-                .andExpect(jsonPath("$.data.createdAt").exists())
-                .andExpect(jsonPath("$.data.parentingRecords[0].parentingRecordId").value(100L))
-                .andExpect(jsonPath("$.data.parentingRecords[0].recordType").value("FEEDING"))
-                .andExpect(jsonPath("$.data.parentingRecords[0].amountMl").value(100))
-                .andExpect(jsonPath("$.data.parentingRecords[0].feedingType").value("FORMULA"));
+                .andExpect(jsonPath("$.data.createdAt").exists());
 
         verify(voiceRecordService).save(eq(1L), eq(USER_ID), any(VoiceRecordRequest.class));
     }
@@ -186,7 +175,8 @@ class VoiceRecordControllerTest {
     void getReturnsVoiceInput() throws Exception {
         VoiceInputResponse response = new VoiceInputResponse(
                 10L, 1L, 7L, "분유 먹였어", SttStatus.COMPLETED,
-                LocalDateTime.of(2026, 10, 25, 12, 0), List.of()
+                LocalDateTime.of(2026, 10, 25, 12, 0),
+                LocalDateTime.of(2026, 10, 25, 12, 0)
         );
         when(voiceRecordService.get(1L, USER_ID, 10L)).thenReturn(response);
 
@@ -194,15 +184,15 @@ class VoiceRecordControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.voiceInputId").value(10L))
-                .andExpect(jsonPath("$.data.transcript").value("분유 먹였어"))
-                .andExpect(jsonPath("$.data.parentingRecords").isEmpty());
+                .andExpect(jsonPath("$.data.transcript").value("분유 먹였어"));
 
         verify(voiceRecordService).get(1L, USER_ID, 10L);
     }
 
     @Test
     void getMissingVoiceInputReturnsNotFound() throws Exception {
-        when(voiceRecordService.get(1L, USER_ID, 10L)).thenThrow(new VoiceInputNotFoundException());
+        when(voiceRecordService.get(1L, USER_ID, 10L))
+                .thenThrow(new VoiceInputNotFoundException());
 
         mockMvc.perform(get(BASE_URL + "/10"))
                 .andExpect(status().isNotFound())
@@ -210,129 +200,61 @@ class VoiceRecordControllerTest {
     }
 
     @Test
-    void submitSttJobReturnsAccepted() throws Exception {
-        MockMultipartFile audio = new MockMultipartFile(
-                "audio", "voice.mp3", "audio/mpeg", "audio".getBytes(StandardCharsets.UTF_8)
+    void updateReturnsUpdatedVoiceInput() throws Exception {
+        VoiceInputResponse response = new VoiceInputResponse(
+                10L, 1L, 7L, "수정된 분유 기록", SttStatus.COMPLETED,
+                LocalDateTime.of(2026, 10, 25, 12, 0),
+                LocalDateTime.of(2026, 10, 26, 9, 30)
         );
-        when(sttJobService.submit(eq(1L), eq(USER_ID), any(MultipartFile.class)))
-                .thenReturn(sttJobResponse(SttStatus.PENDING, null, null));
+        when(voiceRecordService.update(eq(1L), eq(USER_ID), eq(10L), any(VoiceRecordUpdateRequest.class)))
+                .thenReturn(response);
 
-        mockMvc.perform(multipart(BASE_URL + "/stt-jobs").file(audio))
-                .andExpect(status().isAccepted())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.jobId").value(20L))
-                .andExpect(jsonPath("$.data.status").value("PENDING"))
-                .andExpect(jsonPath("$.data.maxAttempts").value(3));
-
-        verify(sttJobService).submit(eq(1L), eq(USER_ID), any(MultipartFile.class));
-    }
-
-    @Test
-    void getSttJobReturnsCompletedJobAndParentingRecords() throws Exception {
-        ParentingRecordResponse parentingRecord = new ParentingRecordResponse(
-                100L, 1L, 7L, 10L, ParentingRecordType.FEEDING,
-                LocalDateTime.of(2026, 10, 25, 12, 0), 120, null,
-                FeedingType.FORMULA, null, "분유 120ml 먹였어요", LocalDateTime.of(2026, 10, 25, 12, 0)
-        );
-        SttJobResponse response = new SttJobResponse(
-                20L, 1L, 7L, SttStatus.COMPLETED, "분유 120ml 먹였어요", 10L,
-                1, 3, null, LocalDateTime.of(2026, 10, 25, 12, 0),
-                LocalDateTime.of(2026, 10, 25, 12, 1), List.of(parentingRecord)
-        );
-        when(sttJobService.get(1L, USER_ID, 20L)).thenReturn(response);
-
-        mockMvc.perform(get(BASE_URL + "/stt-jobs/20"))
+        mockMvc.perform(patch(BASE_URL + "/10")
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "transcript": "수정된 분유 기록"
+                                }
+                                """))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("COMPLETED"))
-                .andExpect(jsonPath("$.data.transcript").value("분유 120ml 먹였어요"))
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.message").value("음성 기록이 수정되었습니다."))
                 .andExpect(jsonPath("$.data.voiceInputId").value(10L))
-                .andExpect(jsonPath("$.data.parentingRecords[0].parentingRecordId").value(100L));
+                .andExpect(jsonPath("$.data.transcript").value("수정된 분유 기록"))
+                .andExpect(jsonPath("$.data.updatedAt").exists());
 
-        verify(sttJobService).get(1L, USER_ID, 20L);
+        verify(voiceRecordService).update(eq(1L), eq(USER_ID), eq(10L), any(VoiceRecordUpdateRequest.class));
     }
 
     @Test
-    void getMissingSttJobReturnsNotFound() throws Exception {
-        when(sttJobService.get(1L, USER_ID, 20L)).thenThrow(new SttJobNotFoundException());
+    void updateWithBlankTranscriptReturnsValidationError() throws Exception {
+        mockMvc.perform(patch(BASE_URL + "/10")
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "transcript": "   "
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.error.details[0].field").value("transcript"));
 
-        mockMvc.perform(get(BASE_URL + "/stt-jobs/20"))
+        verifyNoInteractions(voiceRecordService);
+    }
+
+    @Test
+    void updateMissingVoiceInputReturnsNotFound() throws Exception {
+        when(voiceRecordService.update(eq(1L), eq(USER_ID), eq(10L), any(VoiceRecordUpdateRequest.class)))
+                .thenThrow(new VoiceInputNotFoundException());
+
+        mockMvc.perform(patch(BASE_URL + "/10")
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "transcript": "수정된 기록"
+                                }
+                                """))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.error.code").value("STT_JOB_NOT_FOUND"));
-    }
-
-    @Test
-    void retrySttJobReturnsPendingJob() throws Exception {
-        when(sttJobService.retry(1L, USER_ID, 20L))
-                .thenReturn(sttJobResponse(SttStatus.PENDING, null, null));
-
-        mockMvc.perform(post(BASE_URL + "/stt-jobs/20/retry"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("PENDING"));
-
-        verify(sttJobService).retry(1L, USER_ID, 20L);
-    }
-
-    @Test
-    void retryNonFailedSttJobReturnsConflict() throws Exception {
-        when(sttJobService.retry(1L, USER_ID, 20L))
-                .thenThrow(new SttJobNotRetryableException("실패한 작업만 재시도할 수 있습니다."));
-
-        mockMvc.perform(post(BASE_URL + "/stt-jobs/20/retry"))
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.error.code").value("STT_JOB_NOT_RETRYABLE"));
-    }
-
-    @Test
-    void confirmSttJobStoresVoiceInput() throws Exception {
-        when(sttJobService.confirm(1L, USER_ID, 20L))
-                .thenReturn(sttJobResponse(SttStatus.COMPLETED, "분유 120ml 먹였어요", 10L));
-
-        mockMvc.perform(post(BASE_URL + "/stt-jobs/20/confirm"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.status").value("COMPLETED"))
-                .andExpect(jsonPath("$.data.transcript").value("분유 120ml 먹였어요"))
-                .andExpect(jsonPath("$.data.voiceInputId").value(10L));
-
-        verify(sttJobService).confirm(1L, USER_ID, 20L);
-    }
-
-    @Test
-    void confirmNonCompletedSttJobReturnsConflict() throws Exception {
-        when(sttJobService.confirm(1L, USER_ID, 20L))
-                .thenThrow(new SttJobNotConfirmableException("완료된 작업만 저장할 수 있습니다."));
-
-        mockMvc.perform(post(BASE_URL + "/stt-jobs/20/confirm"))
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.error.code").value("STT_JOB_NOT_CONFIRMABLE"));
-    }
-
-    @Test
-    void cancelSttJobReturnsNoContent() throws Exception {
-        mockMvc.perform(delete(BASE_URL + "/stt-jobs/20"))
-                .andExpect(status().isNoContent());
-
-        verify(sttJobService).cancel(1L, USER_ID, 20L);
-    }
-
-    @Test
-    void cancelProcessingSttJobReturnsConflict() throws Exception {
-        doThrow(new SttJobNotCancelableException("처리 중인 작업은 취소할 수 없습니다."))
-                .when(sttJobService).cancel(1L, USER_ID, 20L);
-
-        mockMvc.perform(delete(BASE_URL + "/stt-jobs/20"))
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.error.code").value("STT_JOB_NOT_CANCELABLE"));
-    }
-
-    private static SttJobResponse sttJobResponse(
-            SttStatus status,
-            String transcript,
-            Long voiceInputId
-    ) {
-        return new SttJobResponse(
-                20L, 1L, 7L, status, transcript, voiceInputId,
-                0, 3, null, LocalDateTime.of(2026, 10, 25, 12, 0), null, List.of()
-        );
+                .andExpect(jsonPath("$.error.code").value("VOICE_INPUT_NOT_FOUND"));
     }
 }

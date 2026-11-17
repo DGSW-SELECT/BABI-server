@@ -158,6 +158,22 @@ class UserServiceTest {
     }
 
     @Test
+    void withdrawnUserCannotLoginWithCorrectPassword() {
+        User user = User.builder().email("user@example.com")
+                .passwordHash("valid-hash").nickname("tester").build();
+        ReflectionTestUtils.setField(user, "id", 42L);
+        ReflectionTestUtils.setField(user, "status", "WITHDRAWN");
+        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("Test1234!", "valid-hash")).thenReturn(true);
+        JwtProvider provider = mock(JwtProvider.class);
+        UserService service = new UserService(userRepository, passwordEncoder, provider, emailVerificationService);
+
+        assertThrows(InvalidCredentialsException.class,
+                () -> service.login(new LoginRequest("user@example.com", "Test1234!")));
+        verifyNoInteractions(provider);
+    }
+
+    @Test
     void signupWithoutVerificationNeverHashesPasswordOrWritesUser() {
         org.mockito.Mockito.doThrow(new com.select.domain.auth.exception.EmailVerificationException(
                 com.select.global.exception.ErrorCode.EMAIL_NOT_VERIFIED))

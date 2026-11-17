@@ -4,6 +4,8 @@ import com.select.domain.auth.dto.request.EmailSendRequest;
 import com.select.domain.auth.dto.request.EmailVerifyRequest;
 import com.select.domain.auth.dto.response.EmailVerificationResponse;
 import com.select.domain.auth.service.EmailVerificationService;
+import com.select.domain.auth.service.EmailSendRateLimiter;
+import jakarta.servlet.http.HttpServletRequest;
 import com.select.global.response.ApiResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -18,9 +20,12 @@ import org.springframework.web.bind.annotation.RestController;
 public class EmailVerificationController {
 
     private final EmailVerificationService emailVerificationService;
+    private final EmailSendRateLimiter rateLimiter;
 
     @PostMapping("/send")
-    public ApiResponse<Void> send(@Valid @RequestBody EmailSendRequest request) {
+    public ApiResponse<Void> send(@Valid @RequestBody EmailSendRequest request, HttpServletRequest servletRequest) {
+        emailVerificationService.validateRecipient(request.email());
+        rateLimiter.check(servletRequest);
         emailVerificationService.sendVerificationCode(request.email());
         return new ApiResponse<>(true,"인증번호가 발송되었습니다.",null);
     }

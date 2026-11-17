@@ -44,7 +44,7 @@ public class SttJob {
     @Column(name = "baby_id", nullable = false)
     private Long babyId;
 
-    @Column(name = "family_member_id", nullable = false)
+    @Column(name = "baby_member_id", nullable = false)
     private Long familyMemberId;
 
     @Column(name = "audio_path", nullable = false, length = 500)

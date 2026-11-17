@@ -4,10 +4,11 @@ spring:
     driver-class-name: org.h2.Driver
   jpa:
     hibernate:
-      ddl-auto: create-drop
-  mail:
-    host: localhost
-    username: test@babi.local
+      ddl-auto: validate
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema-test.sql
 email:
   verification:
     secret: test-only-email-verification-secret
@@ -25,3 +26,7 @@ stt:
     storage-dir: ${java.io.tmpdir}/babi-test-stt
     worker:
       enabled: false
+
+# The rate-limiter has dedicated isolated Redis tests.
+BABI_EMAIL_SEND_GLOBAL_PER_MINUTE: 10000
+BABI_EMAIL_SEND_SOURCE_PER_MINUTE: 10000

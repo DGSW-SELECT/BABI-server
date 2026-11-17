@@ -1,0 +1,24 @@
+[Unit]
+Description=BABI API server
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=simple
+User=babi
+Group=babi
+WorkingDirectory=/opt/babi
+EnvironmentFile=/etc/babi/app.env
+ExecStart=/usr/bin/java -Xms128m -Xmx512m -XX:+ExitOnOutOfMemoryError -jar /opt/babi/babi-server.jar --spring.profiles.active=aws
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

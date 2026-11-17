@@ -1,6 +1,7 @@
 package com.select.domain.voice.controller;
 
 import com.select.domain.voice.dto.request.VoiceRecordRequest;
+import com.select.domain.voice.dto.request.VoiceRecordUpdateRequest;
 import com.select.domain.voice.dto.response.SttJobResponse;
 import com.select.domain.voice.dto.response.SttTranscriptResponse;
 import com.select.domain.voice.dto.response.VoiceInputResponse;
@@ -14,6 +15,7 @@ import org.springframework.http.MediaType;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -141,5 +143,18 @@ public class VoiceRecordController {
                 babyId, CurrentUser.id(principal), voiceInputId
         );
         return new ApiResponse<>(true, "음성 기록을 조회했습니다.", response);
+    }
+
+    @PatchMapping("/{voiceInputId}")
+    public ApiResponse<VoiceInputResponse> update(
+            @PathVariable Long babyId,
+            @AuthenticationPrincipal String principal,
+            @PathVariable Long voiceInputId,
+            @Valid @RequestBody VoiceRecordUpdateRequest request
+    ) {
+        VoiceInputResponse response = voiceRecordService.update(
+                babyId, CurrentUser.id(principal), voiceInputId, request
+        );
+        return new ApiResponse<>(true, "음성 기록이 수정되었습니다.", response);
     }
 }

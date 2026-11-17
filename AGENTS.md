@@ -1,38 +1,54 @@
-# AGENTS.md
+# Project instructions
 
-## Project
-BABI 서비스 Spring Boot 백엔드.
-- Java 21, Spring Boot 4.0.8, Gradle
-
-## Structure
-```text
-com.select
-├── global   (config, exception, response, security)
-└── domain
-    └── <feature>  (controller, dto/request, dto/response, entity, repository, service)
-```
-새 기능은 `domain/<feature>` 아래 같은 계층으로 추가.
+## Structure and stack
+- Java 21, Spring Boot 4.0.8, Gradle 9.7.1. Use `./gradlew`.
+- `src/main/java/com/select/domain`: domain controller, DTO, entity, repository, service layers.
+- `src/main/java/com/select/global`: shared exception, response, and security code.
+- `src/main/resources`: Spring application configuration and profiles.
+- `src/test/java/com/select`: JUnit 5 and Mockito tests.
 
 ## Commands
-- Run: `./gradlew bootRun --args='--spring.profiles.active=local'`
-- Build: `./gradlew build`
-- Test: `./gradlew test`
+- Run locally with `./gradlew bootRun --args='--spring.profiles.active=local'` with the required SMTP and database environment variables. Discord demos additionally require the `discord-demo` profile and isolated resources described in README.md.
+- AWS runtime: `java -jar /opt/babi/babi-server.jar --spring.profiles.active=aws`; use `deploy/app.env.example` and `deploy/babi-server.service` after infrastructure approval.
+- Deployment script tests: `python3 -m unittest discover -s deploy -p 'test_*.py' -v`.
+- Build: `./gradlew build`.
+- Test: `./gradlew test`.
+- Targeted test: `./gradlew test --tests 'fully.qualified.TestClass'`.
 
-## Rules
-- Controller는 요청/응답만 처리, 비즈니스 로직은 Service에 둔다.
-- Entity를 API 응답으로 직접 반환하지 않고 DTO를 사용한다.
-- 공통 예외/응답은 `global/exception`, `global/response`를 재사용한다.
-- Secret(DB 비밀번호, API key 등)은 코드·yml에 커밋하지 않는다.
+## Development rules
+- Read relevant code before edits. Reuse existing layers and conventions.
+- Keep changes scoped; no unrelated refactors or changes to others' work.
+- Preserve existing Java formatting, constructor injection, validation, and API response conventions.
+- Shared care records live in `domain/care` and reuse the five existing record tables. Keep JWT-derived author membership, action-specific permissions, VIEWER read-only access, and active account/membership checks. Reuse `domain/baby/repository/BabyAccessRepository` across records and reports.
+- AI daily reports use OpenAI Responses with anonymous numeric facts only; never send names, IDs, notes, or transcripts. Keep `OPENAI_API_KEY` outside Git, bounded timeouts/output, no automatic retries, and explicit failure when unconfigured. Tests must mock OpenAI, not make billable calls.
+- Keep external AI calls outside DB transactions. Reserve and finalize daily reports in short transactions, preserve reservation ownership on expiry/cleanup, and recheck write access before saving. Keep `spring.jpa.open-in-view=false` so HTTP requests cannot retain DB connections while awaiting providers.
+- Check write permission before starting the locking transaction for records/reports, then lock the baby and recheck permission inside the transaction. Do not put the precheck in the same MySQL repeatable-read transaction: its earlier snapshot can hide a concurrent membership revocation.
+- Reproduce bugs and run relevant tests and actual startup/API checks.
+- Keep secrets out of tracked files; use environment variables for external database credentials.
+- AWS resources must use account `380536267838`, region `ap-northeast-3`. Never create or hardcode access keys; any future AWS SDK integration must use the default credentials chain and an execution IAM role.
+- AWS resource changes, deployment, and billable requests require explicit approval of targets, configuration, and costs. Add only services used by existing code.
+- KRW 60,000 remains the AWS budget reference. On 2026-11-03 the user approved disabling the final stop schedule; both start and stop schedules are DISABLED. No automatic budget cutoff exists. Further operating schedule changes require approval; see `docs/aws-runtime.md`.
+- School AWS ownership tags are applied asynchronously. After creating a security group, verify its automatic `username=select-1` and `group=select` tags before authorizing rules. Do not forge ownership tags or change school IAM policies.
+- H2 is test-only and in-memory; test data disappears when the server stops. Exclude H2 from deployment JARs.
+- Deployment requires MySQL credentials and `JWT_SECRET`; external DB connections use `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, `SPRING_DATASOURCE_PASSWORD`.
+- Discord 인증은 `discord-demo` 프로필에서만 사용하는 시연 전용이며 실제 이메일 소유권을 증명하지 않는다. `aws,discord-demo`에는 전용 시연 MySQL·인증 Redis와 Discord 환경변수가 필요하다. 실제 사용자 데이터 또는 비밀값을 저장소에 넣지 않는다.
+- Keep deployment artifact directories `0755` and non-secret files `0644` so container users can read mounted schema/config files. Keep `/etc/babi` `0700` and secret environment files `0600`.
+- The `aws` profile retains its existing MySQL and SMTP defaults. When `discord-demo` is additionally active, explicitly configure a dedicated `babi_discord_demo` datasource and isolated authenticated Redis. The application only validates the schema and never resets it on restart.
+- `babi_DB_Real.sql` and the approved invitation extension (2026-11-03) are the schema sources. Keep the `baby_members` / `active_baby_members` model and account status checks. Never run their DROP statements against existing data; the checked-in `schema.sql` excludes active DROP statements.
+- The local DataGrip tunnel is managed by user LaunchAgent `com.select.babi-db-tunnel` on `127.0.0.1:13307`. Do not start a second forwarder on that port. Use `aws login --profile babi-select-1 --region ap-northeast-3` when its existing temporary credentials expire; never create access keys to keep the tunnel alive.
+- `deploy/compose.proxy.yml` and `deploy/Caddyfile` expose only HTTPS/HTTP to `api.babi.prot.kr` on Linux; the application stays on `127.0.0.1:8080`. The `aws` profile uses native forwarded-header handling for HTTPS behind Caddy. Certificate volumes persist across restarts.
+- Update this file when project-wide rules change. CLAUDE.md only points here.
+- Responses: Korean, concise; follow `caveman` full mode until explicitly disabled.
 
-## Git
-- Branch: `<prefix>/<name>` (예: `feat/login`, `chore/docker-setup`)
-- `main` 직접 push 금지, PR로 merge.
-- Commit: `prefix: description`
-  - `feat` 새 기능 / `fix` 버그 수정 / `refactor` 리팩터링 / `docs` 문서
-  - `style` 코드 스타일 / `test` 테스트 / `chore` 설정·유지보수
-  - `perf` 성능 / `ci` CI/CD / `build` 빌드 시스템
-  - 예: `feat: add login feature`, `fix: resolve timetable loading error`
-
-## CI
-- PR 생성/업데이트 시 `.github/workflows/claude-pr-review.yml`이 Claude 자동 리뷰 실행.
-- Repo secret `CLAUDE_CODE_OAUTH_TOKEN` 필요 (`claude setup-token`으로 발급, Claude 구독 사용).
+## Git and deployment
+- Check `git status` and `git remote -v` at the start of work.
+- Use the existing GitHub origin and branch conventions (`feat/`, `fix/`, `chore/`).
+- Do not create remotes, commit, push, or deploy without authorization.
+- Ask before destructive operations, history rewrites, or production deployment.
+- AWS runtime preparation is documented in `docs/aws-runtime.md`; infrastructure creation and deployment still require approval.
+- `.github/workflows/aws-deploy.yml` tests PRs and publishes tested `main` JARs as public `aws-<commit SHA>` prereleases. The existing EC2 checks every five minutes through `babi-deploy.timer`, validates SHA-256 and embedded commit, and restores the previous JAR on failed startup. No AWS access keys, GitHub token on EC2, or self-hosted Actions runner is used. Automatic deployment never executes schema migrations or updates its root-owned installer; schema and installer changes need separate deployment review.
+- `main` requires two PR approvals and last-push approval under the existing GitHub ruleset. Do not bypass or weaken this protection.
+- The user authorized formal GitHub Actions APPROVE reviews and enabled the organization/repository permission. Eligible bot approvals count toward the existing required total (`main`: two, `develop`: one); these are not a separate requirement for two human approvals. Keep the configured counts and last-push protection unchanged.
+- PR review runs on initial creation or draft readiness; subsequent reviews require a new `@claude` PR or inline comment from a human repository writer. Only open, non-draft, same-repository PRs are eligible. New pushes only dismiss this workflow's previous bot approvals, without calling a model; re-review also dismisses previous automatic approvals first. Keep credentials in GitHub Secrets and mask normalized values. Claude is primary; optional `DEEPSEEK_API_KEY` enables comment-only fallback. With no completed review, report SKIPPED and pass without approval. Only authenticated Claude results with no findings, matching current commit, and successful required CI (`main`: `build`, `develop`: `test`) may create APPROVE. Keep existing branch approval rules and never auto-merge. Mention events require the workflow on main. See `docs/ci/automatic-pr-review.md`.
+- All commit messages must use `prefix: description`, short and specific.
+- Prefixes: `feat` (feature), `fix` (bug), `refactor` (refactoring), `docs` (documentation), `style` (style), `test` (tests), `chore` (maintenance), `perf` (performance), `ci` (CI/CD), `build` (build system).

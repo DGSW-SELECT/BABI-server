@@ -1,5 +1,6 @@
 package com.select.domain.voice.client;
 
+import com.select.domain.voice.client.SttProvider;
 import com.select.domain.voice.client.dto.response.SttResponse;
 import com.select.domain.voice.exception.SttFailedException;
 import com.select.global.config.SttProperties;
@@ -13,6 +14,7 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 
@@ -38,14 +40,15 @@ class RestSttClientTest {
         RestClient.Builder builder = RestClient.builder();
         server = MockRestServiceServer.bindTo(builder).build();
         SttProperties properties = new SttProperties(
-                "https://api.openai.com/v1/", "test-key", "whisper-1", "ko", Duration.ofSeconds(30),
-                null, null
+                SttProvider.OPENAI,
+                "https://api.openai.com/v1/", "test-key", "whisper-1", "ko", "분유 120ml 먹였어요",
+                Duration.ofSeconds(30)
         );
         sttClient = new RestSttClient(builder.build(), properties);
     }
 
     @Test
-    void sendsMultipartRequestAndParsesTranscript() {
+    void sendsMultipartWaveFileAndParsesTranscript() throws Exception {
         server.expect(requestTo(TRANSCRIPTION_URL))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer test-key"))
@@ -54,8 +57,15 @@ class RestSttClientTest {
                 .andExpect(content().string(containsString("ko")))
                 .andRespond(withSuccess("{\"text\":\"분유 먹였어\"}", MediaType.APPLICATION_JSON));
 
+        byte[] wavAudio;
+        try (InputStream input = getClass().getResourceAsStream("/audio/babi-voice-input-test.wav")) {
+            if (input == null) {
+                throw new IllegalStateException("음성 입력 테스트 파일을 찾을 수 없습니다.");
+            }
+            wavAudio = input.readAllBytes();
+        }
         MockMultipartFile audio = new MockMultipartFile(
-                "audio", "voice.mp3", "audio/mpeg", "audio".getBytes(StandardCharsets.UTF_8)
+                "audio", "babi-voice-input-test.wav", "audio/wav", wavAudio
         );
 
         SttResponse response = sttClient.transcribe(audio);
@@ -75,6 +85,26 @@ class RestSttClientTest {
 
         assertThatThrownBy(() -> sttClient.transcribe(audio))
                 .isInstanceOf(SttFailedException.class);
+        server.verify();
+    }
+
+    @Test
+    void failsWithoutCallingUpstreamWhenApiKeyIsMissing() {
+        SttClient clientWithoutKey = new RestSttClient(
+                RestClient.builder().build(),
+                new SttProperties(
+                        SttProvider.OPENAI,
+                        "https://api.openai.com/v1", " ", "whisper-1", "ko",
+                        "분유 120ml 먹였어요", Duration.ofSeconds(30)
+                )
+        );
+        MockMultipartFile audio = new MockMultipartFile(
+                "audio", "voice.mp3", "audio/mpeg", "audio".getBytes(StandardCharsets.UTF_8)
+        );
+
+        assertThatThrownBy(() -> clientWithoutKey.transcribe(audio))
+                .isInstanceOf(SttFailedException.class)
+                .hasMessageContaining("API 키");
         server.verify();
     }
 }

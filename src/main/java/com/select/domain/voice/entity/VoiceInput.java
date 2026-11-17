@@ -9,6 +9,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import lombok.Builder;
 import lombok.Getter;
@@ -30,7 +31,7 @@ public class VoiceInput {
     @Column(name = "baby_id", nullable = false)
     private Long babyId;
 
-    @Column(name = "family_member_id", nullable = false)
+    @Column(name = "baby_member_id", nullable = false)
     private Long familyMemberId;
 
     @Column(name = "audio_url", length = 500)
@@ -45,6 +46,9 @@ public class VoiceInput {
 
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
+
+    @Column(name = "updated_at", nullable = false)
+    private LocalDateTime updatedAt;
 
     protected VoiceInput() {
     }
@@ -66,6 +70,17 @@ public class VoiceInput {
 
     @PrePersist
     public void onCreate() {
-        this.createdAt = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now();
+        this.createdAt = now;
+        this.updatedAt = now;
+    }
+
+    @PreUpdate
+    public void onUpdate() {
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public void updateTranscript(String transcript) {
+        this.transcript = transcript;
     }
 }

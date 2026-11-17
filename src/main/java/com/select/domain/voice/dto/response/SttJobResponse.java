@@ -1,6 +1,6 @@
 package com.select.domain.voice.dto.response;
 
-import com.select.domain.parenting.dto.response.ParentingRecordResponse;
+import com.select.domain.care.dto.response.CareRecordResponse;
 import com.select.domain.voice.entity.SttJob;
 import com.select.domain.voice.entity.SttStatus;
 
@@ -19,13 +19,13 @@ public record SttJobResponse(
         String errorMessage,
         LocalDateTime createdAt,
         LocalDateTime completedAt,
-        List<ParentingRecordResponse> parentingRecords
+        List<CareRecordResponse> careRecords
 ) {
 
     public static SttJobResponse of(
             SttJob job,
             int maxAttempts,
-            List<ParentingRecordResponse> parentingRecords
+            List<CareRecordResponse> careRecords
     ) {
         return new SttJobResponse(
                 job.getId(),
@@ -39,7 +39,7 @@ public record SttJobResponse(
                 job.getLastError(),
                 job.getCreatedAt(),
                 job.getCompletedAt(),
-                List.copyOf(parentingRecords)
+                careRecords == null ? List.of() : List.copyOf(careRecords)
         );
     }
 

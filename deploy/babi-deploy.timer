@@ -1,0 +1,10 @@
+[Unit]
+Description=Check for a tested BABI main release every five minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+RandomizedDelaySec=15s
+
+[Install]
+WantedBy=timers.target

@@ -295,7 +295,7 @@ class EmailSignupIntegrationTest {
     @Test
     void failedMailReleasesOnlyItsOwnCodeAndCooldown() {
         String email = email();
-        doThrow(new org.springframework.mail.MailSendException("test SMTP failure"))
+        doThrow(new IllegalStateException("test SMTP failure"))
                 .when(sender).send(eq(email), anyString(), anyString());
         assertEquals(ErrorCode.EMAIL_SEND_FAILED, assertThrows(EmailVerificationException.class,
                 () -> verification.sendVerificationCode(email)).getErrorCode());
@@ -419,7 +419,7 @@ class EmailSignupIntegrationTest {
         long before = redis.getExpire(codeKey, TimeUnit.MILLISECONDS);
         long attemptsBefore = redis.getExpire(attemptsKey, TimeUnit.MILLISECONDS);
         redis.delete("email:resend:" + email);
-        doThrow(new org.springframework.mail.MailSendException("test SMTP failure"))
+        doThrow(new IllegalStateException("test SMTP failure"))
                 .when(sender).send(eq(email), anyString(), anyString());
         assertEquals(ErrorCode.EMAIL_SEND_FAILED, assertThrows(EmailVerificationException.class,
                 () -> verification.sendVerificationCode(email)).getErrorCode());
@@ -440,7 +440,7 @@ class EmailSignupIntegrationTest {
         redis.delete("email:resend:" + email);
         doAnswer(call -> {
             assertEquals(proof, redis.opsForValue().get(key(email)));
-            throw new org.springframework.mail.MailSendException("test SMTP failure");
+            throw new IllegalStateException("test SMTP failure");
         }).when(sender).send(eq(email), anyString(), anyString());
         assertThrows(EmailVerificationException.class, () -> verification.sendVerificationCode(email));
         assertEquals(proof, redis.opsForValue().get(key(email)));

@@ -1,8 +1,15 @@
 package com.select.global.exception;
 
+import com.select.domain.care.exception.CareRecordException;
+import com.select.domain.report.exception.DailyReportGenerationException;
 import com.select.domain.auth.exception.EmailVerificationException;
+import com.select.domain.baby.exception.BabyInvitationException;
 import com.select.domain.baby.exception.BabyNotFoundException;
 import com.select.domain.baby.exception.BabySelectionRequiredException;
+import com.select.domain.baby.exception.InvalidOwnershipTransferException;
+import com.select.domain.report.exception.DailyReportAlreadyExistsException;
+import com.select.domain.report.exception.DailyReportNotFoundException;
+import com.select.domain.user.exception.AccountLifecycleException;
 import com.select.domain.user.exception.DuplicateEmailException;
 import com.select.domain.user.exception.InvalidCredentialsException;
 import com.select.domain.user.exception.PasswordMismatchException;
@@ -18,9 +25,9 @@ import com.select.domain.voice.exception.VoiceInputNotFoundException;
 import com.select.global.response.ApiError;
 import com.select.global.response.ApiResponse;
 import com.select.global.response.ErrorDetail;
+import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.jspecify.annotations.Nullable;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -31,9 +38,9 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
-
 
 import java.util.ArrayList;
 import java.util.List;
@@ -41,7 +48,41 @@ import java.util.List;
 @RestControllerAdvice
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
+    @ExceptionHandler(DailyReportGenerationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleDailyReportGeneration(DailyReportGenerationException e) {
+        return createErrorResponse(e.getErrorCode(), List.of());
+    }
+
+    @ExceptionHandler(CareRecordException.class)
+    public ResponseEntity<ApiResponse<Void>> handleCareRecord(CareRecordException e) {
+        return createErrorResponse(e.getErrorCode(), List.of());
+    }
+
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+    @ExceptionHandler(AccountLifecycleException.class)
+    public ResponseEntity<ApiResponse<Void>> handleAccountLifecycle(AccountLifecycleException e) {
+        return createErrorResponse(e.getErrorCode(), List.of());
+    }
+
+    @ExceptionHandler(BabyInvitationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleBabyInvitation(BabyInvitationException e) {
+        return createErrorResponse(e.getErrorCode(), List.of());
+    }
+
+    @ExceptionHandler(DailyReportAlreadyExistsException.class)
+    public ResponseEntity<ApiResponse<Void>> handleDailyReportAlreadyExists(
+            DailyReportAlreadyExistsException e
+    ) {
+        return createErrorResponse(ErrorCode.DAILY_REPORT_ALREADY_EXISTS, List.of());
+    }
+
+    @ExceptionHandler(DailyReportNotFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> handleDailyReportNotFound(
+            DailyReportNotFoundException e
+    ) {
+        return createErrorResponse(ErrorCode.DAILY_REPORT_NOT_FOUND, List.of());
+    }
 
     @ExceptionHandler(EmailVerificationException.class)
     public ResponseEntity<ApiResponse<Void>> handleEmailVerification(EmailVerificationException e) {
@@ -88,11 +129,26 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         );
     }
 
+    @ExceptionHandler(BabyNotFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> handleBabyNotFound(
+            BabyNotFoundException e
+    ) {
+        return createErrorResponse(
+                ErrorCode.NOT_FOUND,
+                List.of()
+        );
+    }
+
+    @ExceptionHandler(AudioStorageException.class)
+    public ResponseEntity<ApiResponse<Void>> handleAudioStorage(AudioStorageException e) {
+        log.error("음성 파일 저장소 처리에 실패했습니다: {}", e.getMessage(), e);
+        return createErrorResponse(ErrorCode.AUDIO_STORAGE_FAILED, List.of());
+    }
+
     @ExceptionHandler(InvalidAudioException.class)
     public ResponseEntity<ApiResponse<Void>> handleInvalidAudio(
             InvalidAudioException e
-    ) {
-        return createErrorResponse(
+    ) {        return createErrorResponse(
                 ErrorCode.INVALID_AUDIO,
                 List.of()
         );
@@ -129,22 +185,22 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         );
     }
 
+    @ExceptionHandler(BabySelectionRequiredException.class)
+    public ResponseEntity<ApiResponse<Void>> handleBabySelectionRequired(
+            BabySelectionRequiredException e
+    ) {
+        return createErrorResponse(
+                ErrorCode.BABY_SELECTION_REQUIRED,
+                List.of()
+        );
+    }
+
     @ExceptionHandler(SttJobNotFoundException.class)
     public ResponseEntity<ApiResponse<Void>> handleSttJobNotFound(
             SttJobNotFoundException e
     ) {
         return createErrorResponse(
                 ErrorCode.STT_JOB_NOT_FOUND,
-                List.of()
-        );
-    }
-
-    @ExceptionHandler(SttJobNotRetryableException.class)
-    public ResponseEntity<ApiResponse<Void>> handleSttJobNotRetryable(
-            SttJobNotRetryableException e
-    ) {
-        return createErrorResponse(
-                ErrorCode.STT_JOB_NOT_RETRYABLE,
                 List.of()
         );
     }
@@ -169,33 +225,35 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         );
     }
 
-    @ExceptionHandler(BabyNotFoundException.class)
-    public ResponseEntity<ApiResponse<Void>> handleBabyNotFound(
-            BabyNotFoundException e
+    @ExceptionHandler(SttJobNotRetryableException.class)
+    public ResponseEntity<ApiResponse<Void>> handleSttJobNotRetryable(
+            SttJobNotRetryableException e
     ) {
         return createErrorResponse(
-                ErrorCode.BABY_NOT_FOUND,
+                ErrorCode.STT_JOB_NOT_RETRYABLE,
                 List.of()
         );
     }
 
-    @ExceptionHandler(BabySelectionRequiredException.class)
-    public ResponseEntity<ApiResponse<Void>> handleBabySelectionRequired(
-            BabySelectionRequiredException e
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ApiResponse<Void>> handleTypeMismatch(
+            MethodArgumentTypeMismatchException e
     ) {
         return createErrorResponse(
-                ErrorCode.BABY_SELECTION_REQUIRED,
-                List.of()
+                ErrorCode.VALIDATION_ERROR,
+                List.of(new ErrorDetail(
+                        e.getName(),
+                        "요청한 값의 형식이 올바르지 않습니다.")
+                )
         );
     }
 
-    @ExceptionHandler(AudioStorageException.class)
-    public ResponseEntity<ApiResponse<Void>> handleAudioStorage(
-            AudioStorageException e
+    @ExceptionHandler(InvalidOwnershipTransferException.class)
+    public ResponseEntity<ApiResponse<Void>> handleInvalidOwnershipTransfer(
+            InvalidOwnershipTransferException e
     ) {
-        log.error("음성 파일 저장소 처리에 실패했습니다: {}", e.getMessage(), e);
         return createErrorResponse(
-                ErrorCode.AUDIO_STORAGE_FAILED,
+                ErrorCode.VALIDATION_ERROR,
                 List.of()
         );
     }
@@ -301,5 +359,14 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     ) {
         ApiError error = new ApiError(errorCode.name(), details);
         return new ApiResponse<>(false, errorCode.getMessage(), null, error);
+    }
+    @ExceptionHandler(BusinessException.class)
+    public ResponseEntity<ApiResponse<Void>> handleBusinessException(
+            BusinessException e
+    ) {
+        return createErrorResponse(
+                e.getErrorCode(),
+                List.of()
+        );
     }
 }

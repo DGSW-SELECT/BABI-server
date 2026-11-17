@@ -1,6 +1,6 @@
 package com.select.domain.voice.dto.response;
 
-import com.select.domain.parenting.dto.response.ParentingRecordResponse;
+import com.select.domain.care.dto.response.CareRecordResponse;
 
 import java.util.List;
 
@@ -13,10 +13,10 @@ import java.util.List;
 public record VoiceRecordSavedResponse(
         boolean ok,
         Long voiceInputId,
-        List<ParentingRecordResponse> parentingRecords
+        List<CareRecordResponse> careRecords
 ) {
 
     public VoiceRecordSavedResponse {
-        parentingRecords = parentingRecords == null ? List.of() : List.copyOf(parentingRecords);
+        careRecords = careRecords == null ? List.of() : List.copyOf(careRecords);
     }
 }

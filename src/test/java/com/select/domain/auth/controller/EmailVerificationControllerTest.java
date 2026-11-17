@@ -3,6 +3,7 @@ package com.select.domain.auth.controller;
 import com.select.domain.auth.exception.EmailVerificationException;
 import com.select.domain.auth.dto.response.EmailVerificationResponse;
 import com.select.domain.auth.service.EmailVerificationService;
+import com.select.domain.auth.service.EmailSendRateLimiter;
 import com.select.global.exception.ErrorCode;
 import com.select.global.exception.GlobalExceptionHandler;
 import org.junit.jupiter.api.BeforeEach;
@@ -18,12 +19,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 class EmailVerificationControllerTest {
     private EmailVerificationService service;
+    private EmailSendRateLimiter rateLimiter;
     private MockMvc mvc;
 
     @BeforeEach
     void setUp() {
         service = mock(EmailVerificationService.class);
-        mvc = MockMvcBuilders.standaloneSetup(new EmailVerificationController(service))
+        rateLimiter = mock(EmailSendRateLimiter.class);
+        mvc = MockMvcBuilders.standaloneSetup(new EmailVerificationController(service, rateLimiter))
                 .setControllerAdvice(new GlobalExceptionHandler()).build();
     }
 
@@ -33,6 +36,7 @@ class EmailVerificationControllerTest {
                         .content("{\"email\":\"  USER@EXAMPLE.COM  \"}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.success").value(true));
         verify(service).sendVerificationCode("user@example.com");
+        verify(rateLimiter).check(any());
         when(service.verifyCode("user@example.com", "123456")).thenReturn(
                 new EmailVerificationResponse("user@example.com", true, 600, "A".repeat(43)));
         mvc.perform(post("/auth/email/verify").contentType("application/json")
@@ -44,6 +48,42 @@ class EmailVerificationControllerTest {
                 .andExpect(jsonPath("$.data.expiresIn").value(600))
                 .andExpect(jsonPath("$.data.verificationToken").value("A".repeat(43)));
         verify(service).verifyCode("user@example.com", "123456");
+        verifyNoMoreInteractions(rateLimiter);
+    }
+
+    @Test
+    void sendRejectsRateLimitedRequestBeforeInvokingService() throws Exception {
+        doThrow(new EmailVerificationException(ErrorCode.EMAIL_SEND_RATE_LIMITED)).when(rateLimiter).check(any());
+        mvc.perform(post("/auth/email/send").contentType("application/json")
+                        .content("{\"email\":\"user@example.invalid\"}"))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code").value("EMAIL_SEND_RATE_LIMITED"));
+        verify(rateLimiter).check(any());
+        verify(service).validateRecipient("user@example.invalid");
+        verifyNoMoreInteractions(service);
+    }
+
+    @Test
+    void sendRejectsRequestWhenLimiterUnavailable() throws Exception {
+        doThrow(new EmailVerificationException(ErrorCode.EMAIL_VERIFICATION_UNAVAILABLE)).when(rateLimiter).check(any());
+        mvc.perform(post("/auth/email/send").contentType("application/json")
+                        .content("{\"email\":\"user@example.invalid\"}"))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.error.code").value("EMAIL_VERIFICATION_UNAVAILABLE"));
+        verify(service).validateRecipient("user@example.invalid");
+        verifyNoMoreInteractions(service);
+    }
+
+    @Test
+    void demoAddressRejectionDoesNotConsumeRateLimit() throws Exception {
+        doThrow(new EmailVerificationException(ErrorCode.EMAIL_DEMO_ADDRESS_REQUIRED)).when(service).validateRecipient("real@example.com");
+        mvc.perform(post("/auth/email/send").contentType("application/json")
+                        .content("{\"email\":\"real@example.com\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("EMAIL_DEMO_ADDRESS_REQUIRED"));
+        verifyNoInteractions(rateLimiter);
+        verify(service, never()).sendVerificationCode(anyString());
     }
 
     @ParameterizedTest

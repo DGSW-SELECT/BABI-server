@@ -1,12 +1,15 @@
 package com.select.domain.voice.service;
 
 import com.select.domain.baby.entity.Baby;
+import com.select.domain.baby.entity.BabyMember;
+import com.select.domain.baby.entity.BabyRole;
+import com.select.domain.baby.repository.BabyMemberRepository;
 import com.select.domain.baby.repository.BabyRepository;
-import com.select.domain.family.entity.FamilyMember;
-import com.select.domain.family.repository.FamilyMemberRepository;
-import com.select.domain.parenting.entity.ParentingRecord;
-import com.select.domain.parenting.entity.ParentingRecordType;
-import com.select.domain.parenting.repository.ParentingRecordRepository;
+import com.select.domain.care.dto.response.CareRecordResponse;
+import com.select.domain.care.entity.CareRecordType;
+import com.select.domain.care.repository.CareRecordRepository;
+import com.select.domain.user.entity.User;
+import com.select.domain.user.repository.UserRepository;
 import com.select.domain.voice.client.SttClient;
 import com.select.domain.voice.client.dto.response.SttResponse;
 import com.select.domain.voice.dto.response.SttJobResponse;
@@ -17,10 +20,12 @@ import com.select.domain.voice.repository.SttJobRepository;
 import com.select.domain.voice.repository.VoiceInputRepository;
 import com.select.domain.voice.storage.AudioStorage;
 import com.select.global.config.SttJobProperties;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.web.multipart.MultipartFile;
@@ -39,8 +44,7 @@ import static org.mockito.Mockito.when;
 @SpringBootTest
 class SttPipelineIntegrationTest {
 
-    private static final Long USER_ID = 42L;
-    private static final Long FAMILY_GROUP_ID = 100L;
+    private static final String EMAIL = "stt-pipeline@example.invalid";
 
     @Autowired
     private SttJobService sttJobService;
@@ -52,13 +56,16 @@ class SttPipelineIntegrationTest {
     private VoiceInputRepository voiceInputRepository;
 
     @Autowired
-    private ParentingRecordRepository parentingRecordRepository;
+    private CareRecordRepository careRecordRepository;
 
     @Autowired
-    private FamilyMemberRepository familyMemberRepository;
+    private BabyMemberRepository babyMemberRepository;
 
     @Autowired
     private BabyRepository babyRepository;
+
+    @Autowired
+    private UserRepository userRepository;
 
     @Autowired
     private AudioStorage audioStorage;
@@ -66,33 +73,55 @@ class SttPipelineIntegrationTest {
     @Autowired
     private SttJobProperties sttJobProperties;
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
     @MockitoBean
     private SttClient sttClient;
 
     private SttJobWorker sttJobWorker;
     private Baby baby;
+    private User user;
 
     @BeforeEach
     void setUp() {
-        parentingRecordRepository.deleteAll();
-        voiceInputRepository.deleteAll();
-        sttJobRepository.deleteAll();
-        babyRepository.deleteAll();
-        familyMemberRepository.deleteAll();
+        cleanUp();
 
-        familyMemberRepository.save(FamilyMember.builder()
-                .familyGroupId(FAMILY_GROUP_ID)
-                .userId(USER_ID)
-                .role("OWNER")
-                .status(FamilyMember.STATUS_ACTIVE)
+        user = userRepository.save(User.builder()
+                .email(EMAIL)
+                .passwordHash("test-password-hash")
+                .nickname("테스트 보호자")
                 .build());
         baby = babyRepository.save(Baby.builder()
-                .familyGroupId(FAMILY_GROUP_ID)
                 .name("테스트 아기")
                 .birthDate(LocalDate.of(2026, 1, 1))
+                .createdByUserId(user.getId())
+                .build());
+        babyMemberRepository.save(BabyMember.builder()
+                .babyId(baby.getId())
+                .userId(user.getId())
+                .role(BabyRole.OWNER)
                 .build());
 
         sttJobWorker = new SttJobWorker(sttJobService, sttClient, audioStorage, sttJobProperties);
+    }
+
+    @AfterEach
+    void tearDown() {
+        cleanUp();
+    }
+
+    private void cleanUp() {
+        jdbcTemplate.update("delete from feeding_records");
+        jdbcTemplate.update("delete from sleep_records");
+        jdbcTemplate.update("delete from temperature_records");
+        jdbcTemplate.update("delete from diaper_records");
+        jdbcTemplate.update("delete from cry_records");
+        jdbcTemplate.update("delete from voice_inputs");
+        jdbcTemplate.update("delete from stt_jobs");
+        jdbcTemplate.update("delete from baby_members");
+        jdbcTemplate.update("delete from babies");
+        jdbcTemplate.update("delete from users");
     }
 
     @Test
@@ -103,7 +132,7 @@ class SttPipelineIntegrationTest {
                 "audio", "voice.mp3", "audio/mpeg", "audio".getBytes(StandardCharsets.UTF_8)
         );
 
-        SttJobResponse submitted = sttJobService.submit(baby.getId(), USER_ID, audio);
+        SttJobResponse submitted = sttJobService.submit(baby.getId(), user.getId(), audio);
 
         assertThat(submitted.status()).isEqualTo(SttStatus.PENDING);
         assertThat(sttJobService.claim(submitted.jobId())).isTrue();
@@ -116,29 +145,32 @@ class SttPipelineIntegrationTest {
         assertThat(completed.getVoiceInputId()).isNull();
         assertThat(completed.getAttemptCount()).isEqualTo(1);
         assertThat(voiceInputRepository.count()).isZero();
-        assertThat(parentingRecordRepository.count()).isZero();
 
-        SttJobResponse confirmed = sttJobService.confirm(baby.getId(), USER_ID, submitted.jobId());
+        SttJobResponse confirmed = sttJobService.confirm(
+                baby.getId(), user.getId(), submitted.jobId()
+        );
 
         assertThat(confirmed.status()).isEqualTo(SttStatus.COMPLETED);
         assertThat(confirmed.voiceInputId()).isNotNull();
-        assertThat(confirmed.parentingRecords()).hasSize(1);
+        assertThat(confirmed.careRecords()).hasSize(1);
 
-        VoiceInput voiceInput = voiceInputRepository.findById(confirmed.voiceInputId()).orElseThrow();
+        VoiceInput voiceInput = voiceInputRepository
+                .findById(confirmed.voiceInputId())
+                .orElseThrow();
         assertThat(voiceInput.getBabyId()).isEqualTo(baby.getId());
         assertThat(voiceInput.getFamilyMemberId()).isNotNull();
         assertThat(voiceInput.getTranscript()).isEqualTo("분유 120ml 먹였어요");
         assertThat(voiceInput.getSttStatus()).isEqualTo(SttStatus.COMPLETED);
 
-        List<ParentingRecord> records = parentingRecordRepository
-                .findAllByBabyIdAndVoiceInputIdOrderByIdAsc(baby.getId(), voiceInput.getId());
+        List<CareRecordResponse> records = careRecordRepository.findDay(
+                baby.getId(), LocalDate.now(), null, null, 10, 0
+        );
         assertThat(records).hasSize(1);
-        assertThat(records.getFirst().getRecordType()).isEqualTo(ParentingRecordType.FEEDING);
-        assertThat(records.getFirst().getAmountMl()).isEqualTo(120);
+        assertThat(records.getFirst().recordType()).isEqualTo(CareRecordType.FEEDING);
+        assertThat(records.getFirst().amountMl()).isEqualTo(120);
 
-        SttJobResponse fetched = sttJobService.get(baby.getId(), USER_ID, submitted.jobId());
+        SttJobResponse fetched = sttJobService.get(baby.getId(), user.getId(), submitted.jobId());
         assertThat(fetched.status()).isEqualTo(SttStatus.COMPLETED);
         assertThat(fetched.voiceInputId()).isEqualTo(voiceInput.getId());
-        assertThat(fetched.parentingRecords()).hasSize(1);
     }
 }

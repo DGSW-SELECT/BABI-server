@@ -1,11 +1,9 @@
 package com.select.domain.voice.dto.response;
 
-import com.select.domain.parenting.dto.response.ParentingRecordResponse;
 import com.select.domain.voice.entity.SttStatus;
 import com.select.domain.voice.entity.VoiceInput;
 
 import java.time.LocalDateTime;
-import java.util.List;
 
 public record VoiceInputResponse(
         Long voiceInputId,
@@ -14,13 +12,10 @@ public record VoiceInputResponse(
         String transcript,
         SttStatus sttStatus,
         LocalDateTime createdAt,
-        List<ParentingRecordResponse> parentingRecords
+        LocalDateTime updatedAt
 ) {
 
-    public static VoiceInputResponse of(
-            VoiceInput voiceInput,
-            List<ParentingRecordResponse> parentingRecords
-    ) {
+    public static VoiceInputResponse from(VoiceInput voiceInput) {
         return new VoiceInputResponse(
                 voiceInput.getId(),
                 voiceInput.getBabyId(),
@@ -28,7 +23,7 @@ public record VoiceInputResponse(
                 voiceInput.getTranscript(),
                 voiceInput.getSttStatus(),
                 voiceInput.getCreatedAt(),
-                List.copyOf(parentingRecords)
+                voiceInput.getUpdatedAt()
         );
     }
 }

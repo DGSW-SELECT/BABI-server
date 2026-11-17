@@ -44,21 +44,15 @@ public final class AudioFileSupport {
     }
 
     /**
-     * 저장소에서 사용할 확장자를 반환한다.
-     *
-     * <p>원본 파일명이 없거나 확장자를 신뢰할 수 없으면 Content-Type에서 확장자를 유도한다.</p>
+     * 저장소에 보관할 때 사용할 확장자. 원본 확장자가 없으면 content type에서 유도한다.
      */
     public static String storageExtension(MultipartFile audio) {
-        String extension = extension(audio.getOriginalFilename());
-        if (SUPPORTED_EXTENSIONS.contains(extension)) {
-            return extension;
+        String originalExtension = extension(audio.getOriginalFilename());
+        if (SUPPORTED_EXTENSIONS.contains(originalExtension)) {
+            return originalExtension;
         }
-
         String derivedExtension = extensionForContentType(contentType(audio));
-        if (derivedExtension == null) {
-            throw new InvalidAudioException("음성 파일 형식을 확인할 수 없습니다.");
-        }
-        return derivedExtension;
+        return derivedExtension == null ? "bin" : derivedExtension;
     }
 
     public static String filenameFor(MultipartFile audio) {

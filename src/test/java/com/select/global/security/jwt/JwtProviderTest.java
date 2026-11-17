@@ -161,11 +161,28 @@ class JwtProviderTest {
                 });
     }
 
-    @Test
-    void getUserIdReturnsTokenSubject() {
-        String token = jwtProvider.createAccessToken("42");
+    @ParameterizedTest
+    @ValueSource(strings = {"1", "42", "9223372036854775807"})
+    void getUserIdReturnsValidPositiveUserId(String userId) {
+        String token = jwtProvider.createAccessToken(userId);
 
-        assertEquals("42", jwtProvider.getUserId(token));
+        assertEquals(userId, jwtProvider.getUserId(token));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"abc", "1.5", "1e2", "9223372036854775808"})
+    void correctlySignedTokenWithNonNumericOrOverflowingUserIdIsRejected(String userId) {
+        String token = jwtProvider.createAccessToken(userId);
+
+        assertThrows(JwtException.class, () -> jwtProvider.getUserId(token));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"0", "-1", "-9223372036854775808"})
+    void correctlySignedTokenWithNonPositiveUserIdIsRejected(String userId) {
+        String token = jwtProvider.createAccessToken(userId);
+
+        assertThrows(JwtException.class, () -> jwtProvider.getUserId(token));
     }
 
     @ParameterizedTest

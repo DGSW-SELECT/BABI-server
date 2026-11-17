@@ -8,216 +8,126 @@ BABI 서비스의 Spring Boot 백엔드 프로젝트입니다.
 - Spring Boot 4.0.8
 - Gradle 9.7.1
 
-## 로컬 실행
+## Discord 시연 환경과 로컬 실행
 
-Spring Boot는 IntelliJ 또는 Gradle로 호스트에서 실행하고, MySQL과 Redis는 Docker로 실행합니다.
+기본 `local`/`aws` 프로필은 기존 Gmail SMTP 발송을 사용합니다. Discord는 `local,discord-demo` 또는 `aws,discord-demo` 프로필을 명시한 경우에만 활성화됩니다. Discord 인증은 이메일 소유권을 증명하지 **않는 시연 전용**이며, `@example.invalid` 주소만 허용합니다. 실제 사용자 계정이나 데이터로 운영하지 말고 접근이 제한된 비공개 Discord 채널을 사용하세요. 채널의 인증번호와 초대 코드를 볼 수 있는 사람은 이를 사용할 수 있습니다. Discord에는 주소와 초대 링크를 보내지 않습니다.
 
-1. 환경 변수 파일을 준비합니다. 실제 비밀번호는 Git에 커밋하지 않습니다.
+기존 Compose의 `babi` DB와 Redis에는 연결하지 마세요. 별도의 MySQL 8.4 인스턴스에 `babi_discord_demo` DB와 `babi_user` 계정을 준비하고, 최종 스키마를 그 전용 DB에만 별도로 적용하세요. 서버는 `schema.sql`을 자동 실행하지 않으며(`spring.sql.init.mode: never`) Hibernate `validate`만 수행합니다. 공유 DB를 초기화하지 않습니다. 별도의 인증된 Redis 인스턴스도 필요합니다.
+
+예를 들어 본인이 만든 임시 Docker 컨테이너를 사용할 수 있습니다. 아래 값은 셸에만 입력하고, 컨테이너 이름이 이미 존재하면 실행하지 마세요. 공개 포트 대신 호스트 루프백의 임의 포트를 사용합니다. 다음 명령에서 `MYSQL_PASSWORD`와 `BABI_DEMO_REDIS_PASSWORD`는 전용 무작위 값입니다.
 
 ```bash
-cp .env.example .env
+# 비밀번호는 화면에 표시되지 않도록 각각 입력합니다.
+read -r -s MYSQL_PASSWORD; export MYSQL_PASSWORD
+read -r -s BABI_DEMO_REDIS_PASSWORD; export BABI_DEMO_REDIS_PASSWORD
+export BABI_DEMO_REDIS_MARKER="$(openssl rand -hex 32)"
+docker run -d --rm --name babi-discord-demo-mysql --tmpfs /var/lib/mysql \
+  -p 127.0.0.1::3306 -e MYSQL_DATABASE=babi_discord_demo -e MYSQL_USER=babi_user \
+  -e MYSQL_ROOT_PASSWORD="$MYSQL_PASSWORD" -e MYSQL_PASSWORD mysql:8.4
+docker run -d --rm --name babi-discord-demo-redis --tmpfs /data \
+  -p 127.0.0.1::6379 redis:7-alpine redis-server --save '' --appendonly no \
+  --requirepass "$BABI_DEMO_REDIS_PASSWORD"
+# MySQL이 준비된 뒤, 전용 컨테이너인지 확인하고 스키마를 적용합니다.
+docker exec -i babi-discord-demo-mysql sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot babi_discord_demo' < src/main/resources/schema.sql
+docker exec -e REDISCLI_AUTH="$BABI_DEMO_REDIS_PASSWORD" babi-discord-demo-redis \
+  redis-cli SET babi:discord-demo:isolation-marker "$BABI_DEMO_REDIS_MARKER"
+# 표시된 포트를 전용 접속 설정에 사용합니다.
+docker port babi-discord-demo-mysql 3306
+docker port babi-discord-demo-redis 6379
 ```
 
-`.env`에서 `MYSQL_ROOT_PASSWORD`, `MYSQL_PASSWORD`, `JWT_SECRET`, `OPENAI_API_KEY`를 각자의 로컬 값으로 변경합니다.
+서버를 중단한 뒤 **본인이 생성한 전용 컨테이너만** `docker stop babi-discord-demo-mysql babi-discord-demo-redis`로 종료합니다. 임시 DB와 Redis 데이터는 사라집니다. 기존 Compose 컨테이너나 볼륨은 건드리지 마세요.
 
-`JWT_SECRET`은 JWT 서명 및 검증에 사용하는 필수 환경 변수입니다. `.env`의 `JWT_SECRET`을 각자의 무작위 비밀키로 변경합니다. HS256 서명에 사용하는 비밀키는 최소 32바이트 이상이어야 하며, 실제 비밀키는 Git에 커밋하지 않습니다.
+`.env.example`을 `.env`로 복사하고 전용 연결 정보와 무작위 비밀값을 입력하세요. `.env`는 Git에 포함하지 마세요. `local`은 작업 디렉터리의 `.env`를 읽으며, 환경변수가 같은 이름의 값보다 우선합니다. 기존 `.env`가 있다면 덮어쓰지 마세요. 음성 STT를 사용하려면 `OPENAI_API_KEY`도 실제 키로 변경합니다.
 
-`OPENAI_API_KEY`는 실제 STT 제공자를 사용할 때 필요한 환경 변수입니다. `STT_PROVIDER=auto`(기본값)에서 키가 없으면 개발용 `FakeSttClient`가 동작하므로 서버는 정상 기동됩니다. 실제 음성 변환을 사용하려면 키를 설정하고 `STT_PROVIDER=openai`를 지정합니다. 실제 키는 Git에 커밋하지 않습니다.
+`OPENAI_API_KEY`는 음성 입력 STT를 호출할 때 필요합니다. 값이 없어도 서버는 시작되지만 음성 변환 API는 `STT_FAILED`로 실패합니다. 실제 키는 Git에 커밋하지 않습니다.
 
-`local` 프로필에서는 이메일 인증을 호출하지 않더라도 `.env`의 다음 필수 환경 변수를 설정해야 합니다. 예시 파일의 값은 자리표시자이므로 실제 로컬 설정으로 바꿔야 합니다.
-
-| 환경 변수 | 용도 및 설정 방법 |
+| 변수 | 설명 |
 | --- | --- |
-| `MAIL_USERNAME` | Gmail SMTP 발신 계정의 이메일 주소를 입력합니다. |
-| `MAIL_PASSWORD` | 해당 Gmail 계정에서 발급한 앱 비밀번호를 입력합니다. 일반 로그인 비밀번호를 사용하지 않습니다. |
-| `EMAIL_VERIFICATION_SECRET` | 인증번호를 HMAC-SHA256으로 해시하는 독립적인 무작위 비밀키입니다. `JWT_SECRET`과 다른 값을 사용합니다. 예를 들어 `openssl rand -hex 32`로 생성한 값을 설정할 수 있습니다. |
+| `BABI_DISCORD_DEMO_ENABLED` | 시연 환경에서만 `true` |
+| `DISCORD_WEBHOOK_URL` | 비공개 채널에서 만든 Webhook URL. 비밀값입니다. |
+| `BABI_DEMO_DB_URL` | 전용 DB `jdbc:mysql://호스트:포트/babi_discord_demo` |
+| `MYSQL_PASSWORD` | 전용 `babi_user` 비밀번호 |
+| `BABI_DEMO_REDIS_HOST`, `BABI_DEMO_REDIS_PORT` | 전용 Redis 주소와 6379가 아닌 포트 |
+| `BABI_DEMO_REDIS_PASSWORD` | 전용 Redis 비밀번호, 24자 이상 |
+| `BABI_DEMO_REDIS_MARKER` | 전용 Redis에 미리 저장한 48자 이상의 소문자 16진수 확인값 |
+| `JWT_SECRET`, `EMAIL_VERIFICATION_SECRET` | 각각 별도의 무작위 비밀값 |
+| `BABY_INVITATION_LINK_BASE_URL` | 기존 초대 API에 필요한 HTTPS 주소. Discord로 전송하지 않습니다. |
 
-실제 이메일 계정·앱 비밀번호·비밀키는 `.env`에만 보관하고 Git에 커밋하지 않습니다. 아래 실행 명령은 `.env`를 셸에서 읽으므로 `KEY=value` 형식을 유지하고, 공백이나 셸 특수문자가 들어가는 값은 작은따옴표로 감쌉니다. 직접 작성한 신뢰할 수 있는 `.env`만 읽습니다.
+일반 `local`/`aws` 프로필에서 Gmail 발송을 사용하려면 `.env`의 `MAIL_USERNAME`과 `MAIL_PASSWORD`를 실제 Gmail 주소와 앱 비밀번호로 설정합니다. `discord-demo` 프로필에서는 Discord가 발송을 담당하므로 해당 값이 필요하지 않습니다.
 
-`.env` 파일은 Docker Compose에서 설정값을 읽는 데 사용되며, 현재 프로젝트에는 호스트에서 실행하는 Spring Boot에 `.env`를 자동으로 로드하는 설정이 없습니다. 애플리케이션 실행 시 아래와 같이 환경 변수를 별도로 전달해야 합니다.
+### 웹후크 주소 변경
 
-2. MySQL과 Redis를 실행합니다.
+팀원이 비공개 Discord 시연 채널에서 새 웹후크를 만든 뒤, 로컬에서는 Git에 포함되지 않는 `.env`의 `DISCORD_WEBHOOK_URL` 값만 교체합니다. 환경변수나 IntelliJ 실행 구성에 같은 키가 있으면 해당 값이 `.env`보다 우선하므로 함께 확인하세요. AWS 시연 환경에서는 담당자가 비밀 설정 파일 `/etc/babi/app.env`의 같은 값을 교체합니다. 값은 `DISCORD_WEBHOOK_URL=새_웹후크_URL` 형식으로 한 줄에 넣고 Git·채팅·로그에 공유하지 않습니다.
+
+웹후크 주소는 서버가 **시작할 때** 읽으므로 변경 후 해당 서버를 재시작해야 합니다. 운영 환경에서는 담당자의 배포 절차와 승인에 따라 재시작하세요. 새 주소의 수신을 확인한 후 기존 웹후크를 Discord에서 삭제합니다. 주소가 외부에 노출됐다면 즉시 폐기하고 새로 발급하세요. 주소가 없거나 형식이 잘못되면 서버가 오류를 알리고 시작하지 않습니다.
+
+전용 Redis에 인증 후 키 `babi:discord-demo:isolation-marker`에 `BABI_DEMO_REDIS_MARKER`와 같은 값을 준비하세요. 예를 들어 `openssl rand -hex 32`로 비밀값을 만들 수 있습니다. 확인값은 전용 Redis를 잘못 연결하는 사고를 줄이지만, DB와 Redis에 실제 사용자 데이터가 없는지 직접 확인해야 합니다. 비밀번호나 Webhook URL을 로그에 출력하거나 공유하지 마세요.
+
+프로젝트 루트에서 실행합니다. IntelliJ에서는 같은 작업 디렉터리와 `local` 프로필을 지정하세요.
 
 ```bash
-docker compose up -d
-docker compose ps
+./gradlew bootRun --args='--spring.profiles.active=local,discord-demo'
 ```
 
-MySQL은 `127.0.0.1:3307`으로만 노출되며, MySQL 데이터 디렉터리(`/var/lib/mysql`)는 `babi_mysql_data` Docker Volume에 저장됩니다.
+실행 후 Swagger UI(`/swagger-ui.html`)에서 다음 순서로 테스트합니다. 실제 호출은 테스트 전용 서버에서만 하세요.
 
-3. IntelliJ에서 `local` 프로필로 애플리케이션을 실행합니다. 실행 구성의 환경 변수에 `MYSQL_PASSWORD`, `JWT_SECRET`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `EMAIL_VERIFICATION_SECRET`을 `.env`의 값과 동일하게 설정해야 합니다. 실제 STT를 사용할 때만 `OPENAI_API_KEY`와 `STT_PROVIDER=openai`를 추가합니다. `.env` 파일을 만드는 것만으로 IntelliJ 실행 구성에 적용되지는 않습니다. `JWT_ACCESS_TOKEN_EXPIRATION_MINUTES`를 변경했다면 해당 값도 전달합니다.
+1. `POST /auth/email/send`에 `{"email":"owner@example.invalid"}`를 전달하고 비공개 Discord 채널의 인증번호를 확인합니다.
+2. `POST /auth/email/verify`에 같은 이메일과 `code`를 전달하고 응답의 `verificationToken`을 받습니다.
+3. `POST /auth/signup`에 이메일, `password`, `passwordConfirm`, `nickname`, `verificationToken`을 전달한 뒤 `POST /auth/login`으로 로그인합니다. 정확한 요청·응답은 Swagger를 참조하세요.
+4. Bearer 액세스 토큰으로 `POST /babies`에서 아기를 등록하고 `GET /babies/{babyId}/invitation-code`로 코드를 발급합니다.
+5. `POST /babies/{babyId}/invitations`에 `{"email":"guardian@example.invalid"}`를 전달하면 Discord 채널에 초대 코드가 표시됩니다. 로그인한 다른 테스트 계정은 `/babies/invitations/check`, `/babies/invitations/accept`에 `{"code":"ABC123"}` 형식으로 입력할 수 있습니다.
 
-Gradle로 실행할 경우 프로젝트 루트에서 다음 명령을 실행합니다. Bash 또는 Zsh 기준이며, 괄호 안의 별도 셸에서 `.env`의 변수를 export한 뒤 Spring Boot를 실행합니다.
+Discord 연결은 최대 3초, 요청은 최대 5초로 제한합니다. 응답 본문은 사용하지 않고 즉시 닫습니다. 초대 데이터는 발송 전에 커밋되지만, 유효한 코드와 권한을 유지하기 위해 발송 중 아기 행 잠금이 유지됩니다. 5초는 HTTP 요청 제한이며 전체 트랜잭션 시간의 보장은 아닙니다. 타임아웃 후 초대 기록은 남고 발송 API는 실패하므로 재발송할 수 있습니다. 커밋 직후 서버가 종료되면 자동 재시도되지 않습니다.
 
-```bash
-(
-  set -a
-  . ./.env || exit
-  set +a
-  ./gradlew bootRun --args='--spring.profiles.active=local'
-)
-```
+## 보호자 초대 발송 제한
 
-`set -a`는 `.env`에서 읽은 변수를 자식 Gradle·Spring Boot 프로세스에 전달합니다. 별도 셸이 종료되면 이 설정은 현재 터미널에 남지 않습니다.
+보호자 초대 발송은 인증번호의 `EmailSendRateLimiter`가 아닌 기존 `InvitationRateLimiter`로 별도 제한합니다. 기본값은 발송자별 시간당 10회, 아기별 시간당 30회, 아기와 대상 이메일별 시간당 3회입니다. 세 제한 중 하나라도 초과하면 HTTP 429 `INVITATION_RATE_LIMITED`를 반환하고 발송하지 않습니다. Redis 장애 시에는 503으로 차단합니다. 이메일 주소는 Redis 키에 해시로 저장합니다.
 
-종료는 `docker compose down`을 사용합니다. 이 명령은 컨테이너와 네트워크를 제거하며, 일반적으로 `babi_mysql_data` Volume의 DB 데이터는 유지됩니다.
+## 인증번호 발송 제한
 
-**주의:** `docker compose down -v`는 `babi_mysql_data` 데이터 Volume도 삭제하므로 저장된 DB 데이터가 손실될 수 있습니다. 기존 데이터를 유지해야 한다면 `-v` 옵션을 사용하지 않습니다.
+`POST /auth/email/send`는 이메일별 기존 60초 재발송 제한 외에 Redis 원자적 제한을 적용합니다. 기본값은 **전체 서버 합계 1분당 30회**, 요청 출처별 **1분당 10회**입니다. `BABI_EMAIL_SEND_GLOBAL_PER_MINUTE`와 `BABI_EMAIL_SEND_SOURCE_PER_MINUTE`로 양의 정수만 지정할 수 있습니다. 누락 시 기본값을 쓰며, 0·음수·숫자가 아닌 값은 서버 기동을 실패시킵니다. 제한은 첫 요청부터 시작하는 60초 고정 구간으로 계산되며, 카운터는 구간이 끝나면 만료됩니다. 발송 실패나 동일 이메일 재발송도 요청으로 집계합니다.
+
+초과 시 기존 응답 형식의 HTTP 429, `EMAIL_SEND_RATE_LIMITED`를 반환합니다. Discord 자체의 429는 발송 실패로 처리되므로 이 오류 코드와 구분됩니다. Redis 오류 시 발송을 허용하지 않고 HTTP 503 `EMAIL_VERIFICATION_UNAVAILABLE`을 반환합니다.
+
+`X-Forwarded-For` 등 요청 헤더는 출처 판별에 사용하지 않습니다. `server.forward-headers-strategy=none`인 로컬에서는 서버에 직접 연결된 주소별로 제한합니다. AWS처럼 전달 헤더를 처리하는 환경에서는 주소 위조를 피하려고 모든 요청을 같은 출처로 취급하며 전역 제한도 함께 적용합니다. 따라서 프록시 뒤의 여러 사용자가 출처 한도를 공유할 수 있습니다. AWS에서 개별 사용자 제한이 필요하면 신뢰할 프록시 범위, 헤더 덮어쓰기, 직접 접근 차단을 팀에서 먼저 검증해야 합니다. 이 제한은 이메일 소유권 인증이나 시연 서버 접근 통제의 대체 수단이 아닙니다.
+
+## AWS 시연 배포 준비
+
+현재 AWS 연결과 배포는 검증되지 않았습니다. 기존 `deploy/babi-server.service`는 `aws`만 활성화하므로 Discord가 자동으로 켜지지 않습니다. 시연 배포는 별도의 승인된 서비스 설정으로 `aws,discord-demo`를 명시해야 합니다. 팀원이 기존 AWS 설정을 확인하고 **전용 시연 MySQL과 Redis**를 별도 준비해야 합니다. `aws,discord-demo` 프로필은 `SPRING_DATASOURCE_URL`을 `babi_discord_demo`로 명시하고 전용 DB 계정, 위의 Discord·Redis·비밀 환경변수를 제공해야만 시작합니다. 기존 `babi` 기본값으로는 안전 검증에 실패합니다. HTTPS 아웃바운드와 비공개 Discord 채널, 환경변수 전달, Redis 확인값, DB 스키마를 배포 전에 확인하세요. 세부 사항은 [AWS 운영 문서](docs/aws-runtime.md)를 참조하세요. 실제 사용자 인증에는 사용할 수 없습니다.
+
+## 일일 리포트 API
+
+공동육아 기록 등록·조회·권한과 OpenAI 리포트 생성 계약은 [공동육아 기록과 데일리 리포트](docs/api/shared-care-and-reports.md)를 참고합니다.
+
+`POST /auth/login`에서 받은 `accessToken`을 `Authorization: Bearer <token>`으로 전달합니다.
+모든 리포트 API는 활성 계정이며 `active_baby_members`에 남아 있는 소유자 또는 `baby_permissions`가 부여된 멤버만 사용할 수 있습니다. 아기 생성자라도 멤버에서 제거되면 접근할 수 없습니다.
+
+| Method | Endpoint | 동작 |
+|---|---|---|
+| POST | `/babies/{babyId}/daily-reports` | 생성 (`reportDate`, `summary`) |
+| GET | `/babies/{babyId}/daily-reports/{date}` | 조회 |
+| PATCH | `/babies/{babyId}/daily-reports/{date}` | 요약 수정 (`summary`) |
+| DELETE | `/babies/{babyId}/daily-reports/{date}` | 삭제 |
+
+7일 통계는 리포트 날짜 6일 전 00:00부터 다음 날 00:00 직전까지 계산합니다. 경계를 넘는 수면은 구간과 겹치는 시간만 포함합니다.
 
 ## 음성 기록 API
 
-음성 기록은 **미리보기(parse) → 사용자 확인 → 저장(save)** 순서로 처리합니다.
-미리보기 단계에서는 DB에 아무것도 저장하지 않으므로, “다시 녹음하기”는 클라이언트가 미리보기 결과를 버리기만 하면 됩니다.
+음성 입력은 STT 변환과 최종 저장을 분리합니다. STT 단계에서는 DB에 저장하지 않습니다.
 
-### 프론트 화면용 API
+| Method | Content-Type | Path | 설명 |
+|---|---|---|---|
+| `POST` | `multipart/form-data` | `/api/v1/babies/{babyId}/voice-records/stt` | `audio` 파일을 STT 변환해 transcript만 반환 |
+| `POST` | `application/json` | `/api/v1/babies/{babyId}/voice-records` | 사용자가 확인·수정한 transcript를 `voice_inputs`에 저장 |
+| `GET` | - | `/api/v1/babies/{babyId}/voice-records/{voiceInputId}` | 저장된 음성 기록 단건 조회 |
+| `PATCH` | `application/json` | `/api/v1/babies/{babyId}/voice-records/{voiceInputId}` | 저장된 음성 기록의 transcript 수정 |
 
-프론트 음성 기록 화면은 아래 두 API를 사용합니다. 응답은 `ApiResponse`로 감싸지 않고 화면이 기대하는 JSON을 그대로 반환합니다.
-
-| Method | Path | 설명 |
-|---|---|---|
-| `POST` | `/api/voice-records/parse` | `multipart/form-data`의 `audio`를 STT 변환해 `transcript`와 화면 표시용 `items`만 반환. DB 저장 없음 |
-| `POST` | `/api/voice-records` | 사용자가 확인한 `transcript`를 저장하고 육아기록을 자동 분석·저장 |
-
-- 두 API 모두 `Authorization: Bearer {accessToken}` 헤더가 필요합니다.
-- `babyId`는 선택 쿼리 파라미터입니다. JWT 사용자가 속한 아기가 하나면 생략할 수 있고, 여러 아기면 `?babyId=1`을 붙입니다.
-- `familyMemberId`는 요청으로 받지 않습니다. 서버가 JWT 사용자와 `family_members` 연결을 조회해 결정합니다.
-- `items`는 화면 표시용 값입니다. 저장 시 서버는 `items`를 신뢰하지 않고 `transcript`를 다시 분석합니다.
-
-미리보기 요청:
-
-```bash
-curl -X POST 'http://localhost:8080/api/voice-records/parse?babyId=1' \
-  -H 'Authorization: Bearer {accessToken}' \
-  -F 'audio=@voice.webm'
-```
-
-미리보기 응답:
-
-```json
-{
-  "transcript": "방금 막 잠들었어. 분유는 120ml 먹었고 체온은 36.8도야.",
-  "items": [
-    { "type": "feeding", "label": "🍼 분유 120ml" },
-    { "type": "sleep", "label": "😴 수면" }
-  ]
-}
-```
-
-저장 요청:
-
-```json
-{
-  "transcript": "방금 막 잠들었어. 분유는 120ml 먹었고 체온은 36.8도야.",
-  "items": [
-    { "type": "feeding", "label": "🍼 분유 120ml" },
-    { "type": "sleep", "label": "😴 수면" }
-  ]
-}
-```
-
-저장 응답:
-
-```json
-{
-  "ok": true,
-  "voiceInputId": 10,
-  "parentingRecords": [
-    {
-      "parentingRecordId": 100,
-      "babyId": 1,
-      "familyMemberId": 7,
-      "voiceInputId": 10,
-      "recordType": "FEEDING",
-      "occurredAt": "2026-11-16T10:00:00",
-      "amountMl": 120,
-      "durationMinutes": null,
-      "feedingType": "FORMULA",
-      "diaperType": null,
-      "memo": "방금 막 잠들었어. 분유는 120ml 먹었고 체온은 36.8도야.",
-      "createdAt": "2026-11-16T10:00:00"
-    }
-  ]
-}
-```
-
-성공 화면의 “기록 확인하러가기”는 응답의 `voiceInputId`로 아래 단건 조회 API를 호출하거나, `parentingRecords`를 그대로 사용할 수 있습니다.
-
-### 기존 경로 기반 API
-
-| Method | Path | 설명 |
-|---|---|---|
-| `POST` | `/api/v1/babies/{babyId}/voice-records/stt` | `multipart/form-data`의 `audio` 파일을 즉시 STT 변환해 transcript만 반환 |
-| `POST` | `/api/v1/babies/{babyId}/voice-records/stt-jobs` | 음성 파일을 저장하고 비동기 STT 작업 등록 (`202 Accepted`) |
-| `GET` | `/api/v1/babies/{babyId}/voice-records/stt-jobs/{jobId}` | 비동기 STT 작업 상태·결과 조회 |
-| `POST` | `/api/v1/babies/{babyId}/voice-records/stt-jobs/{jobId}/retry` | 최종 실패(`FAILED`)한 작업 재시도 |
-| `POST` | `/api/v1/babies/{babyId}/voice-records/stt-jobs/{jobId}/confirm` | 사용자가 확인한 STT 결과를 저장 |
-| `DELETE` | `/api/v1/babies/{babyId}/voice-records/stt-jobs/{jobId}` | 확인 전 작업과 음성 파일을 삭제 |
-| `POST` | `/api/v1/babies/{babyId}/voice-records` | 사용자가 확인한 transcript를 `voice_inputs`에 저장하고 육아기록을 자동 분석·저장 |
-| `GET` | `/api/v1/babies/{babyId}/voice-records/{voiceInputId}` | 저장된 음성 기록과 자동 저장된 육아기록 단건 조회 |
-
+- STT 변환 결과는 DB에 저장하지 않으며, 사용자가 내용을 확인·수정한 뒤 저장 API를 호출합니다.
+- 저장된 기록도 `PATCH` API로 다시 수정할 수 있습니다.
 - 모든 음성 기록 API는 `Authorization: Bearer {accessToken}` 헤더가 필요합니다.
-- 경로의 `babyId`와 JWT 사용자가 실제 가족 구성원인지 서버에서 검증합니다.
+- 요청자는 해당 아기의 활성 구성원이어야 하며, 아니면 `403 FORBIDDEN`을 반환합니다. 아기가 없으면 `404 NOT_FOUND`를 반환합니다.
 - 음성 파일은 25MB 이하이며 `mp3`, `mp4`, `m4a`, `mpeg`, `mpga`, `wav`, `webm`, `ogg`, `flac`, `aac`를 지원합니다.
-
-### 비동기 STT 작업
-
-비동기 작업은 `stt_jobs` 테이블과 백그라운드 워커로 처리합니다.
-
-```text
-PENDING -> PROCESSING -> COMPLETED (transcript만 저장)
-                     \-> PENDING (재시도 대기) -> PROCESSING ...
-                     \-> FAILED (최대 시도 횟수 초과)
-```
-
-1. `POST .../stt-jobs`에 `audio` 파일을 보내면 파일을 저장하고 `PENDING` 작업을 만듭니다.
-2. 워커가 작업을 원자적으로 선점해 `PROCESSING`으로 바꾸고 STT를 호출합니다.
-3. 성공하면 작업에 `transcript`만 기록하고 `COMPLETED`로 바꿉니다. 이 단계에서는 `voice_inputs`와 `parenting_records`를 만들지 않습니다.
-4. 사용자가 화면에서 “저장하기”를 누르면 `POST .../stt-jobs/{jobId}/confirm`이 `voice_inputs`와 `parenting_records`를 저장하고 `voiceInputId`를 연결합니다.
-5. “다시 녹음하기”를 누르면 `DELETE .../stt-jobs/{jobId}`로 확인 전 작업과 음성 파일을 삭제합니다.
-6. 실패하면 `stt.jobs.retry-delay` 후 재시도하고, `stt.jobs.max-attempts`를 넘으면 `FAILED`로 남깁니다. `FAILED` 작업은 재시도 API로 다시 등록할 수 있습니다.
-7. 서버 중단으로 `PROCESSING`에 오래 머문 작업은 `stt.jobs.stale-timeout` 이후 자동 복구됩니다.
-
-작업 등록 응답 예시:
-
-```json
-{
-  "success": true,
-  "message": "음성 변환 작업이 등록되었습니다.",
-  "data": {
-    "jobId": 20,
-    "babyId": 1,
-    "familyMemberId": 7,
-    "status": "PENDING",
-    "transcript": null,
-    "voiceInputId": null,
-    "attemptCount": 0,
-    "maxAttempts": 3,
-    "errorMessage": null,
-    "createdAt": "2026-11-03T16:44:00",
-    "completedAt": null,
-    "parentingRecords": []
-  }
-}
-```
-
-완료 직후 조회 응답의 `data`에는 `status: "COMPLETED"`, `transcript`가 채워지고 `voiceInputId`는 `null`입니다. 확인 저장 후에는 `voiceInputId`와 `parentingRecords`가 채워집니다.
-
-비동기 STT 주요 설정:
-
-| 설정 | 기본값 | 설명 |
-|---|---|---|
-| `stt.provider` | `auto` | `auto`: 키가 있으면 실제 API, 없으면 fake / `openai`: 실제 API 강제 / `fake`: 모델 없이 흐름 검증 |
-| `stt.fake-transcript` | `분유 120ml 먹였어요` | fake 제공자가 반환할 문장 |
-| `stt.jobs.storage-dir` | `./storage/stt` | 음성 파일 저장 디렉터리 (`storage/`는 Git 제외) |
-| `stt.jobs.max-attempts` | `3` | 최대 처리 시도 횟수 |
-| `stt.jobs.retry-delay` | `30s` | 실패 후 재시도 대기 시간 |
-| `stt.jobs.stale-timeout` | `10m` | 멈춘 `PROCESSING` 작업 복구 기준 |
-| `stt.jobs.worker.enabled` | `true` | 백그라운드 워커 실행 여부 |
-| `stt.jobs.worker.poll-interval` | `5s` | 작업 폴링 주기 |
-| `stt.jobs.worker.initial-delay` | `10s` | 서버 기동 후 첫 폴링 지연 |
-| `stt.jobs.worker.batch-size` | `5` | 한 번에 가져올 작업 수 |
-
-- 실제 모델이 확정되면 `RestSttClient` 또는 새 `SttClient` 구현을 추가하고 `SttClientConfig`에서 선택하면 됩니다. 작업 상태·재시도·저장 흐름은 모델과 무관하게 그대로 사용합니다.
 - 저장 요청 예시:
 
 ```json
@@ -226,51 +136,40 @@ PENDING -> PROCESSING -> COMPLETED (transcript만 저장)
 }
 ```
 
-- 저장 시 transcript에서 수유, 수면, 기저귀 기록을 규칙 기반으로 추출해 `parenting_records`에 함께 저장합니다.
-- 한 문장에서 여러 기록이 인식되면 여러 건이 저장됩니다. 예: `분유 120ml 먹이고 기저귀 갈았어` → 수유 1건, 기저귀 1건
-- 기록 시각은 문장의 시간 표현(`오후 2시`, `14:30`, `어제 저녁 7시`)을 사용하고, 시간 표현이 없으면 음성 기록 저장 시각을 사용합니다.
-- 기록 종류를 인식하지 못한 문장은 `voice_inputs`에만 저장되고 `parentingRecords`는 빈 배열로 반환됩니다.
-- 현재 규칙 기반 분석기가 인식하는 표현:
-  - 수유: `분유`, `모유`, `수유`, `이유식`, `젖병`, `직수`, `퓨레`, `죽`, `밥`, 금액 단위 `ml`/`cc`
-  - 수면: `잠을`, `잠이`, `잠들`, `낮잠`, `밤잠`, `잤`, `수면`, `재웠` + `N시간 M분`/`N분` duration
-  - 기저귀: `기저귀`, `응가`, `대변`, `오줌`, `소변`, `쉬야`, `똥`
-- 응답 예시:
+- 수정 요청 예시:
 
 ```json
 {
-  "success": true,
-  "message": "음성 기록이 저장되었습니다.",
-  "data": {
-    "voiceInputId": 10,
-    "babyId": 1,
-    "familyMemberId": 7,
-    "transcript": "오후 2시에 분유 100ml 먹였어",
-    "sttStatus": "COMPLETED",
-    "createdAt": "2026-11-03T16:44:00",
-    "parentingRecords": [
-      {
-        "parentingRecordId": 100,
-        "babyId": 1,
-        "familyMemberId": 7,
-        "voiceInputId": 10,
-        "recordType": "FEEDING",
-        "occurredAt": "2026-11-03T14:00:00",
-        "amountMl": 100,
-        "durationMinutes": null,
-        "feedingType": "FORMULA",
-        "diaperType": null,
-        "memo": "오후 2시에 분유 100ml 먹였어",
-        "createdAt": "2026-11-03T16:44:00"
-      }
-    ]
-  }
+  "transcript": "2시에 분유 120ml 먹였어"
 }
 ```
 
-> 현재 분석기는 MVP용 규칙 기반 구현입니다. `ParentingRecordAnalyzer` 인터페이스를 유지하고 있으므로 이후 LLM 기반 분석기로 교체할 수 있습니다.
+> `familyMemberId`는 클라이언트가 보내지 않고, 인증된 사용자의 `baby_members.id`를 서버에서 결정합니다.
 
-> 음성 기록의 `familyMemberId`는 더 이상 클라이언트가 보내지 않습니다. JWT 사용자와 `family_members` 연결을 서버에서 조회해 결정하며, 사용자가 여러 아기에 속한 경우에만 `babyId`를 명시해야 합니다.
+### 앱 녹음 화면 API
 
+프론트 녹음 화면은 확인 전에는 아무것도 저장하지 않고, `저장하기`를 누른 시점에만 음성 기록과 육아기록을 만듭니다.
+
+| Method | Content-Type | Path | 설명 |
+|---|---|---|---|
+| `POST` | `multipart/form-data` | `/api/voice-records/parse` | `audio` 파일을 STT 변환해 `transcript`, `items`, `parsedAt` 반환 |
+| `POST` | `application/json` | `/api/voice-records` | 확인한 `transcript`를 저장하고 `voice_inputs`와 육아기록 생성 |
+
+- 응답은 프론트 계약에 맞춰 `ApiResponse`로 감싸지 않습니다.
+- `babyId`는 선택 쿼리 파라미터입니다. 사용자가 접근할 수 있는 아기가 하나면 생략할 수 있고, 여러 명이면 `400 BABY_SELECTION_REQUIRED`를 반환하므로 프론트가 선택한 `babyId`를 보내야 합니다.
+- `parse` 응답의 `parsedAt`을 저장 요청에 그대로 넣으면 미리보기와 같은 기준 시각으로 다시 분석해 상대 시간이 어긋나지 않습니다. 생략하면 저장 시각을 기준으로 분석합니다.
+- `다시 녹음하기`는 `parse` 결과를 버리면 되고, 서버에 남는 데이터가 없습니다.
+- 저장 응답은 `{ "ok": true, "voiceInputId": 10, "careRecords": [...] }`이며 `careRecords`는 `domain/care`의 다섯 기록 테이블에 저장된 결과입니다.
+- STT를 비동기로 처리해야 하면 `/api/v1/babies/{babyId}/voice-records/stt-jobs` 계열을 사용합니다. 작업이 완료되어도 transcript만 보관하고, `POST /stt-jobs/{jobId}/confirm`에서만 음성 기록과 육아기록을 만듭니다. `DELETE /stt-jobs/{jobId}`는 확인 전 작업과 음성 파일을 삭제합니다.
+- 인증은 `Authorization: Bearer {accessToken}` 또는 로그인 시 발급되는 인증 쿠키를 사용합니다. 쿠키를 쓰는 변경 요청은 `X-CSRF-Token` 헤더가 필요합니다.
+
+
+## 검증
+
+```bash
+./gradlew test
+./gradlew build
+```
 
 ## Swagger API 문서
 
@@ -287,39 +186,36 @@ Swagger의 **Try it out**은 실제 API 요청을 실행합니다. 이메일 발
 ## 코드 구조
 
 ```text
-src
-├── main
-│   ├── java/com/select
-│   │   ├── BabiServerApplication.java
-│   │   ├── global
-│   │   │   ├── config
-│   │   │   ├── exception
-│   │   │   ├── response
-│   │   │   ├── security/jwt
-│   │   │   └── util
-│   │   └── domain
-│   │       ├── auth (controller, dto/request, dto/response, exception, mail, service)
-│   │       ├── baby (entity, exception, repository, service)
-│   │       ├── family (entity, repository)
-│   │       ├── parenting (analyzer, dto/response, entity, repository, service)
-│   │       ├── user (controller, dto/request, dto/response, entity, exception, repository, service)
-│   │       └── voice
-│   │           ├── client/dto/response
-│   │           ├── controller
-│   │           ├── dto/request, dto/response
-│   │           ├── entity
-│   │           ├── exception
-│   │           ├── repository
-│   │           ├── service
-│   │           ├── storage
-│   │           └── support
-│   └── resources (application.yml, application-local.yml)
-└── test
-    ├── java/com/select
-    │   ├── BabiServerApplicationTests.java
-    │   ├── domain (auth, parenting, user, voice)
-    │   └── global (config, exception, security/jwt)
-    └── resources (application-test.yml, test schemas)
+com.select
+├── global
+│   ├── config
+│   ├── exception
+│   ├── response
+│   └── security
+└── domain
+    ├── auth
+    ├── baby
+    ├── report
+    ├── user
+    └── voice
+        ├── client
+        ├── controller
+        ├── dto
+        │   ├── request
+        │   └── response
+        ├── entity
+        ├── exception
+        ├── repository
+        ├── service
+        └── support
 ```
 
-새 기능은 `domain/<기능>` 아래에 필요한 계층을 추가합니다. 공통 설정·예외·응답·인증 코드는 `global`에 둡니다.
+새 핵심 기능은 `domain` 아래에 같은 계층으로 추가합니다.
+
+### 로그인 쿠키와 토큰 갱신
+
+로그인에 성공하면 Access Token과 일회용 Refresh Token이 각각 `babi_access`, `babi_refresh` HttpOnly 쿠키로 발급됩니다. 기존 Bearer 헤더 및 로그인 응답의 `accessToken`도 호환을 위해 유지합니다. Refresh Token은 Redis에 해시로 저장되며, `POST /auth/refresh` 성공 시 교체됩니다. Redis에 장애가 발생하면 발급과 갱신은 실패합니다.
+
+쿠키를 사용하는 쓰기 요청에는 `X-CSRF-Token` 헤더가 필요합니다. 로그인 후 `GET /auth/csrf` 응답의 `data.token`을 읽어 헤더에 넣고, 갱신 후에는 새 토큰을 다시 조회하세요. 브라우저에서는 쿠키 전송을 위해 `credentials: 'include'`를 사용하세요. 로그아웃은 `POST /auth/logout`이며 해당 세션의 Refresh Token을 폐기합니다. Access Token이 만료된 뒤에는 먼저 갱신한 다음 로그아웃하세요.
+
+쿠키는 기본적으로 `Secure`, `SameSite=Lax`입니다. 로컬 HTTP 개발에 한해 `AUTH_COOKIES_SECURE=false`와 `local` 프로필을 함께 사용할 수 있습니다. 서로 다른 출처를 사용한다면 `AUTH_CORS_ALLOWED_ORIGINS=https://프론트엔드주소`에 신뢰할 수 있는 정확한 출처만 쉼표로 구분해 설정하세요. 미설정 시 `local`·`test` 프로필은 기존 `http://localhost:5173`을 허용하고, 다른 환경은 교차 출처를 허용하지 않습니다. 서로 다른 최상위 사이트 간 쿠키 사용은 현재 지원하지 않으므로 배포 주소가 확정되면 별도 검토가 필요합니다.
