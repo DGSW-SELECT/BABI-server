@@ -20,7 +20,7 @@ public class RuleBasedCareRecordAnalyzer implements CareRecordAnalyzer {
     private static final Pattern COLON_TIME_PATTERN = Pattern.compile("(\\d{1,2}):(\\d{2})");
     private static final Pattern CLOCK_TIME_PATTERN = Pattern.compile(
             "(오전|오후|아침|점심|저녁|밤)?\\s*"
-                    + "(열한|열두|한|두|세|네|다섯|여섯|일곱|여덟|아홉|열|\\d{1,2})\\s*시"
+                    + "(열한|열두|한|두|세|네|다섯|여섯|일곱|여덟|아홉|열|\\d{1,2})\\s*시(?!간)"
                     + "(?:\\s*(\\d{1,2})\\s*분)?"
     );
     private static final Pattern AMOUNT_PATTERN = Pattern.compile(

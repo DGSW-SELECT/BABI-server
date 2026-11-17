@@ -8,6 +8,7 @@ import com.select.domain.care.analyzer.CareRecordDraft;
 import com.select.domain.care.dto.response.CareRecordResponse;
 import com.select.domain.care.entity.DiaperType;
 import com.select.domain.care.entity.FeedingType;
+import com.select.domain.care.exception.CareRecordException;
 import com.select.domain.care.service.CareRecordWriter;
 import com.select.domain.voice.client.SttClient;
 import com.select.domain.voice.client.dto.response.SttResponse;
@@ -25,6 +26,7 @@ import com.select.domain.voice.exception.SttFailedException;
 import com.select.domain.voice.exception.VoiceInputNotFoundException;
 import com.select.domain.voice.repository.VoiceInputRepository;
 import com.select.domain.voice.support.AudioFileSupport;
+import com.select.global.exception.ErrorCode;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Propagation;
@@ -115,9 +117,11 @@ public class VoiceRecordService {
     ) {
         AccountContextService.AccountContext prechecked =
                 accountContextService.resolveForWrite(userId, babyId);
-        LocalDateTime referenceTime = request.parsedAt() == null
-                ? LocalDateTime.now()
-                : request.parsedAt();
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime referenceTime = request.parsedAt() == null ? now : request.parsedAt();
+        if (referenceTime.isBefore(now.minusHours(24)) || referenceTime.isAfter(now.plusHours(24))) {
+            throw new CareRecordException(ErrorCode.INVALID_CARE_RECORD);
+        }
         return transactions.execute(status -> {
             AccountContextService.AccountContext context = lockAndRecheck(
                     userId, prechecked.babyId()

@@ -50,6 +50,7 @@ class SttJobWorkerTest {
                 3,
                 Duration.ofSeconds(30),
                 Duration.ofMinutes(10),
+                Duration.ofDays(1),
                 new SttJobProperties.Worker(5, Duration.ofSeconds(5), Duration.ofSeconds(10))
         );
         sttJobWorker = new SttJobWorker(sttJobService, sttClient, audioStorage, properties);

@@ -122,7 +122,8 @@ public class SttJobService {
     public SttJobResponse retry(Long babyId, Long userId, Long jobId) {
         AccountContextService.AccountContext context =
                 accountContextService.resolveForWrite(userId, babyId);
-        SttJob job = findJob(context.babyId(), jobId);
+        SttJob job = sttJobRepository.findByIdAndBabyIdForUpdate(jobId, context.babyId())
+                .orElseThrow(SttJobNotFoundException::new);
         requireOwner(job, context.memberId());
         if (job.getStatus() != SttStatus.FAILED) {
             throw new SttJobNotRetryableException("실패한 음성 변환 작업만 재시도할 수 있습니다.");
@@ -297,6 +298,27 @@ public class SttJobService {
             log.warn("멈춘 STT 작업을 복구했습니다. jobId={}, retryable={}", job.getId(), retryable);
         }
         return staleJobs.size();
+    }
+
+    /**
+     * 최종 실패한 작업은 재시도할 수 있도록 하루 동안 보관한 뒤 작업과 음성 파일을 정리한다.
+     */
+    @Transactional
+    public int cleanupExpiredFailedJobs() {
+        List<SttJob> expiredJobs = sttJobRepository.findExpiredFailedJobs(
+                SttStatus.FAILED,
+                LocalDateTime.now().minus(properties.failedAudioRetention()),
+                PageRequest.of(0, 100)
+        );
+        if (expiredJobs.isEmpty()) {
+            return 0;
+        }
+
+        List<String> audioPaths = expiredJobs.stream().map(SttJob::getAudioPath).toList();
+        sttJobRepository.deleteAll(expiredJobs);
+        audioPaths.forEach(this::deleteAfterCommit);
+        log.info("보관 기간이 지난 실패 STT 작업을 정리했습니다. count={}", expiredJobs.size());
+        return expiredJobs.size();
     }
 
     private SttJob findJob(Long babyId, Long jobId) {

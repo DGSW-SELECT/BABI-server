@@ -76,6 +76,17 @@ class SttClientConfigTest {
     }
 
     @Test
+    void awsProfileDoesNotFallBackToFakeClientWhenApiKeyIsMissing() {
+        contextRunner
+                .withPropertyValues("spring.profiles.active=aws", "stt.provider=auto")
+                .run(context -> {
+                    assertThat(context).hasFailed();
+                    assertThat(context.getStartupFailure())
+                            .hasStackTraceContaining("aws 프로필에서는 실제 STT 제공자");
+                });
+    }
+
+    @Test
     void unknownProviderFailsBinding() {
         contextRunner
                 .withPropertyValues("stt.provider=unknown")

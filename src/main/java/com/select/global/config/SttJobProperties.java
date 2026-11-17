@@ -16,6 +16,7 @@ public record SttJobProperties(
         int maxAttempts,
         Duration retryDelay,
         Duration staleTimeout,
+        Duration failedAudioRetention,
         Worker worker
 ) {
 
@@ -23,12 +24,14 @@ public record SttJobProperties(
     private static final int DEFAULT_MAX_ATTEMPTS = 3;
     private static final Duration DEFAULT_RETRY_DELAY = Duration.ofSeconds(30);
     private static final Duration DEFAULT_STALE_TIMEOUT = Duration.ofMinutes(10);
+    private static final Duration DEFAULT_FAILED_AUDIO_RETENTION = Duration.ofDays(1);
 
     public SttJobProperties {
         storageDir = StringUtils.hasText(storageDir) ? storageDir.trim() : DEFAULT_STORAGE_DIR;
         maxAttempts = maxAttempts > 0 ? maxAttempts : DEFAULT_MAX_ATTEMPTS;
         retryDelay = positiveOrDefault(retryDelay, DEFAULT_RETRY_DELAY);
         staleTimeout = positiveOrDefault(staleTimeout, DEFAULT_STALE_TIMEOUT);
+        failedAudioRetention = positiveOrDefault(failedAudioRetention, DEFAULT_FAILED_AUDIO_RETENTION);
         worker = worker == null ? new Worker(5, Duration.ofSeconds(5), Duration.ofSeconds(10)) : worker;
     }
 

@@ -148,7 +148,8 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(InvalidAudioException.class)
     public ResponseEntity<ApiResponse<Void>> handleInvalidAudio(
             InvalidAudioException e
-    ) {        return createErrorResponse(
+    ) {
+        return createErrorResponse(
                 ErrorCode.INVALID_AUDIO,
                 List.of()
         );

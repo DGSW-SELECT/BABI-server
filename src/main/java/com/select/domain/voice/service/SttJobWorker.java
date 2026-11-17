@@ -69,6 +69,18 @@ public class SttJobWorker {
         }
     }
 
+    @Scheduled(
+            fixedDelayString = "${stt.jobs.failed-cleanup-interval:1h}",
+            initialDelayString = "${stt.jobs.worker.initial-delay:10s}"
+    )
+    public void cleanupExpiredFailedJobs() {
+        try {
+            sttJobService.cleanupExpiredFailedJobs();
+        } catch (RuntimeException e) {
+            log.error("보관 기간이 지난 실패 STT 작업 정리 중 오류가 발생했습니다.", e);
+        }
+    }
+
     /**
      * 선점된 작업 하나를 처리한다.
      */

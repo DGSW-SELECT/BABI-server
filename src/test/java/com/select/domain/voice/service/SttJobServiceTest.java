@@ -43,6 +43,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -86,6 +87,7 @@ class SttJobServiceTest {
                 3,
                 Duration.ofSeconds(30),
                 Duration.ofMinutes(10),
+                Duration.ofDays(1),
                 new SttJobProperties.Worker(5, Duration.ofSeconds(5), Duration.ofSeconds(10))
         );
         PlatformTransactionManager transactionManager = mock(PlatformTransactionManager.class);
@@ -204,7 +206,7 @@ class SttJobServiceTest {
         SttJob job = job(SttStatus.FAILED, 3);
         ReflectionTestUtils.setField(job, "lastError", "음성 변환에 실패했습니다.");
         when(accountContextService.resolveForWrite(USER_ID, BABY_ID)).thenReturn(context());
-        when(sttJobRepository.findByIdAndBabyId(JOB_ID, BABY_ID)).thenReturn(Optional.of(job));
+        when(sttJobRepository.findByIdAndBabyIdForUpdate(JOB_ID, BABY_ID)).thenReturn(Optional.of(job));
         when(audioStorage.exists(AUDIO_PATH)).thenReturn(true);
 
         SttJobResponse response = sttJobService.retry(BABY_ID, USER_ID, JOB_ID);
@@ -220,7 +222,7 @@ class SttJobServiceTest {
         SttJob job = job(SttStatus.FAILED, 3);
         ReflectionTestUtils.setField(job, "familyMemberId", 8L);
         when(accountContextService.resolveForWrite(USER_ID, BABY_ID)).thenReturn(context());
-        when(sttJobRepository.findByIdAndBabyId(JOB_ID, BABY_ID)).thenReturn(Optional.of(job));
+        when(sttJobRepository.findByIdAndBabyIdForUpdate(JOB_ID, BABY_ID)).thenReturn(Optional.of(job));
 
         assertThatThrownBy(() -> sttJobService.retry(BABY_ID, USER_ID, JOB_ID))
                 .isInstanceOf(AccessDeniedException.class);
@@ -232,7 +234,7 @@ class SttJobServiceTest {
     void retryRejectsJobThatIsNotFailed() {
         SttJob job = completedJob(null);
         when(accountContextService.resolveForWrite(USER_ID, BABY_ID)).thenReturn(context());
-        when(sttJobRepository.findByIdAndBabyId(JOB_ID, BABY_ID)).thenReturn(Optional.of(job));
+        when(sttJobRepository.findByIdAndBabyIdForUpdate(JOB_ID, BABY_ID)).thenReturn(Optional.of(job));
 
         assertThatThrownBy(() -> sttJobService.retry(BABY_ID, USER_ID, JOB_ID))
                 .isInstanceOf(SttJobNotRetryableException.class);
@@ -244,7 +246,7 @@ class SttJobServiceTest {
     void retryFailsWhenStoredAudioIsMissing() {
         SttJob job = job(SttStatus.FAILED, 3);
         when(accountContextService.resolveForWrite(USER_ID, BABY_ID)).thenReturn(context());
-        when(sttJobRepository.findByIdAndBabyId(JOB_ID, BABY_ID)).thenReturn(Optional.of(job));
+        when(sttJobRepository.findByIdAndBabyIdForUpdate(JOB_ID, BABY_ID)).thenReturn(Optional.of(job));
         when(audioStorage.exists(AUDIO_PATH)).thenReturn(false);
 
         assertThatThrownBy(() -> sttJobService.retry(BABY_ID, USER_ID, JOB_ID))
@@ -425,6 +427,20 @@ class SttJobServiceTest {
         assertThat(response.status()).isEqualTo(SttStatus.FAILED);
         assertThat(job.getNextAttemptAt()).isNull();
         assertThat(job.getCompletedAt()).isNotNull();
+    }
+
+    @Test
+    void cleanupExpiredFailedJobsRemovesJobAndAudioFile() {
+        SttJob expired = job(SttStatus.FAILED, 3);
+        when(sttJobRepository.findExpiredFailedJobs(
+                eq(SttStatus.FAILED), any(LocalDateTime.class), any(org.springframework.data.domain.Pageable.class)
+        )).thenReturn(List.of(expired));
+
+        int removed = sttJobService.cleanupExpiredFailedJobs();
+
+        assertThat(removed).isEqualTo(1);
+        verify(sttJobRepository).deleteAll(List.of(expired));
+        verify(audioStorage).delete(AUDIO_PATH);
     }
 
     @Test

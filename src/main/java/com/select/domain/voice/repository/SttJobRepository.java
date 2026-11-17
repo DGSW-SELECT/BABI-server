@@ -71,4 +71,12 @@ public interface SttJobRepository extends JpaRepository<SttJob, Long> {
     );
 
     List<SttJob> findAllByStatusAndStartedAtBefore(SttStatus status, LocalDateTime threshold);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select j from SttJob j where j.status = :status and j.completedAt < :cutoff order by j.completedAt")
+    List<SttJob> findExpiredFailedJobs(
+            @Param("status") SttStatus status,
+            @Param("cutoff") LocalDateTime cutoff,
+            Pageable pageable
+    );
 }

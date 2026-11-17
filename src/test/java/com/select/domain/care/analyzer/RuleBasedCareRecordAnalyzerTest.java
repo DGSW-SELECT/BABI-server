@@ -74,6 +74,16 @@ class RuleBasedCareRecordAnalyzerTest {
     }
 
     @Test
+    void durationHoursAreNotParsedAsClockTime() {
+        List<CareRecordDraft> records = analyzer.analyze("2시간 잤어요", referenceTime);
+
+        assertThat(records).hasSize(1);
+        assertThat(records.get(0).recordType()).isEqualTo(CareRecordType.SLEEP);
+        assertThat(records.get(0).durationMinutes()).isEqualTo(120);
+        assertThat(records.get(0).occurredAt()).isEqualTo(referenceTime);
+    }
+
+    @Test
     void analyzesSleepDurationInMinutes() {
         List<CareRecordDraft> records = analyzer.analyze("30분 잠들었어", referenceTime);
 

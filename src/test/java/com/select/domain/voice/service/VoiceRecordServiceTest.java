@@ -245,7 +245,7 @@ class VoiceRecordServiceTest {
 
     @Test
     void saveParsedStoresCareRecordsUsingPreviewReferenceTime() {
-        LocalDateTime parsedAt = LocalDateTime.of(2026, 11, 16, 10, 0);
+        LocalDateTime parsedAt = LocalDateTime.now().minusMinutes(1);
         VoiceInput saved = VoiceInput.builder()
                 .babyId(BABY_ID)
                 .familyMemberId(MEMBER_ID)
@@ -267,6 +267,19 @@ class VoiceRecordServiceTest {
         verify(careRecordWriter).analyzeAndSave(
                 BABY_ID, MEMBER_ID, 10L, "분유 120ml 먹였어요", parsedAt
         );
+    }
+
+    @Test
+    void saveParsedRejectsReferenceTimeOutside24Hours() {
+        assertThatThrownBy(() -> voiceRecordService.saveParsed(
+                USER_ID,
+                BABY_ID,
+                new ParsedVoiceRecordRequest(
+                        "분유 먹였어요", List.of(), LocalDateTime.now().minusHours(25)
+                )
+        )).isInstanceOf(com.select.domain.care.exception.CareRecordException.class);
+
+        verifyNoInteractions(voiceInputRepository);
     }
 
     @Test

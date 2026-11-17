@@ -32,6 +32,8 @@ stt:
     max-attempts: ${STT_MAX_ATTEMPTS:3}
     retry-delay: ${STT_RETRY_DELAY:30s}
     stale-timeout: ${STT_STALE_TIMEOUT:10m}
+    failed-audio-retention: ${STT_FAILED_AUDIO_RETENTION:24h}
+    failed-cleanup-interval: ${STT_FAILED_CLEANUP_INTERVAL:1h}
     worker:
       enabled: ${STT_WORKER_ENABLED:true}
       batch-size: ${STT_WORKER_BATCH_SIZE:5}

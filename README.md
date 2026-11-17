@@ -158,9 +158,12 @@ Discord 연결은 최대 3초, 요청은 최대 5초로 제한합니다. 응답 
 - 응답은 프론트 계약에 맞춰 `ApiResponse`로 감싸지 않습니다.
 - `babyId`는 선택 쿼리 파라미터입니다. 사용자가 접근할 수 있는 아기가 하나면 생략할 수 있고, 여러 명이면 `400 BABY_SELECTION_REQUIRED`를 반환하므로 프론트가 선택한 `babyId`를 보내야 합니다.
 - `parse` 응답의 `parsedAt`을 저장 요청에 그대로 넣으면 미리보기와 같은 기준 시각으로 다시 분석해 상대 시간이 어긋나지 않습니다. 생략하면 저장 시각을 기준으로 분석합니다.
+- 저장 요청의 `parsedAt`은 서버 현재 시각 기준 과거·미래 24시간 범위만 허용합니다.
 - `다시 녹음하기`는 `parse` 결과를 버리면 되고, 서버에 남는 데이터가 없습니다.
 - 저장 응답은 `{ "ok": true, "voiceInputId": 10, "careRecords": [...] }`이며 `careRecords`는 `domain/care`의 다섯 기록 테이블에 저장된 결과입니다.
 - STT를 비동기로 처리해야 하면 `/api/v1/babies/{babyId}/voice-records/stt-jobs` 계열을 사용합니다. 작업이 완료되어도 transcript만 보관하고, `POST /stt-jobs/{jobId}/confirm`에서만 음성 기록과 육아기록을 만듭니다. `DELETE /stt-jobs/{jobId}`는 확인 전 작업과 음성 파일을 삭제합니다.
+- 최종 실패한 비동기 STT 작업의 음성 파일과 작업 정보는 재시도를 위해 기본 24시간 보관한 뒤 자동 정리합니다. 보관 기간은 `STT_FAILED_AUDIO_RETENTION`, 정리 주기는 `STT_FAILED_CLEANUP_INTERVAL`로 조정할 수 있습니다.
+- 기존 DB에 배포하기 전에 `docs/migrations/20261117_add_stt_jobs.sql`을 먼저 적용해야 합니다. 애플리케이션은 스키마를 자동 변경하지 않습니다.
 - 인증은 `Authorization: Bearer {accessToken}` 또는 로그인 시 발급되는 인증 쿠키를 사용합니다. 쿠키를 쓰는 변경 요청은 `X-CSRF-Token` 헤더가 필요합니다.
 
 

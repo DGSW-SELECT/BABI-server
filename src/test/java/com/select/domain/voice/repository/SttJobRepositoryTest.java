@@ -162,4 +162,36 @@ class SttJobRepositoryTest {
 
         assertThat(staleJobs).extracting(SttJob::getId).containsExactly(stale.getId());
     }
+
+    @Test
+    void findsOnlyExpiredFinalFailuresForCleanup() {
+        LocalDateTime now = LocalDateTime.now().withNano(0);
+        SttJob expired = sttJobRepository.saveAndFlush(SttJob.builder()
+                .babyId(babyId)
+                .familyMemberId(memberId)
+                .audioPath("2026/11/03/expired.mp3")
+                .status(SttStatus.FAILED)
+                .attemptCount(3)
+                .completedAt(now.minusDays(2))
+                .createdAt(now.minusDays(2))
+                .updatedAt(now.minusDays(2))
+                .build());
+        SttJob recent = sttJobRepository.saveAndFlush(SttJob.builder()
+                .babyId(babyId)
+                .familyMemberId(memberId)
+                .audioPath("2026/11/03/recent.mp3")
+                .status(SttStatus.FAILED)
+                .attemptCount(3)
+                .completedAt(now.minusHours(1))
+                .createdAt(now.minusHours(1))
+                .updatedAt(now.minusHours(1))
+                .build());
+
+        List<SttJob> expiredJobs = sttJobRepository.findExpiredFailedJobs(
+                SttStatus.FAILED, now.minusDays(1), PageRequest.of(0, 100)
+        );
+
+        assertThat(expiredJobs).extracting(SttJob::getId).containsExactly(expired.getId());
+        assertThat(expiredJobs).extracting(SttJob::getId).doesNotContain(recent.getId());
+    }
 }
