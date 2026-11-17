@@ -31,7 +31,7 @@ public class ProfilePhotoController {
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ApiResponse<Void> upload(@AuthenticationPrincipal String principal, @RequestPart("file") MultipartFile file) {
         photos.save(Long.parseLong(principal), file);
-        return new ApiResponse<>(true, "프로필 사진을 저장했습니다.", null);
+        return ApiResponse.success("프로필 사진을 저장했습니다.");
     }
 
     @Operation(summary = "내 프로필 사진 조회", responses = {
