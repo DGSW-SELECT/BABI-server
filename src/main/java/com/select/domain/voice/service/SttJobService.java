@@ -203,11 +203,11 @@ public class SttJobService {
             requireOwner(job, context.memberId());
             if (job.getStatus() != SttStatus.COMPLETED
                     || job.getVoiceInputId() != null
-                    || !StringUtils.hasText(job.getTranscript())) {
+                    || !StringUtils.hasText(job.getTranscript())
+                    || job.getCompletedAt() == null) {
                 throw new SttJobNotConfirmableException("완료된 음성 변환 작업만 저장할 수 있습니다.");
             }
 
-            LocalDateTime now = LocalDateTime.now();
             VoiceInput voiceInput = voiceInputRepository.save(VoiceInput.builder()
                     .babyId(job.getBabyId())
                     .familyMemberId(job.getFamilyMemberId())
@@ -220,10 +220,10 @@ public class SttJobService {
                     job.getFamilyMemberId(),
                     voiceInput.getId(),
                     job.getTranscript(),
-                    now
+                    job.getCompletedAt()
             );
 
-            job.confirm(voiceInput.getId(), now);
+            job.confirm(voiceInput.getId(), LocalDateTime.now());
             log.info("STT 작업을 사용자가 확인해 저장했습니다. jobId={}, voiceInputId={}",
                     jobId, voiceInput.getId());
             return SttJobResponse.of(job, properties.maxAttempts(), careRecords);

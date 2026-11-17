@@ -9,6 +9,8 @@ Type=simple
 User=babi
 Group=babi
 WorkingDirectory=/opt/babi
+StateDirectory=babi
+StateDirectoryMode=0755
 EnvironmentFile=/etc/babi/app.env
 ExecStart=/usr/bin/java -Xms128m -Xmx512m -XX:+ExitOnOutOfMemoryError -jar /opt/babi/babi-server.jar --spring.profiles.active=aws
 Restart=on-failure

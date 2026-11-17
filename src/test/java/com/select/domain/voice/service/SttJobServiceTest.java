@@ -283,6 +283,7 @@ class SttJobServiceTest {
     @Test
     void confirmCreatesVoiceInputAndCareRecords() {
         SttJob job = completedJob(null);
+        LocalDateTime completedAt = job.getCompletedAt();
         when(accountContextService.resolveForWrite(USER_ID, BABY_ID)).thenReturn(context());
         when(sttJobRepository.findByIdAndBabyIdForUpdate(JOB_ID, BABY_ID))
                 .thenReturn(Optional.of(job));
@@ -294,7 +295,7 @@ class SttJobServiceTest {
         });
         CareRecordResponse record = careRecord();
         when(careRecordWriter.analyzeAndSave(
-                anyLong(), anyLong(), anyLong(), any(String.class), any(LocalDateTime.class)
+                anyLong(), anyLong(), anyLong(), any(String.class), eq(completedAt)
         )).thenReturn(List.of(record));
 
         SttJobResponse response = sttJobService.confirm(BABY_ID, USER_ID, JOB_ID);
@@ -303,6 +304,9 @@ class SttJobServiceTest {
         assertThat(response.voiceInputId()).isEqualTo(10L);
         assertThat(response.careRecords()).containsExactly(record);
         assertThat(job.getVoiceInputId()).isEqualTo(10L);
+        verify(careRecordWriter).analyzeAndSave(
+                BABY_ID, FAMILY_MEMBER_ID, 10L, "분유 120ml 먹였어요", completedAt
+        );
 
         ArgumentCaptor<VoiceInput> captor = ArgumentCaptor.forClass(VoiceInput.class);
         verify(voiceInputRepository).save(captor.capture());
@@ -328,6 +332,20 @@ class SttJobServiceTest {
     @Test
     void confirmRejectsJobThatIsNotCompleted() {
         SttJob job = job(SttStatus.PROCESSING, 1);
+        when(accountContextService.resolveForWrite(USER_ID, BABY_ID)).thenReturn(context());
+        when(sttJobRepository.findByIdAndBabyIdForUpdate(JOB_ID, BABY_ID))
+                .thenReturn(Optional.of(job));
+
+        assertThatThrownBy(() -> sttJobService.confirm(BABY_ID, USER_ID, JOB_ID))
+                .isInstanceOf(SttJobNotConfirmableException.class);
+
+        verifyNoInteractions(voiceInputRepository, careRecordWriter);
+    }
+
+    @Test
+    void confirmRejectsCompletedJobWithoutCompletionTime() {
+        SttJob job = completedJob(null);
+        ReflectionTestUtils.setField(job, "completedAt", null);
         when(accountContextService.resolveForWrite(USER_ID, BABY_ID)).thenReturn(context());
         when(sttJobRepository.findByIdAndBabyIdForUpdate(JOB_ID, BABY_ID))
                 .thenReturn(Optional.of(job));
