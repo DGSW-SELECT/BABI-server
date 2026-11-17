@@ -11,9 +11,6 @@ api.babi.prot.kr {
 	request_body @handover_memo_create {
 		max_size 8KB
 	}
-	timeouts @handover_memo_create {
-		read_timeout 10s 512
-	}
 
 	reverse_proxy 127.0.0.1:8080
 }
