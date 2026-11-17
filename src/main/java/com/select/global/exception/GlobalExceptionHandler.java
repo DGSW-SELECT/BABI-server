@@ -320,6 +320,15 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 List.of()
         );
     }
+    @ExceptionHandler(BusinessException.class)
+    public ResponseEntity<ApiResponse<Void>> handleBusinessException(
+            BusinessException e
+    ) {
+        return createErrorResponse(
+                e.getErrorCode(),
+                List.of()
+        );
+    }
 
     private ResponseEntity<ApiResponse<Void>> createErrorResponse(
             ErrorCode errorCode,
@@ -336,14 +345,5 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     ) {
         ApiError error = new ApiError(errorCode.name(), details);
         return new ApiResponse<>(false, errorCode.getMessage(), null, error);
-    }
-    @ExceptionHandler(BusinessException.class)
-    public ResponseEntity<ApiResponse<Void>> handleBusinessException(
-            BusinessException e
-    ) {
-        return createErrorResponse(
-                e.getErrorCode(),
-                List.of()
-        );
     }
 }

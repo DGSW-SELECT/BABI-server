@@ -170,6 +170,49 @@ CREATE TABLE IF NOT EXISTS `daily_reports` (
         ON UPDATE NO ACTION ON DELETE NO ACTION
 );
 
+CREATE TABLE IF NOT EXISTS `vaccines` (
+    `id`                      BIGINT       NOT NULL AUTO_INCREMENT,
+    `vaccine_name`            VARCHAR(100) NOT NULL,
+    `dose_number`             INTEGER      NOT NULL,
+    `recommended_start_month` INTEGER      NULL,
+    `recommended_end_month`   INTEGER      NULL,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_vaccine_dose` (`vaccine_name`, `dose_number`),
+    CONSTRAINT `chk_vaccine_months`
+    CHECK (`recommended_start_month` IS NULL
+           OR `recommended_end_month` IS NULL
+           OR `recommended_end_month` >= `recommended_start_month`)
+    );
+
+CREATE TABLE IF NOT EXISTS `baby_vaccinations` (
+    `id`             BIGINT       NOT NULL AUTO_INCREMENT,
+    `baby_id`        BIGINT       NOT NULL,
+    `vaccine_id`     BIGINT       NOT NULL,
+    `scheduled_date` DATE         NULL,
+    `completed_date` DATE         NULL,
+    `institution`    VARCHAR(255) NULL,
+    `memo`           VARCHAR(255) NULL,
+    `completed`      BOOLEAN      NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (`id`),
+    KEY `idx_baby_vaccinations_vaccine` (`vaccine_id`),
+    KEY `idx_baby_vaccinations_schedule` (`baby_id`, `scheduled_date`),
+    -- 완료 여부와 완료일은 항상 함께 움직여야 함 (양방향 일관성)
+    --   완료 처리: UPDATE ... SET completed = TRUE,  completed_date = <날짜>  (한 문장으로)
+    --   완료 취소: UPDATE ... SET completed = FALSE, completed_date = NULL    (한 문장으로)
+    --   새 접종 일정 INSERT 시 completed_date 는 NULL (예정일은 scheduled_date 에)
+    CONSTRAINT `chk_vaccination_completed`
+    CHECK ((`completed` = TRUE  AND `completed_date` IS NOT NULL)
+    OR (`completed` = FALSE AND `completed_date` IS NULL)),
+    CONSTRAINT `fk_baby_vaccinations_baby`
+    FOREIGN KEY (`baby_id`) REFERENCES `babies` (`id`)
+    ON UPDATE NO ACTION ON DELETE NO ACTION,
+    CONSTRAINT uk_baby_vaccine
+    UNIQUE (baby_id, vaccine_id),
+    CONSTRAINT `fk_baby_vaccinations_vaccine`
+    FOREIGN KEY (`vaccine_id`) REFERENCES `vaccines` (`id`)
+    ON UPDATE NO ACTION ON DELETE NO ACTION
+   );
+    
 CREATE TABLE IF NOT EXISTS `handoff_briefings` (
     `id`            BIGINT      NOT NULL AUTO_INCREMENT,
     `baby_id`       BIGINT      NOT NULL,
@@ -252,27 +295,6 @@ CREATE TABLE IF NOT EXISTS `growth_records` (
     REFERENCES `baby_members` (`baby_id`, `id`)
     ON UPDATE NO ACTION ON DELETE NO ACTION
 );
-
-CREATE TABLE IF NOT EXISTS `voice_inputs` (
-    `id`             BIGINT       NOT NULL AUTO_INCREMENT,
-    `baby_id`        BIGINT       NOT NULL,
-    `baby_member_id` BIGINT       NULL,
-    `audio_url`      VARCHAR(500) NULL,
-    `transcript`     TEXT         NOT NULL,
-    `parse_status`   VARCHAR(20)  NOT NULL,
-    `created_at`     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (`id`),
-    UNIQUE KEY `uk_voice_inputs_pair` (`baby_id`, `id`),
-    KEY `idx_voice_inputs_baby_time` (`baby_id`, `created_at`),
-    CONSTRAINT `fk_voice_inputs_baby`
-        FOREIGN KEY (`baby_id`) REFERENCES `babies` (`id`)
-        ON UPDATE NO ACTION ON DELETE NO ACTION,
-    CONSTRAINT `fk_voice_inputs_member`
-        FOREIGN KEY (`baby_id`, `baby_member_id`)
-        REFERENCES `baby_members` (`baby_id`, `id`)
-        ON UPDATE NO ACTION ON DELETE NO ACTION
-);
-
 CREATE TABLE IF NOT EXISTS `diaper_records` (
     `id`               BIGINT      NOT NULL AUTO_INCREMENT,
     `baby_id`          BIGINT      NOT NULL,
