@@ -70,10 +70,10 @@ class SttJobRepositoryTest {
         );
 
         int firstClaim = sttJobRepository.claim(
-                job.getId(), SttStatus.PROCESSING, SttStatus.PENDING, now
+                job.getId(), SttStatus.PROCESSING, SttStatus.PENDING, now, "claim-one"
         );
         int secondClaim = sttJobRepository.claim(
-                job.getId(), SttStatus.PROCESSING, SttStatus.PENDING, now
+                job.getId(), SttStatus.PROCESSING, SttStatus.PENDING, now, "claim-two"
         );
 
         assertThat(firstClaim).isEqualTo(1);
@@ -81,6 +81,7 @@ class SttJobRepositoryTest {
         SttJob claimed = sttJobRepository.findById(job.getId()).orElseThrow();
         assertThat(claimed.getStatus()).isEqualTo(SttStatus.PROCESSING);
         assertThat(claimed.getAttemptCount()).isEqualTo(1);
+        assertThat(claimed.getClaimToken()).isEqualTo("claim-one");
         assertThat(claimed.getStartedAt()).isEqualTo(now);
     }
 
@@ -133,6 +134,19 @@ class SttJobRepositoryTest {
     }
 
     @Test
+    void countsJobsSubmittedByTheUserAcrossMemberships() {
+        LocalDateTime now = LocalDateTime.now().withNano(0);
+        sttJobRepository.saveAndFlush(
+                SttJob.pending(babyId, memberId, "2026/11/03/audio.mp3", now)
+        );
+
+        long userId = babyRepository.findById(babyId).orElseThrow().getCreatedByUserId();
+        long count = sttJobRepository.countCreatedByUserSince(userId, now.minusHours(24));
+
+        assertThat(count).isEqualTo(1);
+    }
+
+    @Test
     void findsStaleProcessingJobs() {
         LocalDateTime now = LocalDateTime.now().withNano(0);
         SttJob stale = sttJobRepository.saveAndFlush(SttJob.builder()
@@ -156,7 +170,7 @@ class SttJobRepositoryTest {
                 .updatedAt(now)
                 .build());
 
-        List<SttJob> staleJobs = sttJobRepository.findAllByStatusAndStartedAtBefore(
+        List<SttJob> staleJobs = sttJobRepository.findStaleJobsForUpdate(
                 SttStatus.PROCESSING, now.minusMinutes(10)
         );
 

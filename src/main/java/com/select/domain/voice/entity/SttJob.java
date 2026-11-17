@@ -63,6 +63,9 @@ public class SttJob {
     @Column(name = "attempt_count", nullable = false)
     private int attemptCount;
 
+    @Column(name = "claim_token", length = 36)
+    private String claimToken;
+
     @Column(name = "last_error", length = MAX_ERROR_LENGTH)
     private String lastError;
 
@@ -94,6 +97,7 @@ public class SttJob {
             Long voiceInputId,
             int attemptCount,
             String lastError,
+            String claimToken,
             LocalDateTime nextAttemptAt,
             LocalDateTime createdAt,
             LocalDateTime updatedAt,
@@ -108,6 +112,7 @@ public class SttJob {
         this.voiceInputId = voiceInputId;
         this.attemptCount = attemptCount;
         this.lastError = lastError;
+        this.claimToken = claimToken;
         this.nextAttemptAt = nextAttemptAt;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
@@ -138,6 +143,7 @@ public class SttJob {
         this.transcript = transcript;
         this.voiceInputId = null;
         this.lastError = null;
+        this.claimToken = null;
         this.nextAttemptAt = null;
         this.completedAt = now;
         this.updatedAt = now;
@@ -158,6 +164,7 @@ public class SttJob {
      */
     public void fail(String error, LocalDateTime nextAttemptAt, LocalDateTime now) {
         this.lastError = truncate(error);
+        this.claimToken = null;
         this.updatedAt = now;
         if (nextAttemptAt == null) {
             this.status = SttStatus.FAILED;
@@ -178,6 +185,7 @@ public class SttJob {
     public void resetForRetry(LocalDateTime now) {
         this.status = SttStatus.PENDING;
         this.attemptCount = 0;
+        this.claimToken = null;
         this.lastError = null;
         this.transcript = null;
         this.voiceInputId = null;

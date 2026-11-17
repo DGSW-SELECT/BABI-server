@@ -11,12 +11,28 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
 public interface SttJobRepository extends JpaRepository<SttJob, Long> {
 
     Optional<SttJob> findByIdAndBabyId(Long id, Long babyId);
+
+    long countByBabyIdAndStatusIn(Long babyId, Collection<SttStatus> statuses);
+
+    @Query("""
+            select count(j)
+            from SttJob j, BabyMember m
+            where m.id = j.familyMemberId
+              and m.babyId = j.babyId
+              and m.userId = :userId
+              and j.createdAt >= :since
+            """)
+    long countCreatedByUserSince(
+            @Param("userId") Long userId,
+            @Param("since") LocalDateTime since
+    );
 
     /**
      * 사용자가 확인해 저장할 때 같은 작업이 중복 저장되지 않도록 잠근다.
@@ -59,6 +75,7 @@ public interface SttJobRepository extends JpaRepository<SttJob, Long> {
             set j.status = :processing,
                 j.startedAt = :now,
                 j.updatedAt = :now,
+                j.claimToken = :claimToken,
                 j.attemptCount = j.attemptCount + 1
             where j.id = :id
               and j.status = :pending
@@ -67,10 +84,20 @@ public interface SttJobRepository extends JpaRepository<SttJob, Long> {
             @Param("id") Long id,
             @Param("processing") SttStatus processing,
             @Param("pending") SttStatus pending,
-            @Param("now") LocalDateTime now
+            @Param("now") LocalDateTime now,
+            @Param("claimToken") String claimToken
     );
 
-    List<SttJob> findAllByStatusAndStartedAtBefore(SttStatus status, LocalDateTime threshold);
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select j from SttJob j
+            where j.status = :status and j.startedAt < :threshold
+            order by j.id asc
+            """)
+    List<SttJob> findStaleJobsForUpdate(
+            @Param("status") SttStatus status,
+            @Param("threshold") LocalDateTime threshold
+    );
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select j from SttJob j where j.status = :status and j.completedAt < :cutoff order by j.completedAt")

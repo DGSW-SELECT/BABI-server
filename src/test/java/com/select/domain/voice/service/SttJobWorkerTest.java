@@ -64,10 +64,10 @@ class SttJobWorkerTest {
         when(audioStorage.load(AUDIO_PATH)).thenReturn(audio);
         when(sttClient.transcribe(audio)).thenReturn(new SttResponse("  분유 120ml 먹였어요  "));
 
-        sttJobWorker.process(JOB_ID);
+        sttJobWorker.process(JOB_ID, "current-token");
 
-        verify(sttJobService).complete(JOB_ID, "분유 120ml 먹였어요");
-        verify(sttJobService, never()).fail(any(), anyString());
+        verify(sttJobService).complete(JOB_ID, "current-token", "분유 120ml 먹였어요");
+        verify(sttJobService, never()).fail(any(), anyString(), anyString());
     }
 
     @Test
@@ -78,10 +78,10 @@ class SttJobWorkerTest {
         when(audioStorage.load(AUDIO_PATH)).thenReturn(audio);
         when(sttClient.transcribe(audio)).thenReturn(new SttResponse("   "));
 
-        sttJobWorker.process(JOB_ID);
+        sttJobWorker.process(JOB_ID, "current-token");
 
-        verify(sttJobService).fail(JOB_ID, "음성을 텍스트로 변환하지 못했습니다.");
-        verify(sttJobService, never()).complete(any(), anyString());
+        verify(sttJobService).fail(JOB_ID, "current-token", "음성을 텍스트로 변환하지 못했습니다.");
+        verify(sttJobService, never()).complete(any(), anyString(), anyString());
     }
 
     @Test
@@ -93,29 +93,40 @@ class SttJobWorkerTest {
         when(sttClient.transcribe(audio))
                 .thenThrow(new SttFailedException("음성 변환에 실패했습니다."));
 
-        sttJobWorker.process(JOB_ID);
+        sttJobWorker.process(JOB_ID, "current-token");
 
-        verify(sttJobService).fail(JOB_ID, "음성 변환에 실패했습니다.");
-        verify(sttJobService, never()).complete(any(), anyString());
+        verify(sttJobService).fail(JOB_ID, "current-token", "음성 변환에 실패했습니다.");
+        verify(sttJobService, never()).complete(any(), anyString(), anyString());
     }
 
     @Test
     void processSkipsJobThatIsNotProcessing() {
         when(sttJobService.findForProcessing(JOB_ID)).thenReturn(job(SttStatus.PENDING));
 
-        sttJobWorker.process(JOB_ID);
+        sttJobWorker.process(JOB_ID, "current-token");
 
         verifyNoInteractions(audioStorage, sttClient);
-        verify(sttJobService, never()).complete(any(), anyString());
-        verify(sttJobService, never()).fail(any(), anyString());
+        verify(sttJobService, never()).complete(any(), anyString(), anyString());
+        verify(sttJobService, never()).fail(any(), anyString(), anyString());
+    }
+
+    @Test
+    void processSkipsJobClaimedByANewerAttempt() {
+        when(sttJobService.findForProcessing(JOB_ID)).thenReturn(job(SttStatus.PROCESSING));
+
+        sttJobWorker.process(JOB_ID, "old-token");
+
+        verifyNoInteractions(audioStorage, sttClient);
+        verify(sttJobService, never()).complete(any(), anyString(), anyString());
+        verify(sttJobService, never()).fail(any(), anyString(), anyString());
     }
 
     @Test
     void pollProcessesOnlyClaimedJobs() {
         when(sttJobService.recoverStaleJobs()).thenReturn(0);
         when(sttJobService.findReadyJobIds(5)).thenReturn(List.of(20L, 21L));
-        when(sttJobService.claim(20L)).thenReturn(true);
-        when(sttJobService.claim(21L)).thenReturn(false);
+        when(sttJobService.claim(20L)).thenReturn("claim-token");
+        when(sttJobService.claim(21L)).thenReturn(null);
         when(sttJobService.findForProcessing(20L)).thenReturn(null);
 
         sttJobWorker.poll();
@@ -133,6 +144,7 @@ class SttJobWorkerTest {
                 .audioPath(AUDIO_PATH)
                 .status(status)
                 .attemptCount(1)
+                .claimToken("current-token")
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
                 .build();

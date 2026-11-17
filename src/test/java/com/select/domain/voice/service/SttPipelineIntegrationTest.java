@@ -136,9 +136,10 @@ class SttPipelineIntegrationTest {
         SttJobResponse submitted = sttJobService.submit(baby.getId(), user.getId(), audio);
 
         assertThat(submitted.status()).isEqualTo(SttStatus.PENDING);
-        assertThat(sttJobService.claim(submitted.jobId())).isTrue();
+        String claimToken = sttJobService.claim(submitted.jobId());
+        assertThat(claimToken).isNotBlank();
 
-        sttJobWorker.process(submitted.jobId());
+        sttJobWorker.process(submitted.jobId(), claimToken);
 
         SttJob completed = sttJobRepository.findById(submitted.jobId()).orElseThrow();
         assertThat(completed.getStatus()).isEqualTo(SttStatus.COMPLETED);

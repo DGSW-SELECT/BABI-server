@@ -148,6 +148,22 @@ class RuleBasedCareRecordAnalyzerTest {
     }
 
     @Test
+    void parsesNightTwelveAsMidnight() {
+        List<CareRecordDraft> records = analyzer.analyze("밤 12시에 분유 먹였어", referenceTime);
+
+        assertThat(records).hasSize(1);
+        assertThat(records.getFirst().occurredAt()).isEqualTo(LocalDateTime.of(2026, 11, 3, 0, 0));
+    }
+
+    @Test
+    void parsesDawnTimeAsEarlyMorning() {
+        List<CareRecordDraft> records = analyzer.analyze("새벽 4시에 분유 60ml 먹였어", referenceTime);
+
+        assertThat(records).hasSize(1);
+        assertThat(records.getFirst().occurredAt()).isEqualTo(LocalDateTime.of(2026, 11, 3, 4, 0));
+    }
+
+    @Test
     void ignoresAmountWhenNoFeedingContext() {
         List<CareRecordDraft> records = analyzer.analyze("물 100ml 마셨어", referenceTime);
 

@@ -60,8 +60,9 @@ public class SttJobWorker {
             sttJobService.recoverStaleJobs();
             List<Long> readyJobIds = sttJobService.findReadyJobIds(properties.worker().batchSize());
             for (Long jobId : readyJobIds) {
-                if (sttJobService.claim(jobId)) {
-                    process(jobId);
+                String claimToken = sttJobService.claim(jobId);
+                if (claimToken != null) {
+                    process(jobId, claimToken);
                 }
             }
         } catch (RuntimeException e) {
@@ -84,9 +85,10 @@ public class SttJobWorker {
     /**
      * 선점된 작업 하나를 처리한다.
      */
-    public void process(Long jobId) {
+    public void process(Long jobId, String claimToken) {
         SttJob job = sttJobService.findForProcessing(jobId);
-        if (job == null || job.getStatus() != SttStatus.PROCESSING) {
+        if (job == null || job.getStatus() != SttStatus.PROCESSING
+                || claimToken == null || !claimToken.equals(job.getClaimToken())) {
             return;
         }
 
@@ -97,11 +99,11 @@ public class SttJobWorker {
             if (!StringUtils.hasText(transcript)) {
                 throw new SttFailedException("음성을 텍스트로 변환하지 못했습니다.");
             }
-            sttJobService.complete(jobId, transcript.trim());
+            sttJobService.complete(jobId, claimToken, transcript.trim());
         } catch (RuntimeException e) {
             log.warn("STT 작업 처리에 실패했습니다. jobId={}", jobId, e);
             try {
-                sttJobService.fail(jobId, errorMessage(e));
+                sttJobService.fail(jobId, claimToken, errorMessage(e));
             } catch (RuntimeException failException) {
                 log.error("STT 작업 실패 상태를 저장하지 못했습니다. jobId={}", jobId, failException);
             }

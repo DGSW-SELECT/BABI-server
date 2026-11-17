@@ -17,6 +17,7 @@ import com.select.domain.voice.exception.AudioStorageException;
 import com.select.domain.voice.exception.AudioTooLargeException;
 import com.select.domain.voice.exception.InvalidAudioException;
 import com.select.domain.voice.exception.SttFailedException;
+import com.select.domain.voice.exception.SttJobLimitExceededException;
 import com.select.domain.voice.exception.SttJobNotCancelableException;
 import com.select.domain.voice.exception.SttJobNotConfirmableException;
 import com.select.domain.voice.exception.SttJobNotFoundException;
@@ -232,6 +233,16 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     ) {
         return createErrorResponse(
                 ErrorCode.STT_JOB_NOT_RETRYABLE,
+                List.of()
+        );
+    }
+
+    @ExceptionHandler(SttJobLimitExceededException.class)
+    public ResponseEntity<ApiResponse<Void>> handleSttJobLimitExceeded(
+            SttJobLimitExceededException e
+    ) {
+        return createErrorResponse(
+                ErrorCode.STT_JOB_LIMIT_EXCEEDED,
                 List.of()
         );
     }

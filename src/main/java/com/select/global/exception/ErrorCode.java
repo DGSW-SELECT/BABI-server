@@ -57,6 +57,7 @@ public enum ErrorCode {
     STT_JOB_NOT_CONFIRMABLE(HttpStatus.CONFLICT, "완료된 음성 변환 작업만 저장할 수 있습니다."),
     STT_JOB_NOT_CANCELABLE(HttpStatus.CONFLICT, "처리 중이거나 저장된 음성 변환 작업은 취소할 수 없습니다."),
     STT_JOB_NOT_RETRYABLE(HttpStatus.CONFLICT, "실패한 음성 변환 작업만 재시도할 수 있습니다."),
+    STT_JOB_LIMIT_EXCEEDED(HttpStatus.TOO_MANY_REQUESTS, "처리 대기 중인 음성 작업이 많습니다. 잠시 후 다시 시도해 주세요."),
     AUDIO_STORAGE_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "음성 파일을 저장하거나 읽지 못했습니다."),
     METHOD_NOT_ALLOWED(HttpStatus.METHOD_NOT_ALLOWED, "지원하지 않는 HTTP 메서드 입니다."),
     NOT_FOUND(HttpStatus.NOT_FOUND, "요청한 리소스를 찾을 수 없습니다."),

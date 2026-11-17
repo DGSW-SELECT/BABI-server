@@ -5,11 +5,14 @@ import com.select.domain.baby.repository.BabyRepository;
 import com.select.domain.baby.service.AccountContextService;
 import com.select.domain.care.dto.response.CareRecordResponse;
 import com.select.domain.care.service.CareRecordWriter;
+import com.select.domain.user.entity.User;
+import com.select.domain.user.repository.UserRepository;
 import com.select.domain.voice.dto.response.SttJobResponse;
 import com.select.domain.voice.entity.SttJob;
 import com.select.domain.voice.entity.SttStatus;
 import com.select.domain.voice.entity.VoiceInput;
 import com.select.domain.voice.exception.AudioStorageException;
+import com.select.domain.voice.exception.SttJobLimitExceededException;
 import com.select.domain.voice.exception.SttJobNotCancelableException;
 import com.select.domain.voice.exception.SttJobNotConfirmableException;
 import com.select.domain.voice.exception.SttJobNotFoundException;
@@ -35,6 +38,8 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
+import java.util.UUID;
 
 /**
  * 비동기 STT 작업의 제출·조회·재시도·확인 저장과 상태 전이를 담당한다.
@@ -47,12 +52,16 @@ import java.util.List;
 public class SttJobService {
 
     private static final Logger log = LoggerFactory.getLogger(SttJobService.class);
+    private static final int MAX_ACTIVE_JOBS_PER_BABY = 10;
+    private static final int MAX_JOBS_PER_USER_PER_DAY = 20;
+    private static final Set<SttStatus> ACTIVE_JOB_STATUSES = Set.of(SttStatus.PENDING, SttStatus.PROCESSING);
 
     private final SttJobRepository sttJobRepository;
     private final VoiceInputRepository voiceInputRepository;
     private final CareRecordWriter careRecordWriter;
     private final AccountContextService accountContextService;
     private final BabyRepository babyRepository;
+    private final UserRepository userRepository;
     private final AudioStorage audioStorage;
     private final SttJobProperties properties;
     private final TransactionTemplate transactions;
@@ -63,6 +72,7 @@ public class SttJobService {
             CareRecordWriter careRecordWriter,
             AccountContextService accountContextService,
             BabyRepository babyRepository,
+            UserRepository userRepository,
             AudioStorage audioStorage,
             SttJobProperties properties,
             PlatformTransactionManager transactionManager
@@ -72,6 +82,7 @@ public class SttJobService {
         this.careRecordWriter = careRecordWriter;
         this.accountContextService = accountContextService;
         this.babyRepository = babyRepository;
+        this.userRepository = userRepository;
         this.audioStorage = audioStorage;
         this.properties = properties;
         this.transactions = new TransactionTemplate(transactionManager);
@@ -85,12 +96,19 @@ public class SttJobService {
         AccountContextService.AccountContext prechecked =
                 accountContextService.resolveForWrite(userId, babyId);
         AudioFileSupport.validate(audio);
+        ensureCapacity(userId, prechecked.babyId());
         String audioPath = audioStorage.store(audio);
 
         try {
             return transactions.execute(status -> {
+                userRepository.findByIdForUpdate(userId)
+                        .filter(User::isActive)
+                        .orElseThrow(() -> new AccessDeniedException("활성 계정이 필요합니다."));
+                babyRepository.findByIdForUpdate(prechecked.babyId())
+                        .orElseThrow(BabyNotFoundException::new);
                 AccountContextService.AccountContext context =
                         accountContextService.resolveForWrite(userId, prechecked.babyId());
+                ensureCapacity(userId, context.babyId());
                 SttJob job = sttJobRepository.saveAndFlush(SttJob.pending(
                         context.babyId(),
                         context.memberId(),
@@ -148,16 +166,20 @@ public class SttJobService {
     }
 
     /**
-     * 작업을 원자적으로 선점한다. 다른 인스턴스가 먼저 가져갔으면 {@code false}를 반환한다.
+     * 작업을 원자적으로 선점하고 해당 처리 시도에만 유효한 claim 토큰을 반환한다.
+     * 다른 인스턴스가 먼저 가져갔으면 {@code null}을 반환한다.
      */
     @Transactional
-    public boolean claim(Long jobId) {
-        return sttJobRepository.claim(
+    public String claim(Long jobId) {
+        String claimToken = UUID.randomUUID().toString();
+        int claimed = sttJobRepository.claim(
                 jobId,
                 SttStatus.PROCESSING,
                 SttStatus.PENDING,
-                LocalDateTime.now()
-        ) == 1;
+                LocalDateTime.now(),
+                claimToken
+        );
+        return claimed == 1 ? claimToken : null;
     }
 
     @Transactional(readOnly = true)
@@ -170,11 +192,11 @@ public class SttJobService {
      * {@link #confirm(Long, Long, Long)}에서 수행한다.
      */
     @Transactional
-    public SttJobResponse complete(Long jobId, String transcript) {
+    public SttJobResponse complete(Long jobId, String claimToken, String transcript) {
         SttJob job = sttJobRepository.findByIdForUpdate(jobId)
                 .orElseThrow(SttJobNotFoundException::new);
-        if (job.getStatus() != SttStatus.PROCESSING) {
-            log.warn("처리 중 상태가 아니어서 완료 처리를 건너뜁니다. jobId={}, status={}",
+        if (!isCurrentAttempt(job, claimToken)) {
+            log.warn("현재 claim이 아니어서 완료 처리를 건너뜁니다. jobId={}, status={}",
                     jobId, job.getStatus());
             return SttJobResponse.of(job, properties.maxAttempts());
         }
@@ -258,11 +280,11 @@ public class SttJobService {
      * STT 실패를 기록하고 남은 재시도 횟수에 따라 {@code PENDING} 또는 {@code FAILED}로 전이한다.
      */
     @Transactional
-    public SttJobResponse fail(Long jobId, String error) {
+    public SttJobResponse fail(Long jobId, String claimToken, String error) {
         SttJob job = sttJobRepository.findByIdForUpdate(jobId)
                 .orElseThrow(SttJobNotFoundException::new);
-        if (job.getStatus() != SttStatus.PROCESSING) {
-            log.warn("처리 중 상태가 아니어서 실패 처리를 건너뜁니다. jobId={}, status={}",
+        if (!isCurrentAttempt(job, claimToken)) {
+            log.warn("현재 claim이 아니어서 실패 처리를 건너뜁니다. jobId={}, status={}",
                     jobId, job.getStatus());
             return SttJobResponse.of(job, properties.maxAttempts());
         }
@@ -287,7 +309,7 @@ public class SttJobService {
     @Transactional
     public int recoverStaleJobs() {
         LocalDateTime now = LocalDateTime.now();
-        List<SttJob> staleJobs = sttJobRepository.findAllByStatusAndStartedAtBefore(
+        List<SttJob> staleJobs = sttJobRepository.findStaleJobsForUpdate(
                 SttStatus.PROCESSING,
                 now.minus(properties.staleTimeout())
         );
@@ -324,6 +346,23 @@ public class SttJobService {
     private SttJob findJob(Long babyId, Long jobId) {
         return sttJobRepository.findByIdAndBabyId(jobId, babyId)
                 .orElseThrow(SttJobNotFoundException::new);
+    }
+
+    private boolean isCurrentAttempt(SttJob job, String claimToken) {
+        return job.getStatus() == SttStatus.PROCESSING
+                && claimToken != null
+                && claimToken.equals(job.getClaimToken());
+    }
+
+    private void ensureCapacity(Long userId, Long babyId) {
+        if (sttJobRepository.countCreatedByUserSince(userId, LocalDateTime.now().minusHours(24))
+                >= MAX_JOBS_PER_USER_PER_DAY) {
+            throw new SttJobLimitExceededException();
+        }
+        if (sttJobRepository.countByBabyIdAndStatusIn(babyId, ACTIVE_JOB_STATUSES)
+                >= MAX_ACTIVE_JOBS_PER_BABY) {
+            throw new SttJobLimitExceededException();
+        }
     }
 
     private void requireOwner(SttJob job, Long memberId) {

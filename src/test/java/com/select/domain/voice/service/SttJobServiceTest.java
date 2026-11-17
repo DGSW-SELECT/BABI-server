@@ -1,6 +1,8 @@
 package com.select.domain.voice.service;
 
 import com.select.domain.baby.repository.BabyRepository;
+import com.select.domain.user.entity.User;
+import com.select.domain.user.repository.UserRepository;
 import com.select.domain.baby.service.AccountContextService;
 import com.select.domain.care.dto.response.CareRecordResponse;
 import com.select.domain.care.entity.CareRecordType;
@@ -15,6 +17,7 @@ import com.select.domain.voice.exception.SttJobNotCancelableException;
 import com.select.domain.voice.exception.SttJobNotConfirmableException;
 import com.select.domain.voice.exception.SttJobNotFoundException;
 import com.select.domain.voice.exception.SttJobNotRetryableException;
+import com.select.domain.voice.exception.SttJobLimitExceededException;
 import com.select.domain.voice.repository.SttJobRepository;
 import com.select.domain.voice.repository.VoiceInputRepository;
 import com.select.domain.voice.storage.AudioStorage;
@@ -76,6 +79,9 @@ class SttJobServiceTest {
     private BabyRepository babyRepository;
 
     @Mock
+    private UserRepository userRepository;
+
+    @Mock
     private AudioStorage audioStorage;
 
     private SttJobService sttJobService;
@@ -99,6 +105,7 @@ class SttJobServiceTest {
                 careRecordWriter,
                 accountContextService,
                 babyRepository,
+                userRepository,
                 audioStorage,
                 properties,
                 transactionManager
@@ -108,6 +115,12 @@ class SttJobServiceTest {
                         .name("테스트 아기")
                         .birthDate(java.time.LocalDate.of(2026, 1, 1))
                         .createdByUserId(USER_ID)
+                        .build()));
+        lenient().when(userRepository.findByIdForUpdate(USER_ID))
+                .thenReturn(Optional.of(User.builder()
+                        .email("test@example.invalid")
+                        .passwordHash("test")
+                        .nickname("보호자")
                         .build()));
     }
 
@@ -258,7 +271,7 @@ class SttJobServiceTest {
         SttJob job = job(SttStatus.PROCESSING, 1);
         when(sttJobRepository.findByIdForUpdate(JOB_ID)).thenReturn(Optional.of(job));
 
-        SttJobResponse response = sttJobService.complete(JOB_ID, "  분유 120ml 먹였어요  ");
+        SttJobResponse response = sttJobService.complete(JOB_ID, "current-token", "  분유 120ml 먹였어요  ");
 
         assertThat(response.status()).isEqualTo(SttStatus.COMPLETED);
         assertThat(response.transcript()).isEqualTo("분유 120ml 먹였어요");
@@ -274,9 +287,21 @@ class SttJobServiceTest {
         SttJob job = completedJob(null);
         when(sttJobRepository.findByIdForUpdate(JOB_ID)).thenReturn(Optional.of(job));
 
-        sttJobService.complete(JOB_ID, "중복 완료");
+        sttJobService.complete(JOB_ID, "current-token", "중복 완료");
 
         verifyNoInteractions(voiceInputRepository, careRecordWriter);
+        verify(audioStorage, never()).delete(any());
+    }
+
+    @Test
+    void completeIgnoresResultFromStaleAttempt() {
+        SttJob job = job(SttStatus.PROCESSING, 2);
+        when(sttJobRepository.findByIdForUpdate(JOB_ID)).thenReturn(Optional.of(job));
+
+        sttJobService.complete(JOB_ID, "old-token", "오래된 시도 결과");
+
+        assertThat(job.getStatus()).isEqualTo(SttStatus.PROCESSING);
+        assertThat(job.getTranscript()).isNull();
         verify(audioStorage, never()).delete(any());
     }
 
@@ -427,7 +452,7 @@ class SttJobServiceTest {
         SttJob job = job(SttStatus.PROCESSING, 1);
         when(sttJobRepository.findByIdForUpdate(JOB_ID)).thenReturn(Optional.of(job));
 
-        SttJobResponse response = sttJobService.fail(JOB_ID, "음성 변환에 실패했습니다.");
+        SttJobResponse response = sttJobService.fail(JOB_ID, "current-token", "음성 변환에 실패했습니다.");
 
         assertThat(response.status()).isEqualTo(SttStatus.PENDING);
         assertThat(response.errorMessage()).isEqualTo("음성 변환에 실패했습니다.");
@@ -440,7 +465,7 @@ class SttJobServiceTest {
         SttJob job = job(SttStatus.PROCESSING, 3);
         when(sttJobRepository.findByIdForUpdate(JOB_ID)).thenReturn(Optional.of(job));
 
-        SttJobResponse response = sttJobService.fail(JOB_ID, "음성 변환에 실패했습니다.");
+        SttJobResponse response = sttJobService.fail(JOB_ID, "current-token", "음성 변환에 실패했습니다.");
 
         assertThat(response.status()).isEqualTo(SttStatus.FAILED);
         assertThat(job.getNextAttemptAt()).isNull();
@@ -466,7 +491,7 @@ class SttJobServiceTest {
         SttJob retryable = job(SttStatus.PROCESSING, 1);
         SttJob exhausted = job(SttStatus.PROCESSING, 3);
         ReflectionTestUtils.setField(exhausted, "id", 21L);
-        when(sttJobRepository.findAllByStatusAndStartedAtBefore(any(), any()))
+        when(sttJobRepository.findStaleJobsForUpdate(any(), any()))
                 .thenReturn(List.of(retryable, exhausted));
 
         int recovered = sttJobService.recoverStaleJobs();
@@ -478,9 +503,51 @@ class SttJobServiceTest {
 
     @Test
     void claimReturnsRepositoryResult() {
-        when(sttJobRepository.claim(anyLong(), any(), any(), any())).thenReturn(1);
+        when(sttJobRepository.claim(anyLong(), any(), any(), any(), any())).thenReturn(1);
 
-        assertThat(sttJobService.claim(JOB_ID)).isTrue();
+        assertThat(sttJobService.claim(JOB_ID)).isNotBlank();
+    }
+
+    @Test
+    void claimReturnsNullWhenAnotherWorkerAlreadyClaimedJob() {
+        when(sttJobRepository.claim(anyLong(), any(), any(), any(), any())).thenReturn(0);
+
+        assertThat(sttJobService.claim(JOB_ID)).isNull();
+    }
+
+    @Test
+    void submitRejectsWhenBabyAlreadyHasMaximumActiveJobs() {
+        when(accountContextService.resolveForWrite(USER_ID, BABY_ID)).thenReturn(context());
+        when(sttJobRepository.countByBabyIdAndStatusIn(eq(BABY_ID), any()))
+                .thenReturn(10L);
+
+        assertThatThrownBy(() -> sttJobService.submit(BABY_ID, USER_ID, audio()))
+                .isInstanceOf(SttJobLimitExceededException.class);
+
+        verifyNoInteractions(audioStorage);
+    }
+
+    @Test
+    void submitRejectsWhenUserHasReachedDailyJobLimit() {
+        when(accountContextService.resolveForWrite(USER_ID, BABY_ID)).thenReturn(context());
+        when(sttJobRepository.countCreatedByUserSince(eq(USER_ID), any(LocalDateTime.class)))
+                .thenReturn(20L);
+
+        assertThatThrownBy(() -> sttJobService.submit(BABY_ID, USER_ID, audio()))
+                .isInstanceOf(SttJobLimitExceededException.class);
+
+        verifyNoInteractions(audioStorage);
+    }
+
+    @Test
+    void failIgnoresFailureFromStaleAttempt() {
+        SttJob job = job(SttStatus.PROCESSING, 2);
+        when(sttJobRepository.findByIdForUpdate(JOB_ID)).thenReturn(Optional.of(job));
+
+        sttJobService.fail(JOB_ID, "old-token", "오래된 시도 실패");
+
+        assertThat(job.getStatus()).isEqualTo(SttStatus.PROCESSING);
+        assertThat(job.getLastError()).isNull();
     }
 
     private static AccountContextService.AccountContext context() {
@@ -509,6 +576,7 @@ class SttJobServiceTest {
                 .audioPath(AUDIO_PATH)
                 .status(status)
                 .attemptCount(attemptCount)
+                .claimToken("current-token")
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
                 .build();

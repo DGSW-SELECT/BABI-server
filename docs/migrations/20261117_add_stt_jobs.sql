@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS stt_jobs (
     transcript      TEXT          NULL,
     voice_input_id  BIGINT        NULL,
     attempt_count   INT           NOT NULL DEFAULT 0,
+    claim_token     VARCHAR(36)   NULL,
     last_error      VARCHAR(1000) NULL,
     next_attempt_at DATETIME      NULL,
     created_at      DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
