@@ -56,10 +56,35 @@ class GlobalExceptionHandlerTest {
     @BeforeEach
     void setUp() {
         mockMvc = MockMvcBuilders
-                .standaloneSetup(new ExceptionTestController())
+                .standaloneSetup(new ExceptionTestController(), new TestController())
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
     }
+    @Test
+    void INPUT_OK_RETURN_SUCCESS() throws Exception {
+        mockMvc.perform(post("/test")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                        """
+                           {
+                              "name" : "테스트"
+                           }
+                        """))
+                .andExpect(status().isOk());
+    }
+
+    @RestController
+    static class TestController {
+        @PostMapping("/test")
+        String test(@Valid @RequestBody TestRequest request){
+            return request.name;
+        }
+    }
+
+    record TestRequest(
+            @NotBlank(message = "이름은 필수입니다.")
+            String name
+    ) {}
 
     @Test
     void handleExceptionReturns500() {

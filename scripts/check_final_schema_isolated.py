@@ -59,6 +59,10 @@ def main():
         if 'baby_invitation_codes.max_uses:int:NO' not in output or 'baby_email_invitations.token_hash:char(64):NO' not in output:
             raise RuntimeError('Expected final SQL constraints missing')
         if len(sys.argv) == 3:
+            root = Path(__file__).resolve().parents[1]
+            # App validation requires this migration in addition to the team's base schema.
+            migration = (root / 'docs/schema/profile-photo-migration.sql').read_text(encoding='utf-8')
+            run(*mysql, input=migration)
             run(*mysql, input="CREATE TABLE isolation_guard (run_token CHAR(48) NOT NULL); INSERT INTO isolation_guard VALUES ('" + marker + "');")
             port_text = run('docker', 'port', container, '3306/tcp', capture_output=True).stdout.strip()
             if not re.fullmatch(r'127\.0\.0\.1:[0-9]+', port_text):
@@ -73,11 +77,13 @@ def main():
                 'com.select.domain.baby.service.BabyInvitationMySqlIntegrationTest',
                 '--tests', 'com.select.domain.care.CareRecordMySqlIntegrationTest',
                 '--tests', 'com.select.domain.report.DailyReportGenerationMySqlIntegrationTest',
+                '--tests', 'com.select.domain.handover.HandoverMemoMySqlIntegrationTest',
                 cwd=Path(__file__).resolve().parents[1], env=env)
             results = Path(__file__).resolve().parents[1] / 'build/test-results/test'
             for test_class in ['com.select.domain.baby.service.BabyInvitationMySqlIntegrationTest',
                                'com.select.domain.care.CareRecordMySqlIntegrationTest',
-                               'com.select.domain.report.DailyReportGenerationMySqlIntegrationTest']:
+                               'com.select.domain.report.DailyReportGenerationMySqlIntegrationTest',
+                               'com.select.domain.handover.HandoverMemoMySqlIntegrationTest']:
                 suite = ET.parse(results / ('TEST-' + test_class + '.xml')).getroot()
                 if int(suite.get('tests', '0')) == 0 or any(int(suite.get(key, '0')) for key in ['skipped', 'errors', 'failures']):
                     raise RuntimeError('Isolated MySQL suite did not run cleanly: ' + test_class)

@@ -1,28 +1,31 @@
 package com.select.domain.user.controller;
 
 import com.select.domain.user.dto.request.LoginRequest;
+import com.select.domain.user.dto.request.ProfileUpdateRequest;
 import com.select.domain.user.dto.request.SignupRequest;
-import com.select.domain.user.dto.response.LoginResponse;
-import com.select.domain.user.dto.response.SignupResponse;
-import com.select.domain.user.service.UserService;
-import com.select.domain.user.service.AuthSessionService;
-import com.select.domain.user.service.AccountLifecycleService;
 import com.select.domain.user.dto.request.WithdrawRequest;
+import com.select.domain.user.dto.response.LoginResponse;
+import com.select.domain.user.dto.response.ProfileResponse;
+import com.select.domain.user.dto.response.SignupResponse;
 import com.select.domain.user.exception.AccountLifecycleException;
+import com.select.domain.user.service.AccountLifecycleService;
+import com.select.domain.user.service.AuthSessionService;
+import com.select.domain.user.service.UserService;
 import com.select.global.exception.ErrorCode;
+import com.select.global.response.ApiResponse;
 import com.select.global.security.jwt.AuthCookies;
+import io.swagger.v3.oas.annotations.Operation;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import io.swagger.v3.oas.annotations.Operation;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.http.HttpHeaders;
-import java.util.Map;
-import com.select.global.response.ApiResponse;
 import jakarta.validation.Valid;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -39,12 +42,24 @@ public class UserController {
     private final AuthSessionService sessions;
     private final AuthCookies cookies;
 
+    @GetMapping("/profile")
+    public ApiResponse<ProfileResponse> profile(@AuthenticationPrincipal String principal) {
+        return ApiResponse.success("프로필을 조회했습니다.", userService.profile(Long.valueOf(principal)));
+    }
+
+    @PatchMapping("/profile")
+    public ApiResponse<ProfileResponse> updateProfile(
+            @AuthenticationPrincipal String principal,
+            @Valid @RequestBody ProfileUpdateRequest request) {
+        return ApiResponse.success("프로필을 수정했습니다.", userService.updateProfile(Long.valueOf(principal), request.nickname()));
+    }
+
     @GetMapping("/csrf")
     public ApiResponse<Map<String, String>> csrf(HttpServletRequest request, HttpServletResponse response) {
         String value = AuthCookies.get(request, AuthCookies.CSRF);
         if (value == null || value.isBlank()) throw new AccountLifecycleException(ErrorCode.UNAUTHORIZED);
         response.setHeader(HttpHeaders.CACHE_CONTROL, "no-store");
-        return new ApiResponse<>(true, "CSRF 토큰을 조회했습니다.", Map.of("token", value));
+        return ApiResponse.success("CSRF 토큰을 조회했습니다.", Map.of("token", value));
     }
 
     @Operation(summary = "로그아웃", description = "현재 액세스 토큰을 만료 시각까지 무효화합니다.")
@@ -58,14 +73,14 @@ public class UserController {
         } finally {
             cookies.clear(response);
         }
-        return new ApiResponse<>(true, "로그아웃했습니다.", null);
+        return ApiResponse.success("로그아웃했습니다.");
     }
 
     @PostMapping("/refresh")
     public ApiResponse<LoginResponse> refresh(HttpServletRequest request, HttpServletResponse response) {
         var tokens = sessions.refresh(AuthCookies.get(request, AuthCookies.REFRESH));
         cookies.set(response, tokens.access(), tokens.refresh());
-        return new ApiResponse<>(true, "토큰을 갱신했습니다.", new LoginResponse(tokens.access()));
+        return ApiResponse.success("토큰을 갱신했습니다.", new LoginResponse(tokens.access()));
     }
 
     @Operation(summary = "회원 탈퇴", description = "비밀번호 확인 후 계정을 익명화하고 보호자 권한을 제거합니다.")
@@ -75,21 +90,21 @@ public class UserController {
             HttpServletResponse response) {
         accountLifecycle.withdraw(Long.valueOf(principal), request.password());
         cookies.clear(response);
-        return new ApiResponse<>(true, "회원 탈퇴가 완료되었습니다.", null);
+        return ApiResponse.success("회원 탈퇴가 완료되었습니다.");
     }
 
     @PostMapping("/signup")
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<SignupResponse> signup(@Valid @RequestBody SignupRequest request) {
         SignupResponse response = userService.signup(request);
-        return new ApiResponse<>(true, "회원가입이 완료되었습니다.", response);
+        return ApiResponse.success("회원가입이 완료되었습니다.", response);
     }
 
     @PostMapping(value = "/login", consumes = org.springframework.http.MediaType.APPLICATION_JSON_VALUE)
     public ApiResponse<LoginResponse> login(@Valid @RequestBody LoginRequest request, HttpServletResponse httpResponse) {
         var tokens = sessions.login(request);
         cookies.set(httpResponse, tokens.access(), tokens.refresh());
-        return new ApiResponse<>(true, "로그인이 완료되었습니다.", new LoginResponse(tokens.access()));
+        return ApiResponse.success("로그인이 완료되었습니다.", new LoginResponse(tokens.access()));
     }
 
 
