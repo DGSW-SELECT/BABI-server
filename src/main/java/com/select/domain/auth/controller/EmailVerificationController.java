@@ -27,12 +27,12 @@ public class EmailVerificationController {
         emailVerificationService.validateRecipient(request.email());
         rateLimiter.check(servletRequest);
         emailVerificationService.sendVerificationCode(request.email());
-        return new ApiResponse<>(true,"인증번호가 발송되었습니다.",null);
+        return ApiResponse.success("인증번호가 발송되었습니다.");
     }
 
     @PostMapping("/verify")
     public ApiResponse<EmailVerificationResponse> verify(@Valid @RequestBody EmailVerifyRequest request) {
         EmailVerificationResponse response = emailVerificationService.verifyCode(request.email(),request.code());
-        return new ApiResponse<>(true,"회원가입 이메일 인증번호 확인 요청이 처리되었습니다.",response);
+        return ApiResponse.success("회원가입 이메일 인증번호 확인 요청이 처리되었습니다.", response);
     }
 }
