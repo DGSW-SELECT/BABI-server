@@ -13,6 +13,14 @@
 
 기존 20개 테이블 정의·행 수는 동일하며, 새 외래키 2개와 CHECK 1개를 확인했다. 격리한 MySQL 8.4에서 반복 적용, 기존 데이터 보존, 공백·NULL·1,001자 거부, 한글 1,000자 저장, 다른 아기의 작성자 참조 거부와 브리핑 기간 제약을 검증했다. 서버 초기화 스키마와 migration 파일도 갱신했다. 이 migration은 자동 배포 시 실행되지 않는다.
 
+## CORS 도메인 적용 (2026-11-17)
+
+사용자 승인 후 `/etc/babi/app.env`에 `AUTH_CORS_ALLOWED_ORIGINS=https://babi.prot.kr,https://devbabi.prot.kr`을 설정하고 API를 재시작했다. 잘못 적힌 `https//devbabi.prot.kr`는 올바른 HTTPS origin으로 정정했다. 기존 main의 `CorsConfig`를 사용했으며 JAR SHA-256은 변경 전후 동일하다.
+
+이전 환경 파일은 `/var/backups/babi/before-cors-20261117T124243Z/app.env`에 보관했다(`root:root`, 디렉터리 `0700`, 파일 `0600`). CORS 외 환경 변수는 동일하며 `/etc/babi`의 `0700`과 환경 파일의 `0600`을 유지했다.
+
+두 출처의 로그인 POST·리포트 PATCH preflight `200`, 정확한 허용 출처, 쿠키 인증과 `X-CSRF-Token` 허용을 확인했다. 다른 도메인·위장 접미사 도메인·`null`·HTTP 출처는 `403`이며 허용 출처 헤더가 없다. 허용 출처의 무인증 보호 API는 CORS 헤더와 함께 `401`, 공개 OpenAPI는 `200`이다. 실제 프론트 화면의 로그인 흐름은 확인하지 않았다.
+
 ## 자동 배포
 
 1. `main` PR에서 Java 21 build, 실제 Redis 통합 테스트, 배포 스크립트 실패·rollback 테스트를 실행한다.

@@ -19,6 +19,7 @@
 - Read relevant code before edits. Reuse existing layers and conventions.
 - Keep changes scoped; no unrelated refactors or changes to others' work.
 - Preserve existing Java formatting, constructor injection, validation, and API response conventions.
+- AWS CORS uses `AUTH_CORS_ALLOWED_ORIGINS=https://babi.prot.kr,https://devbabi.prot.kr`. Keep exact origins, cookie/CSRF support, and authentication on protected endpoints.
 - Shared care records live in `domain/care` and reuse the five existing record tables. Keep JWT-derived author membership, action-specific permissions, VIEWER read-only access, and active account/membership checks. Reuse `domain/baby/repository/BabyAccessRepository` across records and reports.
 - AI daily reports use OpenAI Responses with anonymous numeric facts only; never send names, IDs, notes, or transcripts. Keep `OPENAI_API_KEY` outside Git, bounded timeouts/output, no automatic retries, and explicit failure when unconfigured. Tests must mock OpenAI, not make billable calls.
 - Keep external AI calls outside DB transactions. Reserve and finalize daily reports in short transactions, preserve reservation ownership on expiry/cleanup, and recheck write access before saving. Keep `spring.jpa.open-in-view=false` so HTTP requests cannot retain DB connections while awaiting providers.

@@ -80,6 +80,12 @@ docker port babi-discord-demo-redis 6379
 
 Discord 연결은 최대 3초, 요청은 최대 5초로 제한합니다. 응답 본문은 사용하지 않고 즉시 닫습니다. 초대 데이터는 발송 전에 커밋되지만, 유효한 코드와 권한을 유지하기 위해 발송 중 아기 행 잠금이 유지됩니다. 5초는 HTTP 요청 제한이며 전체 트랜잭션 시간의 보장은 아닙니다. 타임아웃 후 초대 기록은 남고 발송 API는 실패하므로 재발송할 수 있습니다. 커밋 직후 서버가 종료되면 자동 재시도되지 않습니다.
 
+## CORS
+
+운영 허용 출처는 `https://babi.prot.kr`, `https://devbabi.prot.kr`입니다. `deploy/app.env.example`의 `AUTH_CORS_ALLOWED_ORIGINS`를 `/etc/babi/app.env`에 설정하며, 변경 후 승인된 절차로 API를 재시작해야 합니다. 비밀값이 포함된 실제 환경 파일은 Git에 저장하지 않습니다.
+
+쿠키 인증과 `Authorization`, `Content-Type`, `X-CSRF-Token` 헤더를 지원합니다. CORS 허용과 별개로 보호된 API는 인증이 필요합니다. 운영 적용·백업 기록은 [AWS 운영 안내](docs/aws-runtime.md)를 참고하세요.
+
 ## 보호자 초대 발송 제한
 
 보호자 초대 발송은 인증번호의 `EmailSendRateLimiter`가 아닌 기존 `InvitationRateLimiter`로 별도 제한합니다. 기본값은 발송자별 시간당 10회, 아기별 시간당 30회, 아기와 대상 이메일별 시간당 3회입니다. 세 제한 중 하나라도 초과하면 HTTP 429 `INVITATION_RATE_LIMITED`를 반환하고 발송하지 않습니다. Redis 장애 시에는 503으로 차단합니다. 이메일 주소는 Redis 키에 해시로 저장합니다.
