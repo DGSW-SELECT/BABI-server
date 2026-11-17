@@ -3,6 +3,7 @@ package com.select.domain.vaccination.service;
 import com.select.domain.baby.entity.Baby;
 import com.select.domain.baby.entity.BabyMember;
 import com.select.domain.baby.entity.BabyRole;
+import com.select.domain.baby.repository.BabyAccessRepository;
 import com.select.domain.baby.repository.BabyMemberRepository;
 import com.select.domain.baby.repository.BabyRepository;
 import com.select.domain.vaccination.dto.request.VaccinationScheduleCreateRequest;
@@ -32,8 +33,7 @@ class VaccinationServiceImplTest{
     private VaccinationServiceImpl service;
     private VaccineRepository vaccineRepository;
     private BabyRepository babyRepository;
-    private BabyMemberRepository babyMemberRepository;
-    private BabyMember babyMember;
+    private BabyAccessRepository babyAccessRepository;
     private Clock clock;
 
     private static final LocalDate TODAY = LocalDate.of(2026, 11, 10);
@@ -45,32 +45,32 @@ class VaccinationServiceImplTest{
         repository = mock(BabyVaccinationRepository.class);
         vaccineRepository = mock(VaccineRepository.class);
         babyRepository = mock(BabyRepository.class);
-        babyMemberRepository = mock(BabyMemberRepository.class);
-        babyMember = mock(BabyMember.class);
+        babyAccessRepository = mock(BabyAccessRepository.class);
 
         clock = Clock.fixed(
                 TODAY.atStartOfDay(ZoneId.of("Asia/Seoul")).toInstant(),
                 ZoneId.of("Asia/Seoul")
         );
 
-        service = new VaccinationServiceImpl(repository, vaccineRepository, babyRepository, babyMemberRepository, clock);
+        service = new VaccinationServiceImpl(repository, vaccineRepository, babyRepository, babyAccessRepository, clock);
     }
 
     private void mockViewerAccess() {
         when(babyRepository.existsById(babyId)).thenReturn(true);
 
-        when(babyMemberRepository.findByBabyIdAndUserId(babyId, userId))
-                .thenReturn(Optional.of(babyMember));
+        when(babyAccessRepository.hasAccess(userId, babyId))
+                .thenReturn(true);
 
-        when(babyMember.getRole()).thenReturn(BabyRole.VIEWER);
+        when(babyAccessRepository.hasWriteAccess(userId, babyId)).thenReturn(false);
     }
     private void mockWriteAccess() {
         when(babyRepository.existsById(babyId)).thenReturn(true);
 
-        when(babyMemberRepository.findByBabyIdAndUserId(babyId, userId))
-                .thenReturn(Optional.of(babyMember));
+        when(babyAccessRepository.hasAccess(userId, babyId))
+                .thenReturn(true);
 
-        when(babyMember.getRole()).thenReturn(BabyRole.GUARDIAN);
+        when(babyAccessRepository.hasWriteAccess(userId, babyId))
+                .thenReturn(true);
     }
 
     @Test
@@ -447,7 +447,7 @@ class VaccinationServiceImplTest{
         );
 
         when(babyRepository.existsById(babyId)).thenReturn(true);
-        when(babyMemberRepository.existsByBabyIdAndUserId(babyId, userId))
+        when(babyAccessRepository.hasAccess(userId, babyId))
                 .thenReturn(false);
 
         assertThrows(

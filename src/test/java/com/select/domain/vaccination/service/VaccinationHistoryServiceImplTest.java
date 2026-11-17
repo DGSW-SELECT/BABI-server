@@ -2,6 +2,7 @@ package com.select.domain.vaccination.service;
 
 import com.select.domain.baby.entity.BabyMember;
 import com.select.domain.baby.entity.BabyRole;
+import com.select.domain.baby.repository.BabyAccessRepository;
 import com.select.domain.baby.repository.BabyMemberRepository;
 import com.select.domain.baby.repository.BabyRepository;
 import com.select.domain.vaccination.dto.response.VaccinationHistoryResponse;
@@ -28,9 +29,8 @@ class VaccinationHistoryServiceImplTest {
     private BabyVaccinationRepository babyVaccinationRepository;
     private VaccineRepository vaccineRepository;
     private BabyRepository babyRepository;
-    private BabyMemberRepository babyMemberRepository;
+    private BabyAccessRepository babyAccessRepository;
     private VaccinationServiceImpl service;
-    private BabyMember babyMember;
     private Clock clock;
 
     private final Long babyId = 1L;
@@ -41,8 +41,7 @@ class VaccinationHistoryServiceImplTest {
         babyVaccinationRepository = mock(BabyVaccinationRepository.class);
         vaccineRepository = mock(VaccineRepository.class);
         babyRepository = mock(BabyRepository.class);
-        babyMemberRepository = mock(BabyMemberRepository.class);
-        babyMember = mock(BabyMember.class);
+        babyAccessRepository = mock(BabyAccessRepository.class);
         clock = Clock.fixed(
                 Instant.parse("2026-11-10T03:00:00Z"),
                 ZoneId.of("Asia/Seoul")
@@ -53,7 +52,7 @@ class VaccinationHistoryServiceImplTest {
                 babyVaccinationRepository,
                 vaccineRepository,
                 babyRepository,
-                babyMemberRepository,
+                babyAccessRepository,
                 clock
         );
     }
@@ -61,10 +60,11 @@ class VaccinationHistoryServiceImplTest {
     private void mockViewerAccess() {
         when(babyRepository.existsById(babyId)).thenReturn(true);
 
-        when(babyMemberRepository.findByBabyIdAndUserId(babyId, userId))
-                .thenReturn(Optional.of(babyMember));
+        when(babyAccessRepository.hasAccess(userId, babyId))
+                .thenReturn(true);
 
-        when(babyMember.getRole()).thenReturn(BabyRole.VIEWER);
+        when(babyAccessRepository.hasWriteAccess(userId, babyId))
+                .thenReturn(false);
     }
 
     @Test

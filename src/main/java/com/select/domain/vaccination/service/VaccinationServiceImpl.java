@@ -3,7 +3,7 @@ package com.select.domain.vaccination.service;
 import com.select.domain.baby.entity.Baby;
 import com.select.domain.baby.entity.BabyMember;
 import com.select.domain.baby.entity.BabyRole;
-import com.select.domain.baby.repository.BabyMemberRepository;
+import com.select.domain.baby.repository.BabyAccessRepository;
 import com.select.domain.baby.repository.BabyRepository;
 import com.select.domain.vaccination.dto.request.VaccinationScheduleCreateRequest;
 import com.select.domain.vaccination.dto.request.VaccinationScheduleSuccessRequest;
@@ -36,7 +36,7 @@ public class VaccinationServiceImpl implements VaccinationService {
     private final BabyVaccinationRepository babyVaccinationRepository;
     private final VaccineRepository vaccineRepository;
     private final BabyRepository babyRepository;
-    private final BabyMemberRepository babyMemberRepository;
+    private final BabyAccessRepository babyAccessRepository;
     private final Clock clock;
 
 
@@ -52,31 +52,21 @@ public class VaccinationServiceImpl implements VaccinationService {
     private void validateBabyReadAccess(Long babyId, Long userId) {
         validateBabyId(babyId);
         // 아기 존재 여부 확인
-        if (!babyRepository.existsById(babyId)) {
+        if (!babyRepository.existsById(babyId))
             throw new BusinessException(ErrorCode.BABY_NOT_FOUND);
-        }
 
         // 로그인 사용자가 해당 아기의 활성 구성원인지 확인
-                babyMemberRepository
-                .findByBabyIdAndUserId(babyId, userId)
-                .orElseThrow(() ->
-                        new BusinessException(ErrorCode.ACCESS_DENIED));
+        if (!babyAccessRepository.hasAccess(userId, babyId))
+            throw new BusinessException(ErrorCode.ACCESS_DENIED);
     }
     private void validateBabyWriteAccess(Long babyId, Long userId) {
         validateBabyId(babyId);
 
-        if (!babyRepository.existsById(babyId)) {
+        if (!babyRepository.existsById(babyId))
             throw new BusinessException(ErrorCode.BABY_NOT_FOUND);
-        }
 
-        BabyMember member = babyMemberRepository
-                .findByBabyIdAndUserId(babyId, userId)
-                .orElseThrow(() ->
-                        new BusinessException(ErrorCode.ACCESS_DENIED));
-
-        if (member.getRole() == BabyRole.VIEWER) {
+        if (!babyAccessRepository.hasWriteAccess(userId, babyId))
             throw new BusinessException(ErrorCode.ACCESS_DENIED);
-        }
     }
     private boolean isDuplicateVaccinationConstraint(Throwable e) {
         Throwable cause = e;
@@ -101,12 +91,6 @@ public class VaccinationServiceImpl implements VaccinationService {
             LocalDate to
 
     ) {
-        // 1. 입력값 검증 부분
-        if (babyId == null || babyId <= 0) {
-            throw new BusinessException(
-                    ErrorCode.VACCINE_INVALID_BABY_ID
-            );
-        }
         if (from == null || to == null || from.isAfter(to)) {
             throw new BusinessException(
                     ErrorCode.VACCINE_INVALID_DATE_RANGE

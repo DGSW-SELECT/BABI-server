@@ -3,6 +3,7 @@ package com.select.domain.vaccination.service;
 import com.select.domain.baby.entity.Baby;
 import com.select.domain.baby.entity.BabyMember;
 import com.select.domain.baby.entity.BabyRole;
+import com.select.domain.baby.repository.BabyAccessRepository;
 import com.select.domain.baby.repository.BabyMemberRepository;
 import com.select.domain.baby.repository.BabyRepository;
 import com.select.domain.vaccination.dto.request.VaccinationScheduleSuccessRequest;
@@ -30,7 +31,7 @@ class VaccinationCompleteServiceImplTest {
     private VaccinationServiceImpl service;
     private VaccineRepository vaccineRepository;
     private BabyRepository babyRepository;
-    private BabyMemberRepository babyMemberRepository;
+    private BabyAccessRepository babyAccessRepository;
     private BabyMember babyMember;
     private Clock clock;
 
@@ -43,7 +44,7 @@ class VaccinationCompleteServiceImplTest {
         repository = mock(BabyVaccinationRepository.class);
         vaccineRepository = mock(VaccineRepository.class);
         babyRepository = mock(BabyRepository.class);
-        babyMemberRepository = mock(BabyMemberRepository.class);
+        babyAccessRepository = mock(BabyAccessRepository.class);
         babyMember = mock(BabyMember.class);
 
         clock = Clock.fixed(
@@ -51,24 +52,26 @@ class VaccinationCompleteServiceImplTest {
                 ZoneId.of("Asia/Seoul")
         );
 
-        service = new VaccinationServiceImpl(repository, vaccineRepository, babyRepository, babyMemberRepository, clock);
+        service = new VaccinationServiceImpl(repository, vaccineRepository, babyRepository, babyAccessRepository, clock);
     }
 
     private void mockViewerAccess() {
         when(babyRepository.existsById(babyId)).thenReturn(true);
 
-        when(babyMemberRepository.findByBabyIdAndUserId(babyId, userId))
-                .thenReturn(Optional.of(babyMember));
+        when(babyAccessRepository.hasAccess(userId, babyId))
+                .thenReturn(true);
 
-        when(babyMember.getRole()).thenReturn(BabyRole.VIEWER);
+        when(babyAccessRepository.hasWriteAccess(userId, babyId))
+                .thenReturn(false);
     }
     private void mockWriteAccess() {
         when(babyRepository.existsById(babyId)).thenReturn(true);
 
-        when(babyMemberRepository.findByBabyIdAndUserId(babyId, userId))
-                .thenReturn(Optional.of(babyMember));
+        when(babyAccessRepository.hasAccess(userId, babyId))
+                .thenReturn(true);
 
-        when(babyMember.getRole()).thenReturn(BabyRole.GUARDIAN);
+        when(babyAccessRepository.hasWriteAccess(userId, babyId))
+                .thenReturn(true);
     }
 
     @Test
