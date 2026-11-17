@@ -58,7 +58,7 @@ class AwsProfileStartupTest {
         assertEquals("127.0.0.1", environment.getProperty("server.address"));
 
         var request = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port
-                + "/babi/api/babies/1/daily-reports/2026-10-27")).GET().build();
+                + "/babies/1/daily-reports/2026-10-27")).GET().build();
         var response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.discarding());
         assertEquals(401, response.statusCode());
     }

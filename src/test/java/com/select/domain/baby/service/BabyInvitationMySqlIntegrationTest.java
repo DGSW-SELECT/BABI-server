@@ -1,7 +1,7 @@
 package com.select.domain.baby.service;
 
 import com.select.domain.baby.entity.BabyMember;
-import com.select.domain.report.repository.BabyAccessRepository;
+import com.select.domain.baby.repository.BabyAccessRepository;
 import com.select.domain.baby.entity.BabyRole;
 import com.select.domain.baby.repository.BabyMemberRepository;
 import com.select.domain.baby.request.BabyCreateRequest;

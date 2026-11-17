@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
+    branches: [main, develop]
   workflow_dispatch:
 
 permissions:
@@ -36,6 +36,10 @@ jobs:
         env:
           BABI_REDIS_TEST_PORT: "6379"
         run: ./gradlew build --no-daemon -PgitCommit="$GITHUB_SHA"
+      - name: Verify records and reports against isolated final MySQL schema
+        run: |
+          docker pull --quiet mysql:8.4
+          python3 scripts/check_final_schema_isolated.py src/main/resources/schema.sql --app-test
       - name: Verify the actual Spring Boot JAR metadata
         env:
           PYTHONPATH: deploy

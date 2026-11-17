@@ -76,6 +76,24 @@ class BabyIntegrationTest {
     }
 
     @Test
+    void babySexCanBeRecordedAndUpdatedByOwner() throws Exception {
+        var created = request("POST", "/babies", ownerId,
+                "{\"name\":\"baby\",\"birthDate\":\"2025-02-01\",\"sex\":\"MALE\"}");
+        assertEquals(200, created.statusCode(), created.body());
+        var data = mapper.readTree(created.body()).path("data");
+        long id = data.path("babyId").asLong();
+        assertEquals("MALE", data.path("sex").asText());
+        var updated = request("PATCH", "/babies/" + id, ownerId, "{\"sex\":\"FEMALE\"}");
+        assertEquals(200, updated.statusCode(), updated.body());
+        assertEquals("FEMALE", mapper.readTree(request("GET", "/babies/" + id, ownerId, null).body()).path("data").path("sex").asText());
+        assertEquals(403, request("PATCH", "/babies/" + babyId, memberId, "{\"sex\":\"MALE\"}").statusCode());
+        assertEquals(400, request("POST", "/babies", ownerId, "{\"name\":\"baby\",\"birthDate\":\"2025-02-01\",\"sex\":\"UNKNOWN\"}").statusCode());
+        assertEquals(400, request("PATCH", "/babies/" + id, ownerId, "{\"sex\":\"UNKNOWN\"}").statusCode());
+        assertEquals(400, request("PATCH", "/babies/" + id, ownerId, "{\"sex\":null}").statusCode());
+        assertEquals("FEMALE", mapper.readTree(request("GET", "/babies/" + id, ownerId, null).body()).path("data").path("sex").asText());
+    }
+
+    @Test
     void registrationWithoutFamilyUsesJwtIdentityAndLimitsReadsToMembers() throws Exception {
         var response = request("POST", "/babies", ownerId,
                 "{\"name\":\"둘째\",\"birthDate\":\"2025-02-01\",\"userId\":" + outsiderId + "}");
@@ -213,6 +231,7 @@ class BabyIntegrationTest {
         var saved = babies.findById(babyId).orElseThrow();
         assertEquals("아기", saved.getName());
         assertEquals(LocalDate.of(2025, 1, 15), saved.getBirthDate());
+        assertNull(saved.getSex());
     }
 
     static Stream<String> invalidUpdates() {
@@ -228,6 +247,12 @@ class BabyIntegrationTest {
                 "{\"birthDate\":null}",
                 "{\"name\":42}",
                 "{\"birthDate\":42}",
+                "{\"name\":\"변경되면 안 됨\",\"sex\":\"UNKNOWN\"}",
+                "{\"sex\":null}",
+                "{\"sex\":42}",
+                "{\"sex\":true}",
+                "{\"sex\":{}}",
+                "{\"sex\":[]}",
                 "[]",
                 "null",
                 "{"

@@ -295,10 +295,11 @@ public class BabyInvitationWorkflow {
             } catch (DataIntegrityViolationException e) {
                 boolean collision = false;
                 for (Throwable cause = e; cause != null; cause = cause.getCause()) {
-                    if (cause instanceof ConstraintViolationException violation
-                            && violation.getConstraintName() != null
-                            && violation.getConstraintName().toLowerCase(java.util.Locale.ROOT)
-                                    .contains("uk_baby_invitation_code")) collision = true;
+                    if (cause instanceof ConstraintViolationException violation && violation.getConstraintName() != null) {
+                        String constraintName = violation.getConstraintName().toLowerCase(java.util.Locale.ROOT);
+                        if (constraintName.contains("uk_baby_invitation_code")
+                                || constraintName.contains("uk_invitation_code")) collision = true;
+                    }
                 }
                 if (!collision) throw new BabyInvitationException(ErrorCode.INVITATION_UNAVAILABLE);
                 // Unique-index race: retry after the failed transaction has fully rolled back, before any mail send.

@@ -49,6 +49,22 @@ public class DailyReport {
         return report;
     }
 
+    public static DailyReport pending(Long babyId, LocalDate reportDate) {
+        DailyReport report = create(babyId, reportDate, "");
+        report.status = "PENDING";
+        return report;
+    }
+
+    public boolean isPending() {
+        return "PENDING".equals(status);
+    }
+
+    public void completeGeneration(String summary) {
+        this.summary = summary;
+        this.status = "COMPLETED";
+        this.generatedAt = LocalDateTime.now();
+    }
+
     public void updateSummary(String summary) {
         this.summary = summary;
     }

@@ -72,6 +72,10 @@ public class User {
         return "ACTIVE".equals(status);
     }
 
+    public void changeNickname(String nickname) {
+        this.nickname = nickname;
+    }
+
     @Builder
     public User(String email, String passwordHash, String nickname) {
         this.email = email;
