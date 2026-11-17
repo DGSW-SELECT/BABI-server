@@ -13,6 +13,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import tools.jackson.databind.ObjectMapper;
 
 import java.net.URI;
@@ -58,11 +59,23 @@ class DailyReportIntegrationTest {
     @Autowired
     private ObjectMapper objectMapper;
 
+    @MockitoBean
+    private com.select.global.security.jwt.RefreshSessionService refreshSessions;
+
+    @MockitoBean
+    private com.select.global.security.jwt.TokenRevocationService tokenRevocations;
+
     private final HttpClient client = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(5)).build();
 
     @BeforeEach
     void cleanDatabase() {
+        org.mockito.Mockito.when(refreshSessions.create(org.mockito.ArgumentMatchers.anyString()))
+                .thenReturn("A".repeat(43) + "." + "B".repeat(43));
+        org.mockito.Mockito.when(refreshSessions.isActive(org.mockito.ArgumentMatchers.anyString()))
+                .thenReturn(true);
+        org.mockito.Mockito.when(tokenRevocations.isRevoked(org.mockito.ArgumentMatchers.anyString()))
+                .thenReturn(false);
         jdbcTemplate.update("DELETE FROM daily_reports");
         jdbcTemplate.update("DELETE FROM feeding_records");
         jdbcTemplate.update("DELETE FROM sleep_records");

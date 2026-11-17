@@ -117,6 +117,7 @@ class SttPipelineIntegrationTest {
         jdbcTemplate.update("delete from temperature_records");
         jdbcTemplate.update("delete from diaper_records");
         jdbcTemplate.update("delete from cry_records");
+        jdbcTemplate.update("delete from growth_records");
         jdbcTemplate.update("delete from voice_inputs");
         jdbcTemplate.update("delete from stt_jobs");
         jdbcTemplate.update("delete from baby_members");
