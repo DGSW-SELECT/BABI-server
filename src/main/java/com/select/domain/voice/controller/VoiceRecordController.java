@@ -13,7 +13,6 @@ import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -80,18 +79,6 @@ public class VoiceRecordController {
         return new ApiResponse<>(true, "음성 변환 작업을 조회했습니다.", response);
     }
 
-    @PostMapping("/stt-jobs/{jobId}/retry")
-    public ApiResponse<SttJobResponse> retrySttJob(
-            @PathVariable Long babyId,
-            @AuthenticationPrincipal String principal,
-            @PathVariable Long jobId
-    ) {
-        SttJobResponse response = sttJobService.retry(
-                babyId, CurrentUser.id(principal), jobId
-        );
-        return new ApiResponse<>(true, "음성 변환 작업을 다시 등록했습니다.", response);
-    }
-
     /**
      * 사용자가 미리보기에서 확인한 STT 결과를 저장한다.
      */
@@ -105,19 +92,6 @@ public class VoiceRecordController {
                 babyId, CurrentUser.id(principal), jobId
         );
         return new ApiResponse<>(true, "음성 기록이 저장되었습니다.", response);
-    }
-
-    /**
-     * 사용자가 녹음을 버릴 때 확인 전 작업과 음성 파일을 삭제한다.
-     */
-    @DeleteMapping("/stt-jobs/{jobId}")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void cancelSttJob(
-            @PathVariable Long babyId,
-            @AuthenticationPrincipal String principal,
-            @PathVariable Long jobId
-    ) {
-        sttJobService.cancel(babyId, CurrentUser.id(principal), jobId);
     }
 
     @PostMapping

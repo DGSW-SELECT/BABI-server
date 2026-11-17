@@ -64,11 +64,6 @@ public class LocalAudioStorage implements AudioStorage {
         }
     }
 
-    @Override
-    public boolean exists(String path) {
-        return Files.isRegularFile(resolve(path));
-    }
-
     private Path resolve(String relativePath) {
         if (relativePath == null || relativePath.isBlank()) {
             throw new AudioStorageException("음성 파일 경로가 비어 있습니다.");

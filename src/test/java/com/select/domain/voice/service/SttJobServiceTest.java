@@ -11,12 +11,9 @@ import com.select.domain.voice.dto.response.SttJobResponse;
 import com.select.domain.voice.entity.SttJob;
 import com.select.domain.voice.entity.SttStatus;
 import com.select.domain.voice.entity.VoiceInput;
-import com.select.domain.voice.exception.AudioStorageException;
 import com.select.domain.voice.exception.InvalidAudioException;
-import com.select.domain.voice.exception.SttJobNotCancelableException;
 import com.select.domain.voice.exception.SttJobNotConfirmableException;
 import com.select.domain.voice.exception.SttJobNotFoundException;
-import com.select.domain.voice.exception.SttJobNotRetryableException;
 import com.select.domain.voice.exception.SttJobLimitExceededException;
 import com.select.domain.voice.repository.SttJobRepository;
 import com.select.domain.voice.repository.VoiceInputRepository;
@@ -215,58 +212,6 @@ class SttJobServiceTest {
     }
 
     @Test
-    void retryResetsFailedJob() {
-        SttJob job = job(SttStatus.FAILED, 3);
-        ReflectionTestUtils.setField(job, "lastError", "음성 변환에 실패했습니다.");
-        when(accountContextService.resolveForWrite(USER_ID, BABY_ID)).thenReturn(context());
-        when(sttJobRepository.findByIdAndBabyIdForUpdate(JOB_ID, BABY_ID)).thenReturn(Optional.of(job));
-        when(audioStorage.exists(AUDIO_PATH)).thenReturn(true);
-
-        SttJobResponse response = sttJobService.retry(BABY_ID, USER_ID, JOB_ID);
-
-        assertThat(response.status()).isEqualTo(SttStatus.PENDING);
-        assertThat(response.attemptCount()).isZero();
-        assertThat(response.errorMessage()).isNull();
-        assertThat(job.getNextAttemptAt()).isNotNull();
-    }
-
-    @Test
-    void retryRejectsJobOwnedByAnotherMember() {
-        SttJob job = job(SttStatus.FAILED, 3);
-        ReflectionTestUtils.setField(job, "familyMemberId", 8L);
-        when(accountContextService.resolveForWrite(USER_ID, BABY_ID)).thenReturn(context());
-        when(sttJobRepository.findByIdAndBabyIdForUpdate(JOB_ID, BABY_ID)).thenReturn(Optional.of(job));
-
-        assertThatThrownBy(() -> sttJobService.retry(BABY_ID, USER_ID, JOB_ID))
-                .isInstanceOf(AccessDeniedException.class);
-
-        verifyNoInteractions(audioStorage);
-    }
-
-    @Test
-    void retryRejectsJobThatIsNotFailed() {
-        SttJob job = completedJob(null);
-        when(accountContextService.resolveForWrite(USER_ID, BABY_ID)).thenReturn(context());
-        when(sttJobRepository.findByIdAndBabyIdForUpdate(JOB_ID, BABY_ID)).thenReturn(Optional.of(job));
-
-        assertThatThrownBy(() -> sttJobService.retry(BABY_ID, USER_ID, JOB_ID))
-                .isInstanceOf(SttJobNotRetryableException.class);
-
-        verifyNoInteractions(audioStorage);
-    }
-
-    @Test
-    void retryFailsWhenStoredAudioIsMissing() {
-        SttJob job = job(SttStatus.FAILED, 3);
-        when(accountContextService.resolveForWrite(USER_ID, BABY_ID)).thenReturn(context());
-        when(sttJobRepository.findByIdAndBabyIdForUpdate(JOB_ID, BABY_ID)).thenReturn(Optional.of(job));
-        when(audioStorage.exists(AUDIO_PATH)).thenReturn(false);
-
-        assertThatThrownBy(() -> sttJobService.retry(BABY_ID, USER_ID, JOB_ID))
-                .isInstanceOf(AudioStorageException.class);
-    }
-
-    @Test
     void completeStoresTranscriptWithoutSavingVoiceInput() {
         SttJob job = job(SttStatus.PROCESSING, 1);
         when(sttJobRepository.findByIdForUpdate(JOB_ID)).thenReturn(Optional.of(job));
@@ -395,59 +340,6 @@ class SttJobServiceTest {
     }
 
     @Test
-    void cancelDeletesUnconfirmedJobAndAudio() {
-        SttJob job = completedJob(null);
-        when(accountContextService.resolveForWrite(USER_ID, BABY_ID)).thenReturn(context());
-        when(sttJobRepository.findByIdAndBabyIdForUpdate(JOB_ID, BABY_ID))
-                .thenReturn(Optional.of(job));
-
-        sttJobService.cancel(BABY_ID, USER_ID, JOB_ID);
-
-        verify(sttJobRepository).delete(job);
-        verify(audioStorage).delete(AUDIO_PATH);
-    }
-
-    @Test
-    void cancelRejectsJobOwnedByAnotherMember() {
-        SttJob job = completedJob(null);
-        ReflectionTestUtils.setField(job, "familyMemberId", 8L);
-        when(accountContextService.resolveForWrite(USER_ID, BABY_ID)).thenReturn(context());
-        when(sttJobRepository.findByIdAndBabyIdForUpdate(JOB_ID, BABY_ID))
-                .thenReturn(Optional.of(job));
-
-        assertThatThrownBy(() -> sttJobService.cancel(BABY_ID, USER_ID, JOB_ID))
-                .isInstanceOf(AccessDeniedException.class);
-
-        verify(sttJobRepository, never()).delete(any());
-    }
-
-    @Test
-    void cancelRejectsProcessingJob() {
-        SttJob job = job(SttStatus.PROCESSING, 1);
-        when(accountContextService.resolveForWrite(USER_ID, BABY_ID)).thenReturn(context());
-        when(sttJobRepository.findByIdAndBabyIdForUpdate(JOB_ID, BABY_ID))
-                .thenReturn(Optional.of(job));
-
-        assertThatThrownBy(() -> sttJobService.cancel(BABY_ID, USER_ID, JOB_ID))
-                .isInstanceOf(SttJobNotCancelableException.class);
-
-        verify(sttJobRepository, never()).delete(any());
-    }
-
-    @Test
-    void cancelRejectsConfirmedJob() {
-        SttJob job = completedJob(10L);
-        when(accountContextService.resolveForWrite(USER_ID, BABY_ID)).thenReturn(context());
-        when(sttJobRepository.findByIdAndBabyIdForUpdate(JOB_ID, BABY_ID))
-                .thenReturn(Optional.of(job));
-
-        assertThatThrownBy(() -> sttJobService.cancel(BABY_ID, USER_ID, JOB_ID))
-                .isInstanceOf(SttJobNotCancelableException.class);
-
-        verify(sttJobRepository, never()).delete(any());
-    }
-
-    @Test
     void failSchedulesRetryWhenAttemptsRemain() {
         SttJob job = job(SttStatus.PROCESSING, 1);
         when(sttJobRepository.findByIdForUpdate(JOB_ID)).thenReturn(Optional.of(job));
@@ -473,7 +365,7 @@ class SttJobServiceTest {
     }
 
     @Test
-    void cleanupExpiredFailedJobsRemovesJobAndAudioFile() {
+    void cleanupExpiredFailedJobsKeepsQuotaHistoryForAtLeast24Hours() {
         SttJob expired = job(SttStatus.FAILED, 3);
         when(sttJobRepository.findExpiredFailedJobs(
                 eq(SttStatus.FAILED), any(LocalDateTime.class), any(org.springframework.data.domain.Pageable.class)
@@ -482,6 +374,11 @@ class SttJobServiceTest {
         int removed = sttJobService.cleanupExpiredFailedJobs();
 
         assertThat(removed).isEqualTo(1);
+        ArgumentCaptor<LocalDateTime> cutoff = ArgumentCaptor.forClass(LocalDateTime.class);
+        verify(sttJobRepository).findExpiredFailedJobs(
+                eq(SttStatus.FAILED), cutoff.capture(), any(org.springframework.data.domain.Pageable.class)
+        );
+        assertThat(cutoff.getValue()).isBefore(LocalDateTime.now().minusHours(23));
         verify(sttJobRepository).deleteAll(List.of(expired));
         verify(audioStorage).delete(AUDIO_PATH);
     }

@@ -25,8 +25,4 @@ public interface AudioStorage {
      */
     void delete(String path);
 
-    /**
-     * 저장된 음성 파일이 존재하는지 확인한다.
-     */
-    boolean exists(String path);
 }

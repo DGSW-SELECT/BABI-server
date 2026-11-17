@@ -180,22 +180,6 @@ public class SttJob {
     }
 
     /**
-     * 사용자가 수동으로 재시도할 때 작업을 초기 상태로 되돌린다.
-     */
-    public void resetForRetry(LocalDateTime now) {
-        this.status = SttStatus.PENDING;
-        this.attemptCount = 0;
-        this.claimToken = null;
-        this.lastError = null;
-        this.transcript = null;
-        this.voiceInputId = null;
-        this.nextAttemptAt = now;
-        this.startedAt = null;
-        this.completedAt = null;
-        this.updatedAt = now;
-    }
-
-    /**
      * 처리 중 멈춘 작업을 복구한다.
      *
      * @param retryable 남은 재시도 횟수가 있으면 {@code true}

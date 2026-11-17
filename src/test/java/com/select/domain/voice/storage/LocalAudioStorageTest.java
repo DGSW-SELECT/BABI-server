@@ -29,8 +29,6 @@ class LocalAudioStorageTest {
 
         assertThat(path).endsWith(".mp3");
         assertThat(path).doesNotContain("voice.mp3");
-        assertThat(storage.exists(path)).isTrue();
-
         MultipartFile loaded = storage.load(path);
         assertThat(loaded.getBytes()).isEqualTo(audio.getBytes());
         assertThat(loaded.getOriginalFilename()).endsWith(".mp3");
@@ -57,7 +55,8 @@ class LocalAudioStorageTest {
 
         storage.delete(path);
 
-        assertThat(storage.exists(path)).isFalse();
+        assertThatThrownBy(() -> storage.load(path))
+                .isInstanceOf(AudioStorageException.class);
     }
 
     @Test
@@ -77,11 +76,4 @@ class LocalAudioStorageTest {
                 .hasMessageContaining("허용되지 않는");
     }
 
-    @Test
-    void rejectsBlankPath() {
-        LocalAudioStorage storage = new LocalAudioStorage(tempDir);
-
-        assertThatThrownBy(() -> storage.exists(" "))
-                .isInstanceOf(AudioStorageException.class);
-    }
 }

@@ -24,10 +24,8 @@ import com.select.domain.voice.exception.AudioTooLargeException;
 import com.select.domain.voice.exception.InvalidAudioException;
 import com.select.domain.voice.exception.SttFailedException;
 import com.select.domain.voice.exception.SttJobLimitExceededException;
-import com.select.domain.voice.exception.SttJobNotCancelableException;
 import com.select.domain.voice.exception.SttJobNotConfirmableException;
 import com.select.domain.voice.exception.SttJobNotFoundException;
-import com.select.domain.voice.exception.SttJobNotRetryableException;
 import com.select.domain.voice.exception.VoiceInputNotFoundException;
 import com.select.global.response.ApiError;
 import com.select.global.response.ApiResponse;
@@ -263,26 +261,6 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     ) {
         return createErrorResponse(
                 ErrorCode.STT_JOB_NOT_CONFIRMABLE,
-                List.of()
-        );
-    }
-
-    @ExceptionHandler(SttJobNotCancelableException.class)
-    public ResponseEntity<ApiResponse<Void>> handleSttJobNotCancelable(
-            SttJobNotCancelableException e
-    ) {
-        return createErrorResponse(
-                ErrorCode.STT_JOB_NOT_CANCELABLE,
-                List.of()
-        );
-    }
-
-    @ExceptionHandler(SttJobNotRetryableException.class)
-    public ResponseEntity<ApiResponse<Void>> handleSttJobNotRetryable(
-            SttJobNotRetryableException e
-    ) {
-        return createErrorResponse(
-                ErrorCode.STT_JOB_NOT_RETRYABLE,
                 List.of()
         );
     }

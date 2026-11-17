@@ -11,12 +11,9 @@ import com.select.domain.voice.dto.response.SttJobResponse;
 import com.select.domain.voice.entity.SttJob;
 import com.select.domain.voice.entity.SttStatus;
 import com.select.domain.voice.entity.VoiceInput;
-import com.select.domain.voice.exception.AudioStorageException;
 import com.select.domain.voice.exception.SttJobLimitExceededException;
-import com.select.domain.voice.exception.SttJobNotCancelableException;
 import com.select.domain.voice.exception.SttJobNotConfirmableException;
 import com.select.domain.voice.exception.SttJobNotFoundException;
-import com.select.domain.voice.exception.SttJobNotRetryableException;
 import com.select.domain.voice.repository.SttJobRepository;
 import com.select.domain.voice.repository.VoiceInputRepository;
 import com.select.domain.voice.storage.AudioStorage;
@@ -36,13 +33,14 @@ import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
 /**
- * 비동기 STT 작업의 제출·조회·재시도·확인 저장과 상태 전이를 담당한다.
+ * 비동기 STT 작업의 제출·조회·확인 저장과 상태 전이를 담당한다.
  *
  * <p>실제 STT 호출은 {@link SttJobWorker}가 맡고, 이 서비스는 DB 트랜잭션 경계를
  * 보장한다. STT 호출 동안 트랜잭션을 열어 두지 않기 위해 처리 흐름을 분리했다.
@@ -130,28 +128,6 @@ public class SttJobService {
                 accountContextService.resolveForRead(userId, babyId);
         SttJob job = findJob(context.babyId(), jobId);
         requireOwner(job, context.memberId());
-        return SttJobResponse.of(job, properties.maxAttempts());
-    }
-
-    /**
-     * 최종 실패한 작업을 사용자가 다시 시도할 수 있게 한다.
-     */
-    @Transactional
-    public SttJobResponse retry(Long babyId, Long userId, Long jobId) {
-        AccountContextService.AccountContext context =
-                accountContextService.resolveForWrite(userId, babyId);
-        SttJob job = sttJobRepository.findByIdAndBabyIdForUpdate(jobId, context.babyId())
-                .orElseThrow(SttJobNotFoundException::new);
-        requireOwner(job, context.memberId());
-        if (job.getStatus() != SttStatus.FAILED) {
-            throw new SttJobNotRetryableException("실패한 음성 변환 작업만 재시도할 수 있습니다.");
-        }
-        if (!audioStorage.exists(job.getAudioPath())) {
-            throw new AudioStorageException("재시도할 음성 파일을 찾을 수 없습니다.");
-        }
-
-        job.resetForRetry(LocalDateTime.now());
-        log.info("STT 작업을 재시도합니다. jobId={}", jobId);
         return SttJobResponse.of(job, properties.maxAttempts());
     }
 
@@ -253,30 +229,6 @@ public class SttJobService {
     }
 
     /**
-     * 사용자가 녹음을 버릴 때 확인 전 작업과 음성 파일을 삭제한다.
-     */
-    @Transactional(propagation = Propagation.NEVER)
-    public void cancel(Long babyId, Long userId, Long jobId) {
-        AccountContextService.AccountContext prechecked =
-                accountContextService.resolveForWrite(userId, babyId);
-        transactions.executeWithoutResult(status -> {
-            AccountContextService.AccountContext context =
-                    accountContextService.resolveForWrite(userId, prechecked.babyId());
-            SttJob job = sttJobRepository.findByIdAndBabyIdForUpdate(jobId, context.babyId())
-                    .orElseThrow(SttJobNotFoundException::new);
-            requireOwner(job, context.memberId());
-            if (job.getStatus() == SttStatus.PROCESSING || job.getVoiceInputId() != null) {
-                throw new SttJobNotCancelableException("처리 중이거나 저장된 음성 변환 작업은 취소할 수 없습니다.");
-            }
-
-            String audioPath = job.getAudioPath();
-            sttJobRepository.delete(job);
-            deleteAfterCommit(audioPath);
-            log.info("STT 작업을 취소했습니다. jobId={}", jobId);
-        });
-    }
-
-    /**
      * STT 실패를 기록하고 남은 재시도 횟수에 따라 {@code PENDING} 또는 {@code FAILED}로 전이한다.
      */
     @Transactional
@@ -323,13 +275,19 @@ public class SttJobService {
     }
 
     /**
-     * 최종 실패한 작업은 재시도할 수 있도록 하루 동안 보관한 뒤 작업과 음성 파일을 정리한다.
+     * 최종 실패 작업과 음성 파일을 정리한다. 작업 행은 생성 한도 집계를 위해
+     * 생성 한도 집계를 위해 생성 후 최소 24시간 보존한다.
      */
     @Transactional
     public int cleanupExpiredFailedJobs() {
+        Duration minimumRetention = Duration.ofHours(24);
+        Duration retention = properties.failedAudioRetention().compareTo(minimumRetention) < 0
+                ? minimumRetention
+                : properties.failedAudioRetention();
+        LocalDateTime retentionCutoff = LocalDateTime.now().minus(retention);
         List<SttJob> expiredJobs = sttJobRepository.findExpiredFailedJobs(
                 SttStatus.FAILED,
-                LocalDateTime.now().minus(properties.failedAudioRetention()),
+                retentionCutoff,
                 PageRequest.of(0, 100)
         );
         if (expiredJobs.isEmpty()) {
