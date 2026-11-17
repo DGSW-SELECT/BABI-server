@@ -6,6 +6,11 @@ import com.select.domain.auth.exception.EmailVerificationException;
 import com.select.domain.baby.exception.BabyInvitationException;
 import com.select.domain.baby.exception.BabyNotFoundException;
 import com.select.domain.baby.exception.InvalidOwnershipTransferException;
+import com.select.domain.handover.exception.HandoverBriefingGenerationException;
+import com.select.domain.handover.exception.HandoverBriefingNotFoundException;
+import com.select.domain.handover.exception.HandoverBriefingRateLimitedException;
+import com.select.domain.handover.exception.HandoverBriefingUnavailableException;
+import com.select.domain.handover.exception.NoDailyCareRecordException;
 import com.select.domain.report.exception.DailyReportAlreadyExistsException;
 import com.select.domain.report.exception.DailyReportNotFoundException;
 import com.select.domain.user.exception.AccountLifecycleException;
@@ -57,6 +62,15 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(AccountLifecycleException.class)
     public ResponseEntity<ApiResponse<Void>> handleAccountLifecycle(AccountLifecycleException e) {
         return createErrorResponse(e.getErrorCode(), List.of());
+    }
+
+    @ExceptionHandler(HandoverBriefingRateLimitedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleHandoverBriefingRateLimited(
+            HandoverBriefingRateLimitedException exception
+    ) {
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header(HttpHeaders.RETRY_AFTER, Integer.toString(exception.getRetryAfterSeconds()))
+                .body(createErrorResponseBody(ErrorCode.HANDOVER_BRIEFING_RATE_LIMITED, List.of()));
     }
 
     @ExceptionHandler(BabyInvitationException.class)
@@ -113,6 +127,11 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         );
     }
 
+    @ExceptionHandler(NoDailyCareRecordException.class)
+    public ResponseEntity<ApiResponse<Void>> handleNoDailyCareRecord(NoDailyCareRecordException e) {
+        return createErrorResponse(ErrorCode.NO_DAILY_CARE_RECORD, List.of());
+    }
+
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ApiResponse<Void>> handleAccessDenied(
             AccessDeniedException e
@@ -123,6 +142,11 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         );
     }
 
+    @ExceptionHandler(HandoverBriefingNotFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> handleHandoverBriefingNotFound(HandoverBriefingNotFoundException e) {
+        return createErrorResponse(ErrorCode.HANDOVER_BRIEFING_NOT_FOUND, List.of());
+    }
+
     @ExceptionHandler(BabyNotFoundException.class)
     public ResponseEntity<ApiResponse<Void>> handleBabyNotFound(
             BabyNotFoundException e
@@ -131,6 +155,20 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 ErrorCode.NOT_FOUND,
                 List.of()
         );
+    }
+
+    @ExceptionHandler(HandoverBriefingGenerationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleHandoverBriefingGenerationFailure(
+            HandoverBriefingGenerationException e
+    ) {
+        return createErrorResponse(ErrorCode.HANDOVER_BRIEFING_GENERATION_FAILED, List.of());
+    }
+
+    @ExceptionHandler(HandoverBriefingUnavailableException.class)
+    public ResponseEntity<ApiResponse<Void>> handleHandoverBriefingUnavailable(
+            HandoverBriefingUnavailableException e
+    ) {
+        return createErrorResponse(ErrorCode.HANDOVER_BRIEFING_UNAVAILABLE, List.of());
     }
 
     @ExceptionHandler(InvalidAudioException.class)
