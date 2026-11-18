@@ -151,6 +151,7 @@ Discord 연결은 최대 3초, 요청은 최대 5초로 제한합니다. 응답 
 - 저장된 기록도 `PATCH` API로 다시 수정할 수 있습니다.
 - 모든 음성 기록 API는 `Authorization: Bearer {accessToken}` 헤더가 필요합니다.
 - 요청자는 해당 아기의 활성 구성원이어야 하며, 아니면 `403 FORBIDDEN`을 반환합니다. 아기가 없으면 `404 NOT_FOUND`를 반환합니다.
+- 유료 STT 변환은 `CARE_WRITE` 권한이 필요하고, 사용자별 24시간 20회로 제한합니다. VIEWER는 STT를 호출할 수 없습니다. Redis 제한 서비스를 사용할 수 없으면 외부 STT 호출을 중단하고 `503 STT_RATE_LIMITER_UNAVAILABLE`을 반환합니다.
 - 음성 파일은 25MB 이하이며 `mp3`, `mp4`, `m4a`, `mpeg`, `mpga`, `wav`, `webm`, `ogg`, `flac`, `aac`를 지원합니다.
 - 저장 요청 예시:
 
@@ -169,6 +170,24 @@ Discord 연결은 최대 3초, 요청은 최대 5초로 제한합니다. 응답 
 ```
 
 > `familyMemberId`는 클라이언트가 보내지 않고, 인증된 사용자의 `baby_members.id`를 서버에서 결정합니다.
+
+### 앱 녹음 화면 API
+
+프론트 녹음 화면은 확인 전에는 아무것도 저장하지 않고, `저장하기`를 누른 시점에만 음성 기록과 육아기록을 만듭니다.
+
+| Method | Content-Type | Path | 설명 |
+|---|---|---|---|
+| `POST` | `multipart/form-data` | `/api/voice-records/parse` | `audio` 파일을 STT 변환해 `transcript`, `items`, `parsedAt` 반환 |
+| `POST` | `application/json` | `/api/voice-records` | 확인한 `transcript`를 저장하고 `voice_inputs`와 육아기록 생성 |
+
+- 응답은 프론트 계약에 맞춰 `ApiResponse`로 감싸지 않습니다.
+- `babyId`는 선택 쿼리 파라미터입니다. 사용자가 접근할 수 있는 아기가 하나면 생략할 수 있고, 여러 명이면 `400 BABY_SELECTION_REQUIRED`를 반환하므로 프론트가 선택한 `babyId`를 보내야 합니다.
+- `parse` 응답의 `parsedAt`을 저장 요청에 그대로 넣으면 미리보기와 같은 기준 시각으로 다시 분석해 상대 시간이 어긋나지 않습니다. 생략하면 저장 시각을 기준으로 분석합니다.
+- 저장 요청의 `parsedAt`은 서버 현재 시각 기준 과거·미래 24시간 범위만 허용합니다.
+- `다시 녹음하기`는 `parse` 결과를 버리면 되고, 서버에 남는 데이터가 없습니다.
+- 저장 응답은 `{ "ok": true, "voiceInputId": 10, "careRecords": [...] }`이며 `careRecords`는 `domain/care`의 다섯 기록 테이블에 저장된 결과입니다.
+- 인증은 `Authorization: Bearer {accessToken}` 또는 로그인 시 발급되는 인증 쿠키를 사용합니다. 쿠키를 쓰는 변경 요청은 `X-CSRF-Token` 헤더가 필요합니다.
+
 
 ## 검증
 
@@ -189,7 +208,7 @@ Discord 연결은 최대 3초, 요청은 최대 5초로 제한합니다. 응답 
 
 Swagger의 **Try it out**은 실제 API 요청을 실행합니다. 이메일 발송·회원가입 등을 시도할 때는 사용 중인 서버와 연결 환경을 확인합니다.
 
-## 패키지 구조
+## 코드 구조
 
 ```text
 com.select
