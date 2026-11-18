@@ -21,9 +21,7 @@ public class SttClientConfig {
     public SttClient sttClient(SttProperties properties, Environment environment) {
         if (!properties.usesRealProvider()) {
             if (environment.matchesProfiles("aws")) {
-                throw new IllegalStateException(
-                        "aws 프로필에서는 실제 STT 제공자와 OPENAI_API_KEY가 필요합니다."
-                );
+                throw new IllegalStateException("aws 프로필에서는 가짜 STT 제공자를 사용할 수 없습니다.");
             }
             return new FakeSttClient(properties.fakeTranscript());
         }

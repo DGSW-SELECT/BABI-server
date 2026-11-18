@@ -24,7 +24,7 @@ public record SttProperties(
     private static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(60);
 
     public SttProperties {
-        provider = provider == null ? SttProvider.AUTO : provider;
+        provider = provider == null ? SttProvider.OPENAI : provider;
         baseUrl = normalizeBaseUrl(baseUrl);
         apiKey = apiKey == null ? null : apiKey.trim();
         model = StringUtils.hasText(model) ? model.trim() : DEFAULT_MODEL;
@@ -43,7 +43,6 @@ public record SttProperties(
         return switch (provider) {
             case OPENAI -> true;
             case FAKE -> false;
-            case AUTO -> StringUtils.hasText(apiKey);
         };
     }
 
