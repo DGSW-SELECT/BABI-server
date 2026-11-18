@@ -55,6 +55,7 @@ public enum ErrorCode {
     EMAIL_NOT_VERIFIED(HttpStatus.BAD_REQUEST, "이메일 인증이 필요하거나 인증 유효기간이 만료되었습니다."),
     EMAIL_VERIFICATION_IN_PROGRESS(HttpStatus.CONFLICT, "해당 이메일의 회원가입이 진행 중입니다."),
     EMAIL_VERIFICATION_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "이메일 인증 서비스를 일시적으로 사용할 수 없습니다."),
+    DISCORD_WEBHOOK_CONFIG_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "Discord 웹후크 설정을 저장할 수 없습니다."),
     EMAIL_SEND_FAILED(HttpStatus.SERVICE_UNAVAILABLE, "인증번호 전송에 실패했습니다."),
 
     DUPLICATE_EMAIL(HttpStatus.CONFLICT, "이미 가입된 이메일입니다."),

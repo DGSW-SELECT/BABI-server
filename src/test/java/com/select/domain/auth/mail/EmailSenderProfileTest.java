@@ -20,7 +20,7 @@ class EmailSenderProfileTest {
                 ? Map.of("DISCORD_WEBHOOK_URL", "https://discord.com/api/webhooks/123/test_token") : Map.of()));
         ctx.registerBean(ObjectMapper.class, () -> new ObjectMapper());
         ctx.registerBean(org.springframework.mail.javamail.JavaMailSender.class, () -> org.mockito.Mockito.mock(org.springframework.mail.javamail.JavaMailSender.class));
-        ctx.register(DiscordWebhookEmailSender.class);
+        ctx.register(DiscordWebhookSettings.class, DiscordWebhookEmailSender.class);
         ctx.register(GmailEmailSender.class);
         return ctx;
     }
