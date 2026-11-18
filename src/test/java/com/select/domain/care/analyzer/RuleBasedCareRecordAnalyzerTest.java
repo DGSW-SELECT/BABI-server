@@ -192,4 +192,23 @@ class RuleBasedCareRecordAnalyzerTest {
         assertThat(analyzer.analyze("   ", referenceTime)).isEmpty();
         assertThat(analyzer.analyze(null, referenceTime)).isEmpty();
     }
+
+    @Test
+    void ignoresAmountsOutsideTheSupportedRange() {
+        List<CareRecordDraft> records = analyzer.analyze("분유 999999999999999999999999ml 먹였어", referenceTime);
+
+        assertThat(records).hasSize(1);
+        assertThat(records.getFirst().amountMl()).isNull();
+    }
+
+    @Test
+    void ignoresOverflowingOrUnreasonableSleepDurations() {
+        List<CareRecordDraft> overflow = analyzer.analyze("999999999999999999999시간 잤어요", referenceTime);
+        List<CareRecordDraft> tooLong = analyzer.analyze("25시간 잤어요", referenceTime);
+
+        assertThat(overflow).hasSize(1);
+        assertThat(overflow.getFirst().durationMinutes()).isNull();
+        assertThat(tooLong).hasSize(1);
+        assertThat(tooLong.getFirst().durationMinutes()).isNull();
+    }
 }

@@ -6,6 +6,8 @@ import com.select.domain.care.entity.CareRecordType;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -16,6 +18,9 @@ import java.util.regex.Pattern;
 
 @Component
 public class RuleBasedCareRecordAnalyzer implements CareRecordAnalyzer {
+
+    private static final int MAX_FEEDING_AMOUNT_ML = 5000;
+    private static final int MAX_SLEEP_DURATION_MINUTES = 24 * 60;
 
     private static final Pattern COLON_TIME_PATTERN = Pattern.compile("(\\d{1,2}):(\\d{2})");
     private static final Pattern CLOCK_TIME_PATTERN = Pattern.compile(
@@ -117,19 +122,27 @@ public class RuleBasedCareRecordAnalyzer implements CareRecordAnalyzer {
 
         Matcher colonMatcher = COLON_TIME_PATTERN.matcher(text);
         if (colonMatcher.find()) {
-            int hour = parseInt(colonMatcher.group(1));
-            int minute = parseInt(colonMatcher.group(2));
-            if (isValidTime(hour, minute)) {
-                return date.atTime(hour, minute);
+            try {
+                int hour = parseInt(colonMatcher.group(1));
+                int minute = parseInt(colonMatcher.group(2));
+                if (isValidTime(hour, minute)) {
+                    return date.atTime(hour, minute);
+                }
+            } catch (NumberFormatException ignored) {
+                // 비정상적으로 긴 숫자는 시간으로 해석하지 않는다.
             }
         }
 
         Matcher clockMatcher = CLOCK_TIME_PATTERN.matcher(text);
         if (clockMatcher.find()) {
-            Integer hour = parseHour(clockMatcher.group(2));
-            int minute = clockMatcher.group(3) == null ? 0 : parseInt(clockMatcher.group(3));
-            if (hour != null && isValidTime(hour, minute)) {
-                return date.atTime(applyMeridiem(hour, clockMatcher.group(1), referenceTime), minute);
+            try {
+                Integer hour = parseHour(clockMatcher.group(2));
+                int minute = clockMatcher.group(3) == null ? 0 : parseInt(clockMatcher.group(3));
+                if (hour != null && isValidTime(hour, minute)) {
+                    return date.atTime(applyMeridiem(hour, clockMatcher.group(1), referenceTime), minute);
+                }
+            } catch (NumberFormatException ignored) {
+                // 비정상적으로 긴 숫자는 시간으로 해석하지 않는다.
             }
         }
 
@@ -170,34 +183,43 @@ public class RuleBasedCareRecordAnalyzer implements CareRecordAnalyzer {
             return null;
         }
 
-        int amount = (int) Math.round(Double.parseDouble(matcher.group(1)));
-        return amount > 0 ? amount : null;
+        try {
+            int amount = new BigDecimal(matcher.group(1))
+                    .setScale(0, RoundingMode.HALF_UP)
+                    .intValueExact();
+            return amount > 0 && amount <= MAX_FEEDING_AMOUNT_ML ? amount : null;
+        } catch (ArithmeticException | NumberFormatException exception) {
+            return null;
+        }
     }
 
     private Integer parseDurationMinutes(String text) {
         Matcher hourMatcher = HOUR_DURATION_PATTERN.matcher(text);
         if (hourMatcher.find()) {
-            int minutes = parseInt(hourMatcher.group(1)) * 60;
-            if (hourMatcher.group(2) != null) {
-                minutes += parseInt(hourMatcher.group(2));
-            }
-            if (minutes > 0) {
-                return minutes;
+            try {
+                int hours = parseInt(hourMatcher.group(1));
+                int extraMinutes = hourMatcher.group(2) == null ? 0 : parseInt(hourMatcher.group(2));
+                int minutes = Math.addExact(Math.multiplyExact(hours, 60), extraMinutes);
+                if (minutes > 0 && minutes <= MAX_SLEEP_DURATION_MINUTES) {
+                    return minutes;
+                }
+            } catch (ArithmeticException | NumberFormatException exception) {
+                return null;
             }
         }
 
         Matcher minuteMatcher = MINUTE_DURATION_PATTERN.matcher(text);
         if (minuteMatcher.find()) {
-            int minutes = parseInt(minuteMatcher.group(1));
-            if (minutes > 0) {
+            Integer minutes = parseDurationPart(minuteMatcher.group(1));
+            if (minutes != null) {
                 return minutes;
             }
         }
 
         Matcher sleepMinuteMatcher = SLEEP_MINUTE_DURATION_PATTERN.matcher(text);
         if (sleepMinuteMatcher.find()) {
-            int minutes = parseInt(sleepMinuteMatcher.group(1));
-            if (minutes > 0) {
+            Integer minutes = parseDurationPart(sleepMinuteMatcher.group(1));
+            if (minutes != null) {
                 return minutes;
             }
         }
@@ -267,5 +289,14 @@ public class RuleBasedCareRecordAnalyzer implements CareRecordAnalyzer {
 
     private int parseInt(String value) {
         return Integer.parseInt(value);
+    }
+
+    private Integer parseDurationPart(String value) {
+        try {
+            int minutes = parseInt(value);
+            return minutes > 0 && minutes <= MAX_SLEEP_DURATION_MINUTES ? minutes : null;
+        } catch (NumberFormatException exception) {
+            return null;
+        }
     }
 }
