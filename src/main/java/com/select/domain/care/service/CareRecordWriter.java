@@ -7,6 +7,7 @@ import com.select.domain.care.dto.response.CareRecordResponse;
 import com.select.domain.care.repository.CareRecordRepository;
 import org.springframework.stereotype.Component;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -20,6 +21,8 @@ import java.util.List;
 public class CareRecordWriter {
 
     private static final int MAX_NOTE_LENGTH = 5000;
+    private static final int MAX_AMOUNT_ML = 5000;
+    private static final Duration MAX_SLEEP_DURATION = Duration.ofHours(24);
 
     private final CareRecordRepository careRecordRepository;
     private final CareRecordAnalyzer careRecordAnalyzer;
@@ -42,8 +45,18 @@ public class CareRecordWriter {
         return careRecordAnalyzer.analyze(transcript, referenceTime)
                 .stream()
                 .map(draft -> toRequest(draft, voiceInputId))
+                .filter(this::isPersistable)
                 .map(request -> careRecordRepository.save(babyId, memberId, request))
                 .toList();
+    }
+
+    private boolean isPersistable(CreateCareRecordRequest request) {
+        if (!request.isValidForType()
+                || (request.amountMl() != null && (request.amountMl() < 0 || request.amountMl() > MAX_AMOUNT_ML))) {
+            return false;
+        }
+        return request.sleepEndAt() == null
+                || Duration.between(request.occurredAt(), request.sleepEndAt()).compareTo(MAX_SLEEP_DURATION) <= 0;
     }
 
     private CreateCareRecordRequest toRequest(CareRecordDraft draft, Long voiceInputId) {
