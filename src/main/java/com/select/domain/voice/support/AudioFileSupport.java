@@ -43,6 +43,18 @@ public final class AudioFileSupport {
                 || SUPPORTED_EXTENSIONS.contains(extension(audio.getOriginalFilename()));
     }
 
+    /**
+     * 저장소에 보관할 때 사용할 확장자. 원본 확장자가 없으면 content type에서 유도한다.
+     */
+    public static String storageExtension(MultipartFile audio) {
+        String originalExtension = extension(audio.getOriginalFilename());
+        if (SUPPORTED_EXTENSIONS.contains(originalExtension)) {
+            return originalExtension;
+        }
+        String derivedExtension = extensionForContentType(contentType(audio));
+        return derivedExtension == null ? "bin" : derivedExtension;
+    }
+
     public static String filenameFor(MultipartFile audio) {
         String original = audio.getOriginalFilename();
         if (SUPPORTED_EXTENSIONS.contains(extension(original))) {

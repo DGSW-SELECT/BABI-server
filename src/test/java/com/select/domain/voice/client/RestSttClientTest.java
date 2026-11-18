@@ -1,5 +1,6 @@
 package com.select.domain.voice.client;
 
+import com.select.domain.voice.client.SttProvider;
 import com.select.domain.voice.client.dto.response.SttResponse;
 import com.select.domain.voice.exception.SttFailedException;
 import com.select.global.config.SttProperties;
@@ -39,7 +40,9 @@ class RestSttClientTest {
         RestClient.Builder builder = RestClient.builder();
         server = MockRestServiceServer.bindTo(builder).build();
         SttProperties properties = new SttProperties(
-                "https://api.openai.com/v1/", "test-key", "whisper-1", "ko", Duration.ofSeconds(30)
+                SttProvider.OPENAI,
+                "https://api.openai.com/v1/", "test-key", "whisper-1", "ko", "분유 120ml 먹였어요",
+                Duration.ofSeconds(30)
         );
         sttClient = new RestSttClient(builder.build(), properties);
     }
@@ -90,7 +93,9 @@ class RestSttClientTest {
         SttClient clientWithoutKey = new RestSttClient(
                 RestClient.builder().build(),
                 new SttProperties(
-                        "https://api.openai.com/v1", " ", "whisper-1", "ko", Duration.ofSeconds(30)
+                        SttProvider.OPENAI,
+                        "https://api.openai.com/v1", " ", "whisper-1", "ko",
+                        "분유 120ml 먹였어요", Duration.ofSeconds(30)
                 )
         );
         MockMultipartFile audio = new MockMultipartFile(
