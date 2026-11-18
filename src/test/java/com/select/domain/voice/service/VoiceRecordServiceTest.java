@@ -20,9 +20,11 @@ import com.select.domain.voice.entity.VoiceInput;
 import com.select.domain.voice.exception.AudioTooLargeException;
 import com.select.domain.voice.exception.InvalidAudioException;
 import com.select.domain.voice.exception.SttFailedException;
+import com.select.domain.voice.exception.SttRequestRateLimitException;
 import com.select.domain.voice.exception.VoiceInputNotFoundException;
 import com.select.domain.voice.repository.VoiceInputRepository;
 import com.select.domain.voice.support.AudioFileSupport;
+import com.select.global.exception.ErrorCode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -47,6 +49,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -72,6 +75,9 @@ class VoiceRecordServiceTest {
 
     @Mock
     private SttClient sttClient;
+
+    @Mock
+    private SttRequestRateLimiter sttRequestRateLimiter;
 
     @Mock
     private BabyRepository babyRepository;
@@ -111,6 +117,8 @@ class VoiceRecordServiceTest {
         SttTranscriptResponse response = voiceRecordService.transcribe(BABY_ID, USER_ID, audio);
 
         assertThat(response.transcript()).isEqualTo("분유 먹였어");
+        verify(accountContextService).resolveForWrite(USER_ID, BABY_ID);
+        verify(sttRequestRateLimiter).consume(USER_ID);
         verify(sttClient).transcribe(audio);
         verifyNoInteractions(voiceInputRepository);
     }
@@ -169,11 +177,26 @@ class VoiceRecordServiceTest {
         MultipartFile audio = new MockMultipartFile(
                 "audio", "voice.mp3", "audio/mpeg", "audio".getBytes(StandardCharsets.UTF_8)
         );
-        when(accountContextService.resolveForRead(USER_ID, BABY_ID))
+        when(accountContextService.resolveForWrite(USER_ID, BABY_ID))
                 .thenThrow(new BabyNotFoundException());
 
         assertThatThrownBy(() -> voiceRecordService.transcribe(BABY_ID, USER_ID, audio))
                 .isInstanceOf(BabyNotFoundException.class);
+
+        verifyNoInteractions(sttClient, voiceInputRepository);
+    }
+
+    @Test
+    void transcribeStopsBeforeProviderWhenDailyLimitIsExceeded() {
+        MultipartFile audio = new MockMultipartFile(
+                "audio", "voice.mp3", "audio/mpeg", "audio".getBytes(StandardCharsets.UTF_8)
+        );
+        doThrow(new SttRequestRateLimitException(
+                ErrorCode.STT_RATE_LIMIT_EXCEEDED
+        )).when(sttRequestRateLimiter).consume(USER_ID);
+
+        assertThatThrownBy(() -> voiceRecordService.transcribe(BABY_ID, USER_ID, audio))
+                .isInstanceOf(SttRequestRateLimitException.class);
 
         verifyNoInteractions(sttClient, voiceInputRepository);
     }
@@ -203,6 +226,8 @@ class VoiceRecordServiceTest {
         assertThat(response.items().getFirst().type()).isEqualTo("feeding");
         assertThat(response.items().getFirst().label()).contains("120ml");
         assertThat(response.parsedAt()).isNotNull();
+        verify(accountContextService).resolveForWrite(USER_ID, BABY_ID);
+        verify(sttRequestRateLimiter).consume(USER_ID);
         verifyNoInteractions(voiceInputRepository);
     }
 

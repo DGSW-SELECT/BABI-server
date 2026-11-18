@@ -81,6 +81,9 @@ class SttJobServiceTest {
     @Mock
     private AudioStorage audioStorage;
 
+    @Mock
+    private SttRequestRateLimiter sttRequestRateLimiter;
+
     private SttJobService sttJobService;
 
     @BeforeEach
@@ -104,6 +107,7 @@ class SttJobServiceTest {
                 babyRepository,
                 userRepository,
                 audioStorage,
+                sttRequestRateLimiter,
                 properties,
                 transactionManager
         );
@@ -136,6 +140,7 @@ class SttJobServiceTest {
 
         ArgumentCaptor<SttJob> captor = ArgumentCaptor.forClass(SttJob.class);
         verify(sttJobRepository).saveAndFlush(captor.capture());
+        verify(sttRequestRateLimiter).consume(USER_ID);
         SttJob saved = captor.getValue();
 
         assertThat(saved.getBabyId()).isEqualTo(BABY_ID);

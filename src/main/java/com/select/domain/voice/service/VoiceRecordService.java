@@ -45,6 +45,7 @@ public class VoiceRecordService {
     private final CareRecordWriter careRecordWriter;
     private final CareRecordAnalyzer careRecordAnalyzer;
     private final SttClient sttClient;
+    private final SttRequestRateLimiter sttRequestRateLimiter;
     private final BabyRepository babyRepository;
     private final AccountContextService accountContextService;
     private final TransactionTemplate transactions;
@@ -54,6 +55,7 @@ public class VoiceRecordService {
             CareRecordWriter careRecordWriter,
             CareRecordAnalyzer careRecordAnalyzer,
             SttClient sttClient,
+            SttRequestRateLimiter sttRequestRateLimiter,
             BabyRepository babyRepository,
             AccountContextService accountContextService,
             PlatformTransactionManager transactionManager
@@ -62,6 +64,7 @@ public class VoiceRecordService {
         this.careRecordWriter = careRecordWriter;
         this.careRecordAnalyzer = careRecordAnalyzer;
         this.sttClient = sttClient;
+        this.sttRequestRateLimiter = sttRequestRateLimiter;
         this.babyRepository = babyRepository;
         this.accountContextService = accountContextService;
         this.transactions = new TransactionTemplate(transactionManager);
@@ -69,8 +72,8 @@ public class VoiceRecordService {
 
     @Transactional(propagation = Propagation.NEVER)
     public SttTranscriptResponse transcribe(Long babyId, Long userId, MultipartFile audio) {
-        accountContextService.resolveForRead(userId, babyId);
-        return new SttTranscriptResponse(transcribeAudio(audio));
+        accountContextService.resolveForWrite(userId, babyId);
+        return new SttTranscriptResponse(transcribeAudio(userId, audio));
     }
 
     /**
@@ -78,8 +81,8 @@ public class VoiceRecordService {
      */
     @Transactional(propagation = Propagation.NEVER)
     public ParsedVoiceRecordResponse parse(Long userId, Long babyId, MultipartFile audio) {
-        accountContextService.resolveForRead(userId, babyId);
-        String transcript = transcribeAudio(audio);
+        accountContextService.resolveForWrite(userId, babyId);
+        String transcript = transcribeAudio(userId, audio);
         LocalDateTime parsedAt = LocalDateTime.now();
         List<ParsedVoiceItemResponse> items = careRecordAnalyzer.analyze(transcript, parsedAt)
                 .stream()
@@ -199,8 +202,9 @@ public class VoiceRecordService {
         );
     }
 
-    private String transcribeAudio(MultipartFile audio) {
+    private String transcribeAudio(Long userId, MultipartFile audio) {
         AudioFileSupport.validate(audio);
+        sttRequestRateLimiter.consume(userId);
         SttResponse response = sttClient.transcribe(audio);
         String transcript = response == null ? null : response.text();
         if (!StringUtils.hasText(transcript)) {

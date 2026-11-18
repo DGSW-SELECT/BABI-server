@@ -61,6 +61,7 @@ public class SttJobService {
     private final BabyRepository babyRepository;
     private final UserRepository userRepository;
     private final AudioStorage audioStorage;
+    private final SttRequestRateLimiter sttRequestRateLimiter;
     private final SttJobProperties properties;
     private final TransactionTemplate transactions;
 
@@ -72,6 +73,7 @@ public class SttJobService {
             BabyRepository babyRepository,
             UserRepository userRepository,
             AudioStorage audioStorage,
+            SttRequestRateLimiter sttRequestRateLimiter,
             SttJobProperties properties,
             PlatformTransactionManager transactionManager
     ) {
@@ -82,6 +84,7 @@ public class SttJobService {
         this.babyRepository = babyRepository;
         this.userRepository = userRepository;
         this.audioStorage = audioStorage;
+        this.sttRequestRateLimiter = sttRequestRateLimiter;
         this.properties = properties;
         this.transactions = new TransactionTemplate(transactionManager);
     }
@@ -95,6 +98,7 @@ public class SttJobService {
                 accountContextService.resolveForWrite(userId, babyId);
         AudioFileSupport.validate(audio);
         ensureCapacity(userId, prechecked.babyId());
+        sttRequestRateLimiter.consume(userId);
         String audioPath = audioStorage.store(audio);
 
         try {

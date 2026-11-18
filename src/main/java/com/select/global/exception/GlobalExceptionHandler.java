@@ -26,6 +26,7 @@ import com.select.domain.voice.exception.SttFailedException;
 import com.select.domain.voice.exception.SttJobLimitExceededException;
 import com.select.domain.voice.exception.SttJobNotConfirmableException;
 import com.select.domain.voice.exception.SttJobNotFoundException;
+import com.select.domain.voice.exception.SttRequestRateLimitException;
 import com.select.domain.voice.exception.VoiceInputNotFoundException;
 import com.select.global.response.ApiError;
 import com.select.global.response.ApiResponse;
@@ -273,6 +274,11 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 ErrorCode.STT_JOB_LIMIT_EXCEEDED,
                 List.of()
         );
+    }
+
+    @ExceptionHandler(SttRequestRateLimitException.class)
+    public ResponseEntity<ApiResponse<Void>> handleSttRequestRateLimit(SttRequestRateLimitException e) {
+        return createErrorResponse(e.getErrorCode(), List.of());
     }
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)

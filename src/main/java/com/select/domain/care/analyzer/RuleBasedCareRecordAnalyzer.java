@@ -36,6 +36,9 @@ public class RuleBasedCareRecordAnalyzer implements CareRecordAnalyzer {
     private static final Pattern SLEEP_MINUTE_DURATION_PATTERN = Pattern.compile(
             "(?:잠|잤|수면)[^0-9]{0,6}(\\d+)\\s*분"
     );
+    private static final Pattern BABY_FOOD_WORD_PATTERN = Pattern.compile(
+            "(?<![가-힣])(?:죽|밥)(?:을|를|이|가|은|는|도)?(?![가-힣])"
+    );
 
     private static final Map<String, Integer> KOREAN_HOURS = Map.ofEntries(
             Map.entry("한", 1),
@@ -203,7 +206,8 @@ public class RuleBasedCareRecordAnalyzer implements CareRecordAnalyzer {
     }
 
     private boolean isFeeding(String text, Integer amountMl) {
-        return containsAny(text, "분유", "모유", "수유", "이유식", "젖병", "직수", "퓨레", "죽", "밥")
+        return containsAny(text, "분유", "모유", "수유", "이유식", "젖병", "직수", "퓨레")
+                || containsBabyFoodWord(text)
                 || (amountMl != null && text.contains("먹"));
     }
 
@@ -222,7 +226,7 @@ public class RuleBasedCareRecordAnalyzer implements CareRecordAnalyzer {
         if (containsAny(text, "모유", "직수")) {
             return FeedingType.BREAST_MILK;
         }
-        if (containsAny(text, "이유식", "퓨레", "죽", "밥")) {
+        if (containsAny(text, "이유식", "퓨레") || containsBabyFoodWord(text)) {
             return FeedingType.BABY_FOOD;
         }
         return FeedingType.OTHER;
@@ -251,6 +255,10 @@ public class RuleBasedCareRecordAnalyzer implements CareRecordAnalyzer {
             }
         }
         return false;
+    }
+
+    private boolean containsBabyFoodWord(String text) {
+        return BABY_FOOD_WORD_PATTERN.matcher(text).find();
     }
 
     private boolean isValidTime(int hour, int minute) {

@@ -79,6 +79,9 @@ class SttPipelineIntegrationTest {
     @MockitoBean
     private SttClient sttClient;
 
+    @MockitoBean
+    private SttRequestRateLimiter sttRequestRateLimiter;
+
     private SttJobWorker sttJobWorker;
     private Baby baby;
     private User user;

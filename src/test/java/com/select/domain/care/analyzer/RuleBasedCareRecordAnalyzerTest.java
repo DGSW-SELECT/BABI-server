@@ -51,6 +51,16 @@ class RuleBasedCareRecordAnalyzerTest {
     }
 
     @Test
+    void matchesStandaloneBabyFoodWordsWithoutMatchingSubstrings() {
+        List<CareRecordDraft> feeding = analyzer.analyze("죽을 먹였어", referenceTime);
+
+        assertThat(feeding).hasSize(1);
+        assertThat(feeding.getFirst().feedingType()).isEqualTo(FeedingType.BABY_FOOD);
+        assertThat(analyzer.analyze("아기가 죽었어", referenceTime)).isEmpty();
+        assertThat(analyzer.analyze("밥상 차렸어", referenceTime)).isEmpty();
+    }
+
+    @Test
     void analyzesFeedingFromAmountWithoutFeedingKeyword() {
         List<CareRecordDraft> records = analyzer.analyze("100ml 먹였어", referenceTime);
 

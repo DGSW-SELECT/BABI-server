@@ -348,7 +348,7 @@ CREATE TABLE IF NOT EXISTS `stt_jobs` (
     `last_error`      VARCHAR(1000) NULL,
     `next_attempt_at` DATETIME      NULL,
     `created_at`      DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    `updated_at`      DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at`      DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     `started_at`      DATETIME      NULL,
     `completed_at`    DATETIME      NULL,
     PRIMARY KEY (`id`),

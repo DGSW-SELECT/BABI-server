@@ -127,6 +127,7 @@ Discord 연결은 최대 3초, 요청은 최대 5초로 제한합니다. 응답 
 - 저장된 기록도 `PATCH` API로 다시 수정할 수 있습니다.
 - 모든 음성 기록 API는 `Authorization: Bearer {accessToken}` 헤더가 필요합니다.
 - 요청자는 해당 아기의 활성 구성원이어야 하며, 아니면 `403 FORBIDDEN`을 반환합니다. 아기가 없으면 `404 NOT_FOUND`를 반환합니다.
+- 유료 STT 변환은 `CARE_WRITE` 권한이 필요하고, 동기·비동기 요청을 합쳐 사용자별 24시간 20회로 제한합니다. VIEWER는 STT를 호출할 수 없습니다. Redis 제한 서비스를 사용할 수 없으면 외부 STT 호출을 중단하고 `503 STT_RATE_LIMITER_UNAVAILABLE`을 반환합니다.
 - 음성 파일은 25MB 이하이며 `mp3`, `mp4`, `m4a`, `mpeg`, `mpga`, `wav`, `webm`, `ogg`, `flac`, `aac`를 지원합니다.
 - 저장 요청 예시:
 
@@ -162,7 +163,7 @@ Discord 연결은 최대 3초, 요청은 최대 5초로 제한합니다. 응답 
 - `다시 녹음하기`는 `parse` 결과를 버리면 되고, 서버에 남는 데이터가 없습니다.
 - 저장 응답은 `{ "ok": true, "voiceInputId": 10, "careRecords": [...] }`이며 `careRecords`는 `domain/care`의 다섯 기록 테이블에 저장된 결과입니다.
 - STT를 비동기로 처리해야 하면 `/api/v1/babies/{babyId}/voice-records/stt-jobs` 계열을 사용합니다. 작업이 완료되어도 transcript만 보관하고, `POST /stt-jobs/{jobId}/confirm`에서만 음성 기록과 육아기록을 만듭니다. 실패 시 새 작업을 제출할 수 있으며, 서버 내부 재시도는 작업별 횟수 제한을 적용합니다. MVP에서는 수동 재시도와 작업 취소 API를 제공하지 않습니다.
-- 아기별 대기·처리 중인 STT 작업은 최대 10개이며, 사용자별 신규 작업은 24시간에 최대 20개입니다. 한도에 도달하면 업로드는 `429 STT_JOB_LIMIT_EXCEEDED`로 거절됩니다. 일일 한도는 작업 생성 시점부터 24시간이 지나면 해제됩니다.
+- 아기별 대기·처리 중인 STT 작업은 최대 10개입니다. 동기·비동기 전체 요청 한도에 도달하면 `429 STT_RATE_LIMIT_EXCEEDED`, 작업 대기 한도에 도달하면 `429 STT_JOB_LIMIT_EXCEEDED`를 반환합니다.
 - 최종 실패한 비동기 STT 작업의 음성 파일과 작업 정보는 기본 24시간 후 자동 정리합니다. 일일 한도 집계를 위해 작업 정보는 생성 후 최소 24시간 보관하며, 설정값이 24시간보다 짧으면 24시간을 적용합니다. 보관 기간은 `STT_FAILED_AUDIO_RETENTION`, 정리 주기는 `STT_FAILED_CLEANUP_INTERVAL`로 조정할 수 있습니다.
 - 기존 DB에 배포하기 전에 `docs/migrations/20261117_add_stt_jobs.sql`을 먼저 적용해야 합니다. 애플리케이션은 스키마를 자동 변경하지 않습니다.
 - 인증은 `Authorization: Bearer {accessToken}` 또는 로그인 시 발급되는 인증 쿠키를 사용합니다. 쿠키를 쓰는 변경 요청은 `X-CSRF-Token` 헤더가 필요합니다.
