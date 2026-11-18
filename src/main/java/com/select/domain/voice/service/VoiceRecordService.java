@@ -218,7 +218,8 @@ public class VoiceRecordService {
             case FEEDING -> new ParsedVoiceItemResponse("feeding", feedingLabel(draft));
             case SLEEP -> new ParsedVoiceItemResponse("sleep", sleepLabel(draft));
             case DIAPER -> new ParsedVoiceItemResponse("diaper", diaperLabel(draft));
-            default -> new ParsedVoiceItemResponse("other", draft.memo());
+            default -> new ParsedVoiceItemResponse("other",
+                    StringUtils.hasText(draft.memo()) ? draft.memo() : "기타");
         };
     }
 

@@ -20,7 +20,7 @@ spring:
 jwt:
   access-token-expiration-minutes: ${JWT_ACCESS_TOKEN_EXPIRATION_MINUTES:30}
 stt:
-  provider: ${STT_PROVIDER:auto}
+  provider: ${STT_PROVIDER:openai}
   base-url: ${STT_BASE_URL:https://api.openai.com/v1}
   api-key: ${OPENAI_API_KEY:}
   model: ${STT_MODEL:whisper-1}

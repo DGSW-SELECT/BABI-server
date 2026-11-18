@@ -29,36 +29,11 @@ class SttClientConfigTest {
     }
 
     @Test
-    void autoProviderFallsBackToFakeWhenApiKeyIsMissing() {
+    void defaultProviderFailsFastWhenApiKeyIsMissing() {
         contextRunner
-                .withPropertyValues("stt.provider=auto")
-                .run(context -> {
-                    assertThat(context).hasSingleBean(SttClient.class);
-                    assertThat(context.getBean(SttClient.class)).isInstanceOf(FakeSttClient.class);
-                });
-    }
-
-    @Test
-    void autoProviderUsesRestClientWhenApiKeyIsPresent() {
-        contextRunner
-                .withPropertyValues(
-                        "stt.provider=auto",
-                        "stt.api-key=test-key"
-                )
-                .run(context -> {
-                    assertThat(context).hasSingleBean(SttClient.class);
-                    assertThat(context.getBean(SttClient.class)).isInstanceOf(RestSttClient.class);
-                });
-    }
-
-    @Test
-    void openAiProviderFailsFastWithoutApiKey() {
-        contextRunner
-                .withPropertyValues("stt.provider=openai")
                 .run(context -> {
                     assertThat(context).hasFailed();
-                    assertThat(context.getStartupFailure())
-                            .hasStackTraceContaining("stt.api-key");
+                    assertThat(context.getStartupFailure()).hasStackTraceContaining("stt.api-key");
                 });
     }
 
@@ -76,13 +51,13 @@ class SttClientConfigTest {
     }
 
     @Test
-    void awsProfileDoesNotFallBackToFakeClientWhenApiKeyIsMissing() {
+    void awsProfileRejectsExplicitFakeProvider() {
         contextRunner
-                .withPropertyValues("spring.profiles.active=aws", "stt.provider=auto")
+                .withPropertyValues("spring.profiles.active=aws", "stt.provider=fake")
                 .run(context -> {
                     assertThat(context).hasFailed();
                     assertThat(context.getStartupFailure())
-                            .hasStackTraceContaining("aws 프로필에서는 실제 STT 제공자");
+                            .hasStackTraceContaining("aws 프로필에서는 가짜 STT 제공자");
                 });
     }
 

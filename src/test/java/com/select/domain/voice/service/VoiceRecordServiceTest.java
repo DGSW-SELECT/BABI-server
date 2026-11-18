@@ -232,6 +232,31 @@ class VoiceRecordServiceTest {
     }
 
     @Test
+    void parseUsesFallbackLabelForOtherDraftWithoutMemo() {
+        MultipartFile audio = new MockMultipartFile(
+                "audio", "voice.webm", "audio/webm", "audio".getBytes(StandardCharsets.UTF_8)
+        );
+        when(sttClient.transcribe(audio)).thenReturn(new SttResponse("기타 내용"));
+        when(careRecordAnalyzer.analyze(any(), any())).thenReturn(List.of(
+                new com.select.domain.care.analyzer.CareRecordDraft(
+                        CareRecordType.CRY,
+                        LocalDateTime.of(2026, 11, 16, 10, 0),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null
+                )
+        ));
+
+        ParsedVoiceRecordResponse response = voiceRecordService.parse(USER_ID, BABY_ID, audio);
+
+        assertThat(response.items()).singleElement()
+                .extracting(item -> item.label())
+                .isEqualTo("기타");
+    }
+
+    @Test
     void saveStoresConfirmedTranscriptInVoiceInputs() {
         LocalDateTime createdAt = LocalDateTime.of(2026, 10, 25, 12, 0);
         VoiceInput saved = VoiceInput.builder()

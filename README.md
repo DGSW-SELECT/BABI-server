@@ -151,7 +151,8 @@ Discord 연결은 최대 3초, 요청은 최대 5초로 제한합니다. 응답 
 - 저장된 기록도 `PATCH` API로 다시 수정할 수 있습니다.
 - 모든 음성 기록 API는 `Authorization: Bearer {accessToken}` 헤더가 필요합니다.
 - 요청자는 해당 아기의 활성 구성원이어야 하며, 아니면 `403 FORBIDDEN`을 반환합니다. 아기가 없으면 `404 NOT_FOUND`를 반환합니다.
-- 유료 STT 변환은 `CARE_WRITE` 권한이 필요하고, 사용자별 24시간 20회로 제한합니다. VIEWER는 STT를 호출할 수 없습니다. Redis 제한 서비스를 사용할 수 없으면 외부 STT 호출을 중단하고 `503 STT_RATE_LIMITER_UNAVAILABLE`을 반환합니다.
+- 유료 STT 변환은 `CARE_WRITE` 권한이 필요하고, 사용자별 24시간 20회로 제한합니다. 한도는 변환 시도 기준이며, 제공자 오류나 빈 변환 결과도 횟수에 포함됩니다. VIEWER는 STT를 호출할 수 없습니다. Redis 제한 서비스를 사용할 수 없으면 외부 STT 호출을 중단하고 `503 STT_RATE_LIMITER_UNAVAILABLE`을 반환합니다.
+- STT 제공자는 기본적으로 OpenAI이며 `OPENAI_API_KEY`가 없으면 서버 시작에 실패합니다. 가짜 응답은 격리된 로컬 테스트에서만 `STT_PROVIDER=fake`로 명시해 사용하고, AWS 프로필에서는 가짜 제공자를 사용할 수 없습니다.
 - 음성 파일은 25MB 이하이며 `mp3`, `mp4`, `m4a`, `mpeg`, `mpga`, `wav`, `webm`, `ogg`, `flac`, `aac`를 지원합니다.
 - 저장 요청 예시:
 

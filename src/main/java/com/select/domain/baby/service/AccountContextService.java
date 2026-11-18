@@ -1,15 +1,12 @@
 package com.select.domain.baby.service;
 
-import com.select.domain.baby.entity.BabyMember;
 import com.select.domain.baby.exception.BabyNotFoundException;
 import com.select.domain.baby.exception.BabySelectionRequiredException;
 import com.select.domain.baby.repository.BabyAccessRepository;
-import com.select.domain.baby.repository.BabyMemberRepository;
 import com.select.domain.baby.repository.BabyRepository;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -28,16 +25,13 @@ public class AccountContextService {
     static final String CARE_WRITE = "CARE_WRITE";
 
     private final BabyAccessRepository babyAccessRepository;
-    private final BabyMemberRepository babyMemberRepository;
     private final BabyRepository babyRepository;
 
     public AccountContextService(
             BabyAccessRepository babyAccessRepository,
-            BabyMemberRepository babyMemberRepository,
             BabyRepository babyRepository
     ) {
         this.babyAccessRepository = babyAccessRepository;
-        this.babyMemberRepository = babyMemberRepository;
         this.babyRepository = babyRepository;
     }
 
@@ -70,19 +64,11 @@ public class AccountContextService {
     }
 
     private AccountContext resolveSingleBaby(Long userId, String permission, boolean writing) {
-        List<BabyMember> memberships = babyMemberRepository.findByUserId(userId);
-        if (memberships.isEmpty()) {
-            throw new AccessDeniedException("활성 가족 구성원이 아닙니다.");
-        }
-
-        List<AccountContext> candidates = new ArrayList<>();
-        for (BabyMember membership : memberships) {
-            babyAccessRepository
-                    .findMemberId(userId, membership.getBabyId(), permission, writing)
-                    .ifPresent(memberId -> candidates.add(
-                            new AccountContext(membership.getBabyId(), memberId)
-                    ));
-        }
+        List<AccountContext> candidates = babyAccessRepository
+                .findAccessibleMembers(userId, permission, writing)
+                .stream()
+                .map(access -> new AccountContext(access.babyId(), access.memberId()))
+                .toList();
 
         if (candidates.isEmpty()) {
             throw new AccessDeniedException("활성 가족 구성원이 아닙니다.");

@@ -73,7 +73,7 @@ CREATE TABLE IF NOT EXISTS `baby_permissions` (
 CREATE TABLE IF NOT EXISTS `voice_inputs` (
     `id`             BIGINT       NOT NULL AUTO_INCREMENT,
     `baby_id`        BIGINT       NOT NULL,
-    `baby_member_id` BIGINT       NOT NULL,
+    `baby_member_id` BIGINT       NULL,
     `audio_url`      VARCHAR(500) NULL,
     `transcript`     TEXT         NULL,
     `parse_status`   VARCHAR(20)  NOT NULL,
@@ -235,27 +235,6 @@ CREATE TABLE IF NOT EXISTS `growth_records` (
     REFERENCES `baby_members` (`baby_id`, `id`)
     ON UPDATE NO ACTION ON DELETE NO ACTION
 );
-
-CREATE TABLE IF NOT EXISTS `voice_inputs` (
-    `id`             BIGINT       NOT NULL AUTO_INCREMENT,
-    `baby_id`        BIGINT       NOT NULL,
-    `baby_member_id` BIGINT       NULL,
-    `audio_url`      VARCHAR(500) NULL,
-    `transcript`     TEXT         NOT NULL,
-    `parse_status`   VARCHAR(20)  NOT NULL,
-    `created_at`     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (`id`),
-    UNIQUE KEY `uk_voice_inputs_pair` (`baby_id`, `id`),
-    KEY `idx_voice_inputs_baby_time` (`baby_id`, `created_at`),
-    CONSTRAINT `fk_voice_inputs_baby`
-        FOREIGN KEY (`baby_id`) REFERENCES `babies` (`id`)
-        ON UPDATE NO ACTION ON DELETE NO ACTION,
-    CONSTRAINT `fk_voice_inputs_member`
-        FOREIGN KEY (`baby_id`, `baby_member_id`)
-        REFERENCES `baby_members` (`baby_id`, `id`)
-        ON UPDATE NO ACTION ON DELETE NO ACTION
-);
-
 CREATE TABLE IF NOT EXISTS `diaper_records` (
     `id`               BIGINT      NOT NULL AUTO_INCREMENT,
     `baby_id`          BIGINT      NOT NULL,
