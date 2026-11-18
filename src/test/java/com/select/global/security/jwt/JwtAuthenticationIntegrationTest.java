@@ -61,8 +61,18 @@ class JwtAuthenticationIntegrationTest {
     @MockitoBean
     private EmailVerificationService emailVerificationService;
 
+    @MockitoBean
+    private RefreshSessionService refreshSessions;
+
+    @MockitoBean
+    private TokenRevocationService tokenRevocations;
+
     @MockitoSpyBean private com.select.domain.user.repository.UserRepository users;
     @org.junit.jupiter.api.BeforeEach void activeSyntheticUsers() {
+        org.mockito.Mockito.when(refreshSessions.create(any()))
+                .thenReturn("A".repeat(43) + "." + "B".repeat(43));
+        org.mockito.Mockito.when(refreshSessions.isActive(any())).thenReturn(true);
+        org.mockito.Mockito.when(tokenRevocations.isRevoked(any())).thenReturn(false);
         var active = com.select.domain.user.entity.User.builder().email("test@example.invalid").nickname("test").passwordHash("test").build();
         org.mockito.Mockito.doReturn(java.util.Optional.of(active)).when(users).findById(42L);
         org.mockito.Mockito.doReturn(java.util.Optional.of(active)).when(users).findById(43L);

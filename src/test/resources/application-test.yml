@@ -24,7 +24,9 @@ jwt:
 
 # Tests must not call the real STT API.
 stt:
+  provider: fake
   api-key: test-key
+  fake-transcript: 분유 120ml 먹였어요
 
 # The rate-limiter has dedicated isolated Redis tests.
 BABI_EMAIL_SEND_GLOBAL_PER_MINUTE: 10000

@@ -24,6 +24,8 @@ import static org.junit.jupiter.api.Assertions.*;
         "spring.datasource.password=",
         "spring.sql.init.mode=always",
         "email.verification.secret=test-only-independent-email-secret",
+        "stt.provider=openai",
+        "stt.api-key=test-only-not-used-by-this-test",
         "jwt.secret=${random.uuid}${random.uuid}"
 })
 class AwsProfileStartupTest {
