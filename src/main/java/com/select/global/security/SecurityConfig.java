@@ -7,9 +7,12 @@ import com.select.global.security.jwt.RefreshSessionService;
 import com.select.global.security.jwt.TokenRevocationService;
 import com.select.global.security.jwt.JwtAuthenticationFilter;
 import com.select.global.security.jwt.JwtProvider;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
+import org.springframework.core.annotation.Order;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -24,6 +27,20 @@ public class SecurityConfig {
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
+    }
+
+    @Bean
+    @Order(1)
+    @Profile("discord-demo")
+    @ConditionalOnProperty(name = "babi.discord.webhook-config-enabled", havingValue = "true")
+    public SecurityFilterChain discordWebhookConfigChain(HttpSecurity http) throws Exception {
+        // This controller authenticates with its own administrator token and ignores session cookies.
+        return http.securityMatcher(request -> SecurityPaths.isDiscordWebhookConfig(
+                        request.getMethod(), request.getServletPath()))
+                .csrf(csrf -> csrf.disable())
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
+                .build();
     }
 
     @Bean
