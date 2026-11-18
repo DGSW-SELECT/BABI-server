@@ -62,6 +62,30 @@ docker port babi-discord-demo-redis 6379
 
 웹후크 주소는 서버가 **시작할 때** 읽으므로 변경 후 해당 서버를 재시작해야 합니다. 운영 환경에서는 담당자의 배포 절차와 승인에 따라 재시작하세요. 새 주소의 수신을 확인한 후 기존 웹후크를 Discord에서 삭제합니다. 주소가 외부에 노출됐다면 즉시 폐기하고 새로 발급하세요. 주소가 없거나 형식이 잘못되면 서버가 오류를 알리고 시작하지 않습니다.
 
+#### 관리 API로 웹후크 주소 등록 및 교체
+
+한 인스턴스에서 실행하는 시연 서비스는 `PUT /internal/discord/webhook`으로 웹후크 주소를 변경할 수 있습니다. 이 API를 배포하는 최초 한 번은 시연 서비스 담당자가 다음 설정을 준비합니다.
+
+- `discord-demo` 프로필과 기존 시연 DB·Redis 설정을 사용합니다.
+- `BABI_DISCORD_WEBHOOK_CONFIG_ENABLED=true`를 설정합니다.
+- `BABI_DISCORD_WEBHOOK_CONFIG_TOKEN`에는 `openssl rand -hex 32`로 생성한 관리용 비밀값을 설정합니다. 이 값은 API를 관리하는 담당자만 보관합니다.
+- `BABI_DISCORD_WEBHOOK_CONFIG_DIRECTORY`에는 시연 서비스 계정이 쓸 수 있는 전용 디렉터리의 절대 경로를 설정합니다. 권한은 `0700`입니다. AWS의 systemd 시연 서비스에서는 `StateDirectory=babi-discord-demo`, `StateDirectoryMode=0700`을 지정하고 경로로 `/var/lib/babi-discord-demo`를 사용하면 됩니다. 이 디렉터리는 JAR 교체와 재시작 사이에 유지해야 합니다.
+- 관리 요청은 HTTPS로 전송합니다. 시연 API를 외부에 공개한다면 관리 경로를 접근이 제한된 프록시나 서버 내부에서 호출하세요.
+
+배포 후 관리자는 Bash에서 다음과 같이 등록합니다. URL과 토큰을 화면, 셸 명령 기록, curl 인수에 표시하지 않습니다.
+
+```bash
+read -rs -p '관리 토큰: ' babi_admin_token; printf '\n'
+read -rs -p 'Discord 웹후크 URL: ' babi_webhook; printf '\n'
+printf '%s' "$babi_webhook" | curl --silent --show-error --fail-with-body \
+  --request PUT 'https://<시연-API-호스트>/internal/discord/webhook' \
+  --header @<(printf 'Authorization: Bearer %s\n' "$babi_admin_token") \
+  --header 'Content-Type: text/plain' --data-binary @-
+unset babi_admin_token babi_webhook
+```
+
+응답이 HTTP 200이면 주소가 권한 `0600` 파일에 저장되며, 다음 발송부터 즉시 적용됩니다. 저장된 주소가 `DISCORD_WEBHOOK_URL`보다 우선합니다. 환경변수 예시를 복사했다면 URL 자리표시자를 지우거나 실제 주소로 교체하세요. API를 켠 경우 두 주소가 모두 없으면 기동은 가능하지만 첫 등록 전 발송 요청은 503입니다. 등록은 URL 형식과 저장 성공을 확인합니다. 실제 연결은 시연 웹에서 `@example.invalid` 주소로 기존 `POST /auth/email/send`를 호출해 확인합니다. 프론트에는 관리 토큰이나 웹후크 주소를 제공하지 않습니다.
+
 전용 Redis에 인증 후 키 `babi:discord-demo:isolation-marker`에 `BABI_DEMO_REDIS_MARKER`와 같은 값을 준비하세요. 예를 들어 `openssl rand -hex 32`로 비밀값을 만들 수 있습니다. 확인값은 전용 Redis를 잘못 연결하는 사고를 줄이지만, DB와 Redis에 실제 사용자 데이터가 없는지 직접 확인해야 합니다. 비밀번호나 Webhook URL을 로그에 출력하거나 공유하지 마세요.
 
 프로젝트 루트에서 실행합니다. IntelliJ에서는 같은 작업 디렉터리와 `local` 프로필을 지정하세요.

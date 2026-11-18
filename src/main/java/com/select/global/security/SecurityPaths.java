@@ -6,6 +6,12 @@ public class SecurityPaths {
     public static final String EMAIL_SEND = "/auth/email/send";
     public static final String EMAIL_VERIFY = "/auth/email/verify";
 
+    public static final String DISCORD_WEBHOOK_CONFIG = "/internal/discord/webhook";
+
+    public static boolean isDiscordWebhookConfig(String method, String path) {
+        return "PUT".equals(method) && DISCORD_WEBHOOK_CONFIG.equals(path);
+    }
+
     public static boolean isDocumentationPath(String path) {
         return "/swagger-ui.html".equals(path)
                 || path.startsWith("/swagger-ui/")
