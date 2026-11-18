@@ -1,6 +1,6 @@
 package com.select.domain.auth.controller;
 
-import com.select.domain.auth.mail.DiscordWebhookSettings;
+import com.select.domain.auth.service.DiscordWebhookConfigService;
 import com.select.global.exception.BusinessException;
 import com.select.global.exception.ErrorCode;
 import com.select.global.response.ApiResponse;
@@ -15,7 +15,6 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.io.IOException;
-import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 
@@ -24,15 +23,15 @@ import java.security.MessageDigest;
 @Profile("discord-demo")
 @ConditionalOnProperty(name = "babi.discord.webhook-config-enabled", havingValue = "true")
 public class DiscordWebhookConfigController {
-    private final DiscordWebhookSettings settings;
+    private final DiscordWebhookConfigService service;
     private final byte[] authorization;
 
-    public DiscordWebhookConfigController(DiscordWebhookSettings settings,
+    public DiscordWebhookConfigController(DiscordWebhookConfigService service,
             @Value("${BABI_DISCORD_WEBHOOK_CONFIG_TOKEN:}") String token) {
         if (!token.matches("[a-fA-F0-9]{64}")) {
             throw new IllegalStateException("BABI_DISCORD_WEBHOOK_CONFIG_TOKEN must be a 64-character hex secret");
         }
-        this.settings = settings;
+        this.service = service;
         this.authorization = ("Bearer " + token).getBytes(StandardCharsets.UTF_8);
     }
 
@@ -43,21 +42,16 @@ public class DiscordWebhookConfigController {
             throw new BusinessException(ErrorCode.UNAUTHORIZED);
         }
 
-        URI endpoint;
+        byte[] body;
         try {
-            byte[] body = request.getInputStream().readNBytes(DiscordWebhookSettings.MAX_URL_LENGTH + 1);
-            if (body.length > DiscordWebhookSettings.MAX_URL_LENGTH) {
-                throw new IllegalArgumentException();
-            }
-            endpoint = DiscordWebhookSettings.validate(new String(body, StandardCharsets.UTF_8));
-        } catch (IOException | IllegalArgumentException e) {
+            body = request.getInputStream().readNBytes(DiscordWebhookConfigService.MAX_URL_LENGTH + 1);
+        } catch (IOException e) {
             throw new BusinessException(ErrorCode.INVALID_REQUEST_BODY);
         }
-        try {
-            settings.update(endpoint);
-        } catch (IOException | SecurityException e) {
-            throw new BusinessException(ErrorCode.DISCORD_WEBHOOK_CONFIG_UNAVAILABLE);
+        if (body.length > DiscordWebhookConfigService.MAX_URL_LENGTH) {
+            throw new BusinessException(ErrorCode.INVALID_REQUEST_BODY);
         }
+        service.update(new String(body, StandardCharsets.UTF_8));
         return ApiResponse.success("Discord 웹후크 설정을 저장했습니다.");
     }
 }
