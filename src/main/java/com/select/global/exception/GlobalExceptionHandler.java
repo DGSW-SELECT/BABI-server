@@ -6,6 +6,7 @@ import com.select.domain.report.exception.DailyReportGenerationException;
 import com.select.domain.auth.exception.EmailVerificationException;
 import com.select.domain.baby.exception.BabyInvitationException;
 import com.select.domain.baby.exception.BabyNotFoundException;
+import com.select.domain.baby.exception.BabySelectionRequiredException;
 import com.select.domain.baby.exception.InvalidOwnershipTransferException;
 import com.select.domain.handover.exception.HandoverBriefingGenerationException;
 import com.select.domain.handover.exception.HandoverBriefingNotFoundException;
@@ -21,6 +22,7 @@ import com.select.domain.user.exception.PasswordMismatchException;
 import com.select.domain.voice.exception.AudioTooLargeException;
 import com.select.domain.voice.exception.InvalidAudioException;
 import com.select.domain.voice.exception.SttFailedException;
+import com.select.domain.voice.exception.SttRequestRateLimitException;
 import com.select.domain.voice.exception.VoiceInputNotFoundException;
 import com.select.global.response.ApiError;
 import com.select.global.response.ApiResponse;
@@ -222,6 +224,21 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 ErrorCode.VOICE_INPUT_NOT_FOUND,
                 List.of()
         );
+    }
+
+    @ExceptionHandler(BabySelectionRequiredException.class)
+    public ResponseEntity<ApiResponse<Void>> handleBabySelectionRequired(
+            BabySelectionRequiredException e
+    ) {
+        return createErrorResponse(
+                ErrorCode.BABY_SELECTION_REQUIRED,
+                List.of()
+        );
+    }
+
+    @ExceptionHandler(SttRequestRateLimitException.class)
+    public ResponseEntity<ApiResponse<Void>> handleSttRequestRateLimit(SttRequestRateLimitException e) {
+        return createErrorResponse(e.getErrorCode(), List.of());
     }
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)

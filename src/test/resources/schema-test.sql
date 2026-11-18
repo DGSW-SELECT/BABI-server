@@ -93,7 +93,7 @@ CREATE TABLE IF NOT EXISTS `baby_permissions` (
 CREATE TABLE IF NOT EXISTS `voice_inputs` (
     `id`             BIGINT       NOT NULL AUTO_INCREMENT,
     `baby_id`        BIGINT       NOT NULL,
-    `baby_member_id` BIGINT       NOT NULL,
+    `baby_member_id` BIGINT       NULL,
     `audio_url`      VARCHAR(500) NULL,
     `transcript`     TEXT         NULL,
     `parse_status`   VARCHAR(20)  NOT NULL,
@@ -232,7 +232,7 @@ CREATE TABLE IF NOT EXISTS `baby_vaccinations` (
     FOREIGN KEY (`vaccine_id`) REFERENCES `vaccines` (`id`)
     ON UPDATE NO ACTION ON DELETE NO ACTION
    );
-    
+
 CREATE TABLE IF NOT EXISTS `handoff_briefings` (
     `id`            BIGINT      NOT NULL AUTO_INCREMENT,
     `baby_id`       BIGINT      NOT NULL,

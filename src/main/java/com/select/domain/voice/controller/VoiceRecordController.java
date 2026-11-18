@@ -6,6 +6,7 @@ import com.select.domain.voice.dto.response.SttTranscriptResponse;
 import com.select.domain.voice.dto.response.VoiceInputResponse;
 import com.select.domain.voice.service.VoiceRecordService;
 import com.select.global.response.ApiResponse;
+import com.select.global.security.CurrentUser;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -38,7 +39,7 @@ public class VoiceRecordController {
             @RequestPart("audio") MultipartFile audio
     ) {
         SttTranscriptResponse response = voiceRecordService.transcribe(
-                babyId, Long.valueOf(principal), audio
+                babyId, CurrentUser.id(principal), audio
         );
         return new ApiResponse<>(true, "음성 변환이 완료되었습니다.", response);
     }
@@ -51,7 +52,7 @@ public class VoiceRecordController {
             @Valid @RequestBody VoiceRecordRequest request
     ) {
         VoiceInputResponse response = voiceRecordService.save(
-                babyId, Long.valueOf(principal), request
+                babyId, CurrentUser.id(principal), request
         );
         return new ApiResponse<>(true, "음성 기록이 저장되었습니다.", response);
     }
@@ -63,7 +64,7 @@ public class VoiceRecordController {
             @PathVariable Long voiceInputId
     ) {
         VoiceInputResponse response = voiceRecordService.get(
-                babyId, Long.valueOf(principal), voiceInputId
+                babyId, CurrentUser.id(principal), voiceInputId
         );
         return new ApiResponse<>(true, "음성 기록을 조회했습니다.", response);
     }
@@ -76,7 +77,7 @@ public class VoiceRecordController {
             @Valid @RequestBody VoiceRecordUpdateRequest request
     ) {
         VoiceInputResponse response = voiceRecordService.update(
-                babyId, Long.valueOf(principal), voiceInputId, request
+                babyId, CurrentUser.id(principal), voiceInputId, request
         );
         return new ApiResponse<>(true, "음성 기록이 수정되었습니다.", response);
     }
