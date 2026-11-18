@@ -1,6 +1,7 @@
 package com.select.domain.auth.mail;
 
 import com.select.domain.auth.controller.DiscordWebhookConfigController;
+import com.select.domain.auth.service.DiscordWebhookConfigService;
 import com.select.global.exception.GlobalExceptionHandler;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -31,7 +32,7 @@ class DiscordWebhookConfigTest {
     @Test
     void requiresAdminTokenAndRejectsUnexpectedEndpoints() throws Exception {
         var settings = settings("");
-        var mvc = MockMvcBuilders.standaloneSetup(new DiscordWebhookConfigController(settings, TOKEN))
+        var mvc = MockMvcBuilders.standaloneSetup(new DiscordWebhookConfigController(new DiscordWebhookConfigService(settings), TOKEN))
                 .setControllerAdvice(new GlobalExceptionHandler()).build();
 
         mvc.perform(put(PATH).contentType(MediaType.TEXT_PLAIN).content(WEBHOOK))
@@ -50,7 +51,7 @@ class DiscordWebhookConfigTest {
     void registeredAddressAppliesImmediatelyAndSurvivesRestart() throws Exception {
         var settings = settings("");
         assertThrows(IllegalStateException.class, settings::current);
-        var mvc = MockMvcBuilders.standaloneSetup(new DiscordWebhookConfigController(settings, TOKEN))
+        var mvc = MockMvcBuilders.standaloneSetup(new DiscordWebhookConfigController(new DiscordWebhookConfigService(settings), TOKEN))
                 .setControllerAdvice(new GlobalExceptionHandler()).build();
         var client = mock(HttpClient.class);
         @SuppressWarnings("unchecked")
