@@ -5,6 +5,10 @@
 - `select-1-babi-start`, `select-1-babi-stop`은 사용자 요청으로 모두 `DISABLED`다. 6만 원은 예산 기준이며 자동 비용 차단은 없다. 직접 중지할 때까지 요금이 발생한다.
 - MySQL의 기존 20개 테이블·`active_baby_members` 뷰를 유지한다. `aws` 프로필은 `spring.sql.init.mode=never`, Hibernate `validate`를 사용한다. 자동 배포는 DB schema나 Volume을 변경하지 않는다.
 
+## 음성 STT 설정
+
+`aws` 프로필은 실제 STT 제공자와 `OPENAI_API_KEY`가 없으면 시작하지 않는다. 배포 전에 `/etc/babi/app.env`에 실제 키를 비밀값으로 설정하고 `STT_PROVIDER=openai`를 지정한다. 키를 비워 두거나 `STT_PROVIDER=fake`로 두면 AWS 프로필은 시작에 실패한다. 키는 저장소나 release에 넣지 않는다.
+
 ## 자동 배포
 
 1. `main` PR에서 Java 21 build, 실제 Redis 통합 테스트, 배포 스크립트 실패·rollback 테스트를 실행한다.

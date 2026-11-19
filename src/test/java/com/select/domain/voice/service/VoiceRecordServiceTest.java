@@ -1,15 +1,18 @@
 package com.select.domain.voice.service;
 
-import com.select.domain.baby.entity.Baby;
-import com.select.domain.baby.entity.BabyMember;
-import com.select.domain.baby.entity.BabyRole;
 import com.select.domain.baby.exception.BabyNotFoundException;
-import com.select.domain.baby.repository.BabyMemberRepository;
 import com.select.domain.baby.repository.BabyRepository;
+import com.select.domain.baby.service.AccountContextService;
+import com.select.domain.care.analyzer.CareRecordAnalyzer;
+import com.select.domain.care.entity.CareRecordType;
+import com.select.domain.care.entity.FeedingType;
+import com.select.domain.care.service.CareRecordWriter;
 import com.select.domain.voice.client.SttClient;
 import com.select.domain.voice.client.dto.response.SttResponse;
+import com.select.domain.voice.dto.request.ParsedVoiceRecordRequest;
 import com.select.domain.voice.dto.request.VoiceRecordRequest;
 import com.select.domain.voice.dto.request.VoiceRecordUpdateRequest;
+import com.select.domain.voice.dto.response.ParsedVoiceRecordResponse;
 import com.select.domain.voice.dto.response.SttTranscriptResponse;
 import com.select.domain.voice.dto.response.VoiceInputResponse;
 import com.select.domain.voice.entity.SttStatus;
@@ -17,9 +20,11 @@ import com.select.domain.voice.entity.VoiceInput;
 import com.select.domain.voice.exception.AudioTooLargeException;
 import com.select.domain.voice.exception.InvalidAudioException;
 import com.select.domain.voice.exception.SttFailedException;
+import com.select.domain.voice.exception.SttRequestRateLimitException;
 import com.select.domain.voice.exception.VoiceInputNotFoundException;
 import com.select.domain.voice.repository.VoiceInputRepository;
 import com.select.domain.voice.support.AudioFileSupport;
+import com.select.global.exception.ErrorCode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -30,16 +35,21 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.SimpleTransactionStatus;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.nio.charset.StandardCharsets;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -58,33 +68,43 @@ class VoiceRecordServiceTest {
     private VoiceInputRepository voiceInputRepository;
 
     @Mock
+    private CareRecordWriter careRecordWriter;
+
+    @Mock
+    private CareRecordAnalyzer careRecordAnalyzer;
+
+    @Mock
     private SttClient sttClient;
+
+    @Mock
+    private SttRequestRateLimiter sttRequestRateLimiter;
 
     @Mock
     private BabyRepository babyRepository;
 
     @Mock
-    private BabyMemberRepository babyMemberRepository;
+    private AccountContextService accountContextService;
+
+    @Mock
+    private PlatformTransactionManager transactionManager;
 
     @InjectMocks
     private VoiceRecordService voiceRecordService;
 
     @BeforeEach
     void setUp() {
-        Baby baby = Baby.builder()
-                .name("아기")
-                .birthDate(LocalDate.of(2025, 1, 15))
-                .createdByUserId(USER_ID)
-                .build();
-        BabyMember member = BabyMember.builder()
-                .babyId(BABY_ID)
-                .userId(USER_ID)
-                .role(BabyRole.OWNER)
-                .build();
-        ReflectionTestUtils.setField(member, "id", MEMBER_ID);
-        lenient().when(babyRepository.findById(BABY_ID)).thenReturn(Optional.of(baby));
-        lenient().when(babyMemberRepository.findByBabyIdAndUserId(BABY_ID, USER_ID))
-                .thenReturn(Optional.of(member));
+        lenient().when(transactionManager.getTransaction(any(TransactionDefinition.class)))
+                .thenReturn(new SimpleTransactionStatus());
+        lenient().when(accountContextService.resolveForRead(USER_ID, BABY_ID))
+                .thenReturn(context(BABY_ID));
+        lenient().when(accountContextService.resolveForWrite(USER_ID, BABY_ID))
+                .thenReturn(context(BABY_ID));
+        lenient().when(babyRepository.findByIdForUpdate(BABY_ID))
+                .thenReturn(Optional.of(com.select.domain.baby.entity.Baby.builder()
+                        .name("아기")
+                        .birthDate(java.time.LocalDate.of(2025, 1, 15))
+                        .createdByUserId(USER_ID)
+                        .build()));
     }
 
     @Test
@@ -97,6 +117,8 @@ class VoiceRecordServiceTest {
         SttTranscriptResponse response = voiceRecordService.transcribe(BABY_ID, USER_ID, audio);
 
         assertThat(response.transcript()).isEqualTo("분유 먹였어");
+        verify(accountContextService).resolveForWrite(USER_ID, BABY_ID);
+        verify(sttRequestRateLimiter).consume(USER_ID);
         verify(sttClient).transcribe(audio);
         verifyNoInteractions(voiceInputRepository);
     }
@@ -155,12 +177,83 @@ class VoiceRecordServiceTest {
         MultipartFile audio = new MockMultipartFile(
                 "audio", "voice.mp3", "audio/mpeg", "audio".getBytes(StandardCharsets.UTF_8)
         );
-        when(babyRepository.findById(BABY_ID)).thenReturn(Optional.empty());
+        when(accountContextService.resolveForWrite(USER_ID, BABY_ID))
+                .thenThrow(new BabyNotFoundException());
 
         assertThatThrownBy(() -> voiceRecordService.transcribe(BABY_ID, USER_ID, audio))
                 .isInstanceOf(BabyNotFoundException.class);
 
         verifyNoInteractions(sttClient, voiceInputRepository);
+    }
+
+    @Test
+    void transcribeStopsBeforeProviderWhenDailyLimitIsExceeded() {
+        MultipartFile audio = new MockMultipartFile(
+                "audio", "voice.mp3", "audio/mpeg", "audio".getBytes(StandardCharsets.UTF_8)
+        );
+        doThrow(new SttRequestRateLimitException(
+                ErrorCode.STT_RATE_LIMIT_EXCEEDED
+        )).when(sttRequestRateLimiter).consume(USER_ID);
+
+        assertThatThrownBy(() -> voiceRecordService.transcribe(BABY_ID, USER_ID, audio))
+                .isInstanceOf(SttRequestRateLimitException.class);
+
+        verifyNoInteractions(sttClient, voiceInputRepository);
+    }
+
+    @Test
+    void parseReturnsPreviewWithoutSaving() {
+        MultipartFile audio = new MockMultipartFile(
+                "audio", "voice.webm", "audio/webm", "audio".getBytes(StandardCharsets.UTF_8)
+        );
+        when(sttClient.transcribe(audio)).thenReturn(new SttResponse("분유 120ml 먹였어요"));
+        when(careRecordAnalyzer.analyze(any(), any())).thenReturn(List.of(
+                new com.select.domain.care.analyzer.CareRecordDraft(
+                        CareRecordType.FEEDING,
+                        LocalDateTime.of(2026, 11, 16, 10, 0),
+                        120,
+                        null,
+                        FeedingType.FORMULA,
+                        null,
+                        "분유 120ml 먹였어요"
+                )
+        ));
+
+        ParsedVoiceRecordResponse response = voiceRecordService.parse(USER_ID, BABY_ID, audio);
+
+        assertThat(response.transcript()).isEqualTo("분유 120ml 먹였어요");
+        assertThat(response.items()).hasSize(1);
+        assertThat(response.items().getFirst().type()).isEqualTo("feeding");
+        assertThat(response.items().getFirst().label()).contains("120ml");
+        assertThat(response.parsedAt()).isNotNull();
+        verify(accountContextService).resolveForWrite(USER_ID, BABY_ID);
+        verify(sttRequestRateLimiter).consume(USER_ID);
+        verifyNoInteractions(voiceInputRepository);
+    }
+
+    @Test
+    void parseUsesFallbackLabelForOtherDraftWithoutMemo() {
+        MultipartFile audio = new MockMultipartFile(
+                "audio", "voice.webm", "audio/webm", "audio".getBytes(StandardCharsets.UTF_8)
+        );
+        when(sttClient.transcribe(audio)).thenReturn(new SttResponse("기타 내용"));
+        when(careRecordAnalyzer.analyze(any(), any())).thenReturn(List.of(
+                new com.select.domain.care.analyzer.CareRecordDraft(
+                        CareRecordType.CRY,
+                        LocalDateTime.of(2026, 11, 16, 10, 0),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null
+                )
+        ));
+
+        ParsedVoiceRecordResponse response = voiceRecordService.parse(USER_ID, BABY_ID, audio);
+
+        assertThat(response.items()).singleElement()
+                .extracting(item -> item.label())
+                .isEqualTo("기타");
     }
 
     @Test
@@ -201,9 +294,48 @@ class VoiceRecordServiceTest {
     }
 
     @Test
+    void saveParsedStoresCareRecordsUsingPreviewReferenceTime() {
+        LocalDateTime parsedAt = LocalDateTime.now().minusMinutes(1);
+        VoiceInput saved = VoiceInput.builder()
+                .babyId(BABY_ID)
+                .familyMemberId(MEMBER_ID)
+                .transcript("분유 120ml 먹였어요")
+                .sttStatus(SttStatus.COMPLETED)
+                .build();
+        ReflectionTestUtils.setField(saved, "id", 10L);
+        when(voiceInputRepository.save(any(VoiceInput.class))).thenReturn(saved);
+        when(careRecordWriter.analyzeAndSave(
+                anyLong(), anyLong(), anyLong(), any(), any(LocalDateTime.class)
+        )).thenReturn(List.of());
+
+        voiceRecordService.saveParsed(
+                USER_ID,
+                BABY_ID,
+                new ParsedVoiceRecordRequest("분유 120ml 먹였어요", List.of(), parsedAt)
+        );
+
+        verify(careRecordWriter).analyzeAndSave(
+                BABY_ID, MEMBER_ID, 10L, "분유 120ml 먹였어요", parsedAt
+        );
+    }
+
+    @Test
+    void saveParsedRejectsReferenceTimeOutside24Hours() {
+        assertThatThrownBy(() -> voiceRecordService.saveParsed(
+                USER_ID,
+                BABY_ID,
+                new ParsedVoiceRecordRequest(
+                        "분유 먹였어요", List.of(), LocalDateTime.now().minusHours(25)
+                )
+        )).isInstanceOf(com.select.domain.care.exception.CareRecordException.class);
+
+        verifyNoInteractions(voiceInputRepository);
+    }
+
+    @Test
     void saveFailsWhenUserIsNotMember() {
-        when(babyMemberRepository.findByBabyIdAndUserId(BABY_ID, USER_ID))
-                .thenReturn(Optional.empty());
+        when(accountContextService.resolveForWrite(USER_ID, BABY_ID))
+                .thenThrow(new AccessDeniedException("해당 아기의 구성원이 아닙니다."));
 
         assertThatThrownBy(() -> voiceRecordService.save(
                 BABY_ID, USER_ID, new VoiceRecordRequest("분유 먹였어")
@@ -286,5 +418,9 @@ class VoiceRecordServiceTest {
         )).isInstanceOf(VoiceInputNotFoundException.class);
 
         verify(voiceInputRepository, never()).saveAndFlush(any(VoiceInput.class));
+    }
+
+    private static AccountContextService.AccountContext context(Long babyId) {
+        return new AccountContextService.AccountContext(babyId, MEMBER_ID);
     }
 }
