@@ -10,7 +10,7 @@ BABI 서비스의 Spring Boot 백엔드 프로젝트입니다.
 
 ## Discord 시연 환경과 로컬 실행
 
-기본 `local`/`aws` 프로필은 기존 Gmail SMTP 발송을 사용합니다. Discord는 `local,discord-demo` 또는 `aws,discord-demo` 프로필을 명시한 경우에만 활성화됩니다. Discord 인증은 이메일 소유권을 증명하지 **않는 시연 전용**이며, `@example.invalid` 주소만 허용합니다. 실제 사용자 계정이나 데이터로 운영하지 말고 접근이 제한된 비공개 Discord 채널을 사용하세요. 채널의 인증번호와 초대 코드를 볼 수 있는 사람은 이를 사용할 수 있습니다. Discord에는 주소와 초대 링크를 보내지 않습니다.
+기본 `local`/`aws` 프로필은 기존 Gmail SMTP 발송을 사용합니다. Discord는 `local,discord-demo` 또는 `aws,discord-demo` 프로필을 명시한 경우에만 활성화됩니다. Discord 인증은 이메일 소유권을 증명하지 **않는 시연 전용**이며, 일반 이메일 형식의 주소도 입력할 수 있습니다. 인증번호는 입력한 이메일의 메일함이 아닌 Discord 채널에 전송됩니다. 실제 사용자 계정이나 데이터로 운영하지 말고 접근이 제한된 비공개 Discord 채널을 사용하세요. 채널의 인증번호와 초대 코드를 볼 수 있는 사람은 이를 사용할 수 있습니다. Discord에는 주소와 초대 링크를 보내지 않습니다.
 
 기존 Compose의 `babi` DB와 Redis에는 연결하지 마세요. 별도의 MySQL 8.4 인스턴스에 `babi_discord_demo` DB와 `babi_user` 계정을 준비하고, 최종 스키마를 그 전용 DB에만 별도로 적용하세요. 서버는 `schema.sql`을 자동 실행하지 않으며(`spring.sql.init.mode: never`) Hibernate `validate`만 수행합니다. 공유 DB를 초기화하지 않습니다. 별도의 인증된 Redis 인스턴스도 필요합니다.
 
@@ -84,7 +84,7 @@ printf '%s' "$babi_webhook" | curl --silent --show-error --fail-with-body \
 unset babi_admin_token babi_webhook
 ```
 
-응답이 HTTP 200이면 주소가 권한 `0600` 파일에 저장되며, 다음 발송부터 즉시 적용됩니다. 저장된 주소가 `DISCORD_WEBHOOK_URL`보다 우선합니다. 환경변수 예시를 복사했다면 URL 자리표시자를 지우거나 실제 주소로 교체하세요. API를 켠 경우 두 주소가 모두 없으면 기동은 가능하지만 첫 등록 전 발송 요청은 503입니다. 등록은 URL 형식과 저장 성공을 확인합니다. 실제 연결은 시연 웹에서 `@example.invalid` 주소로 기존 `POST /auth/email/send`를 호출해 확인합니다. 프론트에는 관리 토큰이나 웹후크 주소를 제공하지 않습니다.
+응답이 HTTP 200이면 주소가 권한 `0600` 파일에 저장되며, 다음 발송부터 즉시 적용됩니다. 저장된 주소가 `DISCORD_WEBHOOK_URL`보다 우선합니다. 환경변수 예시를 복사했다면 URL 자리표시자를 지우거나 실제 주소로 교체하세요. API를 켠 경우 두 주소가 모두 없으면 기동은 가능하지만 첫 등록 전 발송 요청은 503입니다. 등록은 URL 형식과 저장 성공을 확인합니다. 실제 연결은 시연 웹에서 이메일 주소로 기존 `POST /auth/email/send`를 호출해 확인합니다. 프론트에는 관리 토큰이나 웹후크 주소를 제공하지 않습니다.
 
 전용 Redis에 인증 후 키 `babi:discord-demo:isolation-marker`에 `BABI_DEMO_REDIS_MARKER`와 같은 값을 준비하세요. 예를 들어 `openssl rand -hex 32`로 비밀값을 만들 수 있습니다. 확인값은 전용 Redis를 잘못 연결하는 사고를 줄이지만, DB와 Redis에 실제 사용자 데이터가 없는지 직접 확인해야 합니다. 비밀번호나 Webhook URL을 로그에 출력하거나 공유하지 마세요.
 
