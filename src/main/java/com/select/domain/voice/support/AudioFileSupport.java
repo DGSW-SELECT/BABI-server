@@ -3,6 +3,7 @@ package com.select.domain.voice.support;
 import com.select.domain.voice.exception.AudioTooLargeException;
 import com.select.domain.voice.exception.InvalidAudioException;
 import org.springframework.util.StringUtils;
+import org.springframework.http.MediaType;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.Locale;
@@ -72,6 +73,29 @@ public final class AudioFileSupport {
             base = base.substring(0, dot);
         }
         return base + "." + derivedExtension;
+    }
+
+    /**
+     * STT 제공자에 전달할 파일 파트의 MIME 타입. 브라우저가 octet-stream을 보내도
+     * 허용된 파일 확장자를 기준으로 실제 오디오 타입을 지정한다.
+     */
+    public static MediaType mediaTypeFor(MultipartFile audio) {
+        String contentType = contentType(audio);
+        if (SUPPORTED_CONTENT_TYPES.contains(contentType)) {
+            return MediaType.parseMediaType(contentType);
+        }
+
+        String extension = extension(filenameFor(audio));
+        return switch (extension) {
+            case "mp3", "mpga", "mpeg" -> MediaType.parseMediaType("audio/mpeg");
+            case "mp4", "m4a" -> MediaType.parseMediaType("audio/mp4");
+            case "wav" -> MediaType.parseMediaType("audio/wav");
+            case "webm" -> MediaType.parseMediaType("audio/webm");
+            case "ogg" -> MediaType.parseMediaType("audio/ogg");
+            case "flac" -> MediaType.parseMediaType("audio/flac");
+            case "aac" -> MediaType.parseMediaType("audio/aac");
+            default -> MediaType.APPLICATION_OCTET_STREAM;
+        };
     }
 
     private static String contentType(MultipartFile audio) {

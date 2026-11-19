@@ -75,6 +75,25 @@ class RestSttClientTest {
     }
 
     @Test
+    void sendsMp3FileWithAudioMimeTypeAndParsesTranscript() {
+        server.expect(requestTo(TRANSCRIPTION_URL))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(content().string(containsString("filename=\"voice.mp3\"")))
+                .andExpect(content().string(containsString("Content-Type: audio/mpeg")))
+                .andExpect(content().string(containsString("whisper-1")))
+                .andRespond(withSuccess("{\"text\":\"오늘 분유 먹였어요\"}", MediaType.APPLICATION_JSON));
+
+        MockMultipartFile audio = new MockMultipartFile(
+                "audio", "voice.mp3", "application/octet-stream", "mp3 bytes".getBytes(StandardCharsets.UTF_8)
+        );
+
+        SttResponse response = sttClient.transcribe(audio);
+
+        assertThat(response.text()).isEqualTo("오늘 분유 먹였어요");
+        server.verify();
+    }
+
+    @Test
     void wrapsUpstreamErrorAsSttFailedException() {
         server.expect(requestTo(TRANSCRIPTION_URL))
                 .andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR));

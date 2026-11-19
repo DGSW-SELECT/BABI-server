@@ -9,6 +9,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpEntity;
 import org.springframework.http.MediaType;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
@@ -40,12 +41,14 @@ public class RestSttClient implements SttClient {
         }
         try {
             MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
-            body.add("file", new ByteArrayResource(audio.getBytes()) {
+            HttpHeaders fileHeaders = new HttpHeaders();
+            fileHeaders.setContentType(AudioFileSupport.mediaTypeFor(audio));
+            body.add("file", new HttpEntity<>(new ByteArrayResource(audio.getBytes()) {
                 @Override
                 public String getFilename() {
                     return AudioFileSupport.filenameFor(audio);
                 }
-            });
+            }, fileHeaders));
             body.add("model", properties.model());
             if (StringUtils.hasText(properties.language())) {
                 body.add("language", properties.language());
