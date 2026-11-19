@@ -76,14 +76,14 @@ class EmailVerificationControllerTest {
     }
 
     @Test
-    void demoAddressRejectionDoesNotConsumeRateLimit() throws Exception {
-        doThrow(new EmailVerificationException(ErrorCode.EMAIL_DEMO_ADDRESS_REQUIRED)).when(service).validateRecipient("real@example.com");
+    void ordinaryEmailUsesExistingSendApiAndRateLimit() throws Exception {
         mvc.perform(post("/auth/email/send").contentType("application/json")
                         .content("{\"email\":\"real@example.com\"}"))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error.code").value("EMAIL_DEMO_ADDRESS_REQUIRED"));
-        verifyNoInteractions(rateLimiter);
-        verify(service, never()).sendVerificationCode(anyString());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+        verify(service).validateRecipient("real@example.com");
+        verify(rateLimiter).check(any());
+        verify(service).sendVerificationCode("real@example.com");
     }
 
     @ParameterizedTest
