@@ -52,6 +52,6 @@ public class DiscordWebhookConfigController {
             throw new BusinessException(ErrorCode.INVALID_REQUEST_BODY);
         }
         service.update(new String(body, StandardCharsets.UTF_8));
-        return new ApiResponse<>(true, "Discord 웹후크 설정을 저장했습니다.", null);
+        return ApiResponse.success("Discord 웹후크 설정을 저장했습니다.");
     }
 }

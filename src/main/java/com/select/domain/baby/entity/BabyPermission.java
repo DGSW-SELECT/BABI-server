@@ -10,6 +10,8 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class BabyPermission {
     public static final String CARE_ALL = "CARE_ALL";
+    public static final String VACCINATION_READ = "VACCINATION_READ";
+    public static final String VACCINATION_WRITE = "VACCINATION_WRITE";
 
     @Column(name = "baby_id", nullable = false)
     private Long babyId;

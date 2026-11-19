@@ -6,6 +6,17 @@ import org.springframework.http.HttpStatus;
 @Getter
 public enum ErrorCode {
 
+    VACCINE_INVALID_DATE_RANGE(HttpStatus.BAD_REQUEST, "조회 날짜 범위가 올바르지 않습니다."),
+    VACCINE_INVALID_BABY_ID(HttpStatus.BAD_REQUEST, "올바른 아기 ID가 필요합니다."),
+    VACCINE_NOT_FOUND (HttpStatus.NOT_FOUND, "백신을 찾을 수 없습니다."),
+    VACCINE_INVALID_DATE_SET(HttpStatus.BAD_REQUEST, "조회 기간은 최대 365일입니다."),
+    VACCINE_INVALID_SCHEDULE_DATE(HttpStatus.BAD_REQUEST, "올바른 접종 예정일을 입력해 주세요."),
+    DUPLICATE_VACCINATION (HttpStatus.CONFLICT, "이미 있는 백신 예약입니다."),
+    VACCINATION_SCHEDULE_NOT_FOUND(HttpStatus.NOT_FOUND, "접종 일정을 찾을 수 없습니다."),
+    VACCINATION_ALREADY_COMPLETED(HttpStatus.CONFLICT, "이미 완료된 일정입니다."),
+    VACCINATION_INVALID_DOSE_NUMBER(HttpStatus.BAD_REQUEST, "유효하지 않은 접종 차수입니다."),
+    ACCESS_DENIED(HttpStatus.FORBIDDEN, "해당 리소스에 접근할 권한이 없습니다."),
+
     PROFILE_PHOTO_INVALID(HttpStatus.BAD_REQUEST, "프로필 사진은 5MB 이하의 JPEG 또는 PNG여야 합니다."),
     PROFILE_PHOTO_NOT_FOUND(HttpStatus.NOT_FOUND, "프로필 사진을 찾을 수 없습니다."),
     PROFILE_PHOTO_BUSY(HttpStatus.SERVICE_UNAVAILABLE, "사진 요청이 많습니다. 잠시 후 다시 시도해 주세요."),
@@ -13,6 +24,11 @@ public enum ErrorCode {
     INVALID_CARE_RECORD(HttpStatus.BAD_REQUEST, "기록 내용 또는 연결된 음성 기록을 확인해 주세요."),
     DAILY_REPORT_NO_RECORDS(HttpStatus.BAD_REQUEST, "해당 날짜에 요약할 육아 기록이 없습니다."),
     DAILY_REPORT_GENERATION_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "AI 리포트 생성을 일시적으로 사용할 수 없습니다."),
+
+    HANDOVER_MEMO_RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "인수인계 메모 등록 횟수를 초과했습니다."),
+    HANDOVER_MEMO_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "인수인계 메모 등록을 일시적으로 사용할 수 없습니다."),
+    HANDOVER_MEMO_NOT_FOUND(HttpStatus.NOT_FOUND, "확인할 인수인계 메모가 없습니다."),
+    PAYLOAD_TOO_LARGE(HttpStatus.CONTENT_TOO_LARGE, "요청 본문이 너무 큽니다."),
 
     INVITATION_INVALID(HttpStatus.BAD_REQUEST, "유효한 보호자 초대를 확인할 수 없습니다."),
     INVITATION_CODE_EXPIRED(HttpStatus.CONFLICT, "초대 코드가 만료되었습니다. 소유자가 재발급해야 합니다."),
@@ -24,6 +40,7 @@ public enum ErrorCode {
     INVITATION_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "보호자 초대 서비스를 일시적으로 사용할 수 없습니다."),
     INVITATION_SEND_FAILED(HttpStatus.SERVICE_UNAVAILABLE, "보호자 초대 이메일 발송에 실패했습니다."),
     BABY_SELECTION_REQUIRED(HttpStatus.BAD_REQUEST, "아기를 선택해 주세요."),
+
     BABY_NOT_FOUND(HttpStatus.NOT_FOUND, "아기를 찾을 수 없습니다."),
     BABY_MEMBER_NOT_FOUND(HttpStatus.NOT_FOUND, "멤버를 찾을 수 없습니다."),
     GROWTH_RECORD_NOT_FOUND(HttpStatus.NOT_FOUND, "성장 기록을 찾을 수 없습니다."),
@@ -52,6 +69,11 @@ public enum ErrorCode {
     VALIDATION_ERROR(HttpStatus.BAD_REQUEST, "입력값을 확인해 주세요."),
     INTERNAL_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버에 오류가 발생했습니다."),
     INVALID_REQUEST_BODY(HttpStatus.BAD_REQUEST, "요청 본문이 올바르지 않습니다."),
+    NO_DAILY_CARE_RECORD(HttpStatus.NOT_FOUND, "오늘은 브리핑을 생성할 기록이 없습니다."),
+    HANDOVER_BRIEFING_NOT_FOUND(HttpStatus.NOT_FOUND, "최신 인수인계 브리핑을 찾을 수 없습니다."),
+    HANDOVER_BRIEFING_GENERATION_FAILED(HttpStatus.SERVICE_UNAVAILABLE, "AI 브리핑 생성에 실패했습니다. 잠시 후 다시 시도해 주세요."),
+    HANDOVER_BRIEFING_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "인수인계 브리핑 서비스를 현재 사용할 수 없습니다."),
+    HANDOVER_BRIEFING_RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "브리핑 생성 요청이 너무 잦습니다. 잠시 후 다시 시도해 주세요."),
     INVALID_CREDENTIALS(HttpStatus.BAD_REQUEST, "이메일 또는 비밀번호가 올바르지 않습니다."),
     INVALID_AUDIO(HttpStatus.BAD_REQUEST, "지원하지 않거나 비어 있는 음성 파일입니다."),
     AUDIO_TOO_LARGE(HttpStatus.CONTENT_TOO_LARGE, "음성 파일은 25MB 이하여야 합니다."),
@@ -73,5 +95,4 @@ public enum ErrorCode {
         this.httpStatus = httpStatus;
         this.message = message;
     }
-
 }
