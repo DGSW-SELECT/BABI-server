@@ -19,7 +19,7 @@ class DiscordWebhookEmailSenderTest {
     private static final String WEBHOOK = "https://discord.com/api/webhooks/123/test_secret";
     private static final String BODY = "BABI 이메일 인증번호는 123456입니다.\n인증번호는 5분 동안 유효합니다.";
     @SuppressWarnings("unchecked")
-    @Test void sendsToMockAndRejectsNonTestAddress() throws Exception {
+    @Test void sendsToMockForAnyEmailWithoutExposingAddress() throws Exception {
         HttpClient client = mock(HttpClient.class);
         HttpResponse<java.io.InputStream> response = mock(HttpResponse.class);
         when(response.statusCode()).thenReturn(204);
@@ -36,8 +36,9 @@ class DiscordWebhookEmailSenderTest {
         assertEquals(0, json.path("allowed_mentions").path("parse").size());
         assertEquals(java.time.Duration.ofSeconds(5), sent.get().timeout().orElseThrow());
         assertFalse(payload.contains("test@example.invalid"));
-        assertThrows(com.select.domain.auth.exception.EmailVerificationException.class, () -> sender.send("real@example.com", "[BABI] 이메일 인증번호 안내", BODY));
-        verify(client, times(1)).send(any(), any(HttpResponse.BodyHandler.class));
+        sender.send("real@example.com", "[BABI] 이메일 인증번호 안내", BODY);
+        assertFalse(requestBody(sent.get()).contains("real@example.com"));
+        verify(client, times(2)).send(any(), any(HttpResponse.BodyHandler.class));
     }
     @SuppressWarnings("unchecked")
     @Test void invitationDoesNotExposeLinkOrAddress() throws Exception {
@@ -69,10 +70,10 @@ class DiscordWebhookEmailSenderTest {
         when(redis.execute(any(org.springframework.data.redis.core.script.RedisScript.class), anyList(), anyString(), anyString(), anyString(), anyString(), anyString())).thenReturn(1L);
         var sender = new DiscordWebhookEmailSender(WEBHOOK, new ObjectMapper(), client);
         var service = new com.select.domain.auth.service.EmailVerificationService(sender, redis, "test-only-secret");
-        service.sendVerificationCode("demo@example.invalid");
+        service.sendVerificationCode("demo@example.com");
         var code = java.util.regex.Pattern.compile("인증번호: ([0-9]{6})").matcher(requestBody(sent.get()));
         assertTrue(code.find());
-        var verified = service.verifyCode("demo@example.invalid", code.group(1));
+        var verified = service.verifyCode("demo@example.com", code.group(1));
         assertTrue(verified.verified());
         assertEquals(43, verified.verificationToken().length());
     }

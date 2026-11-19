@@ -66,8 +66,8 @@ class DiscordDemoFlowIntegrationTest {
         doAnswer(call -> { discord.send(call.getArgument(0), call.getArgument(1), call.getArgument(2)); return null; })
                 .when(sender).send(anyString(), anyString(), anyString());
         String unique = UUID.randomUUID().toString().replace("-", "");
-        String ownerEmail = "owner" + unique + "@example.invalid";
-        String guestEmail = "guest" + unique + "@example.invalid";
+        String ownerEmail = "owner" + unique + "@example.com";
+        String guestEmail = "guest" + unique + "@example.com";
         String owner = signupAndLogin(ownerEmail);
         JsonNode baby = request("POST", "/babies", owner, Map.of("name", "시연 아기", "birthDate", "2025-01-01"), 200);
         long babyId = baby.path("data").path("babyId").asLong();
@@ -109,12 +109,12 @@ class DiscordDemoFlowIntegrationTest {
         doAnswer(call -> { discord.send(call.getArgument(0), call.getArgument(1), call.getArgument(2)); return null; })
                 .when(sender).send(anyString(), anyString(), anyString());
         String unique = UUID.randomUUID().toString().replace("-", "");
-        String owner = signupAndLogin("owner" + unique + "@example.invalid");
+        String owner = signupAndLogin("owner" + unique + "@example.com");
         long babyId = request("POST", "/babies", owner, Map.of("name", "시연 아기", "birthDate", "2025-01-01"), 200)
                 .path("data").path("babyId").asLong();
         try (var executor = java.util.concurrent.Executors.newFixedThreadPool(2)) {
             var send = executor.submit(() -> request("POST", "/babies/" + babyId + "/invitations", owner,
-                    Map.of("email", "guest" + unique + "@example.invalid"), 503));
+                    Map.of("email", "guest" + unique + "@example.com"), 503));
             try {
                 assertTrue(invitationReceived.await(5, TimeUnit.SECONDS));
                 var lookup = executor.submit(() -> request("GET", "/babies/" + babyId + "/invitation-code", owner, null, 200));

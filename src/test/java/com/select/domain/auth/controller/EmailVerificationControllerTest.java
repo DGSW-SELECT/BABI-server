@@ -60,7 +60,6 @@ class EmailVerificationControllerTest {
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.error.code").value("EMAIL_SEND_RATE_LIMITED"));
         verify(rateLimiter).check(any());
-        verify(service).validateRecipient("user@example.invalid");
         verifyNoMoreInteractions(service);
     }
 
@@ -71,19 +70,17 @@ class EmailVerificationControllerTest {
                         .content("{\"email\":\"user@example.invalid\"}"))
                 .andExpect(status().isServiceUnavailable())
                 .andExpect(jsonPath("$.error.code").value("EMAIL_VERIFICATION_UNAVAILABLE"));
-        verify(service).validateRecipient("user@example.invalid");
         verifyNoMoreInteractions(service);
     }
 
     @Test
-    void demoAddressRejectionDoesNotConsumeRateLimit() throws Exception {
-        doThrow(new EmailVerificationException(ErrorCode.EMAIL_DEMO_ADDRESS_REQUIRED)).when(service).validateRecipient("real@example.com");
+    void ordinaryEmailUsesExistingSendApiAndRateLimit() throws Exception {
         mvc.perform(post("/auth/email/send").contentType("application/json")
                         .content("{\"email\":\"real@example.com\"}"))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error.code").value("EMAIL_DEMO_ADDRESS_REQUIRED"));
-        verifyNoInteractions(rateLimiter);
-        verify(service, never()).sendVerificationCode(anyString());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+        verify(rateLimiter).check(any());
+        verify(service).sendVerificationCode("real@example.com");
     }
 
     @ParameterizedTest
