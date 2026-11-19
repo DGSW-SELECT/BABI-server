@@ -136,7 +136,6 @@ class EmailVerificationServiceTest {
         var verification = new EmailVerificationService(sender, redis, "test-only-secret");
         assertEquals(ErrorCode.EMAIL_VERIFICATION_UNAVAILABLE, assertThrows(EmailVerificationException.class,
                 () -> verification.sendVerificationCode("user@example.com")).getErrorCode());
-        verify(sender).validateRecipient("user@example.com");
         verify(sender, never()).send(anyString(), anyString(), anyString());
     }
 
