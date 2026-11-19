@@ -1,5 +1,7 @@
 package com.select.domain.vaccination.service;
 
+import com.select.domain.baby.entity.Baby;
+import com.select.domain.baby.entity.BabyPermission;
 import com.select.domain.baby.repository.BabyAccessRepository;
 import com.select.domain.baby.repository.BabyRepository;
 import com.select.domain.vaccination.entity.BabyVaccination;
@@ -19,7 +21,7 @@ import static org.mockito.Mockito.*;
 
 class VaccinationDeleteServiceImplTest {
     private BabyVaccinationRepository repository;
-    private VaccinationServiceImpl service;
+    private VaccinationTransactionService service;
     private VaccineRepository vaccineRepository;
     private BabyRepository babyRepository;
     private BabyAccessRepository babyAccessRepository;
@@ -41,16 +43,20 @@ class VaccinationDeleteServiceImplTest {
                 ZoneId.of("Asia/Seoul")
         );
 
-        service = new VaccinationServiceImpl(repository, vaccineRepository, babyRepository, babyAccessRepository, clock);
+        service = new VaccinationTransactionService(repository, vaccineRepository, babyRepository, babyAccessRepository, clock);
     }
     private void mockWriteAccess() {
-        when(babyRepository.existsById(babyId)).thenReturn(true);
+        Baby baby = mock(Baby.class);
 
-        when(babyAccessRepository.hasAccess(userId, babyId))
-                .thenReturn(true);
+        when(babyRepository.findByIdForUpdate(babyId))
+                .thenReturn(Optional.of(baby));
 
-        when(babyAccessRepository.hasWriteAccess(userId, babyId))
-                .thenReturn(true);
+        when(babyAccessRepository.findMemberId(
+                userId,
+                babyId,
+                BabyPermission.VACCINATION_WRITE,
+                true
+        )).thenReturn(Optional.of(100L));
     }
     @Test
     void DELETE_INCOMPLETE_SCHEDULE_SUCCESS() {

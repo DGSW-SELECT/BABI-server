@@ -1,5 +1,6 @@
 package com.select.domain.vaccination.service;
 
+import com.select.domain.baby.entity.BabyPermission;
 import com.select.domain.baby.repository.BabyAccessRepository;
 import com.select.domain.baby.repository.BabyRepository;
 import com.select.domain.vaccination.dto.response.VaccinationHistoryResponse;
@@ -16,6 +17,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Optional;
 
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -28,6 +30,7 @@ class VaccinationHistoryServiceImplTest {
     private BabyRepository babyRepository;
     private BabyAccessRepository babyAccessRepository;
     private VaccinationServiceImpl service;
+    private VaccinationTransactionService transService;
     private Clock clock;
 
     private final Long babyId = 1L;
@@ -39,29 +42,33 @@ class VaccinationHistoryServiceImplTest {
         vaccineRepository = mock(VaccineRepository.class);
         babyRepository = mock(BabyRepository.class);
         babyAccessRepository = mock(BabyAccessRepository.class);
+        transService = mock(VaccinationTransactionService.class);
+
         clock = Clock.fixed(
                 Instant.parse("2026-11-10T03:00:00Z"),
                 ZoneId.of("Asia/Seoul")
         );
-
 
         service = new VaccinationServiceImpl(
                 babyVaccinationRepository,
                 vaccineRepository,
                 babyRepository,
                 babyAccessRepository,
-                clock
+                clock,
+                transService
         );
     }
 
-    private void mockViewerAccess() {
-        when(babyRepository.existsById(babyId)).thenReturn(true);
-
-        when(babyAccessRepository.hasAccess(userId, babyId))
+    private void mockReadAccess(Long targetBabyId) {
+        when(babyRepository.existsById(targetBabyId))
                 .thenReturn(true);
 
-        when(babyAccessRepository.hasWriteAccess(userId, babyId))
-                .thenReturn(false);
+        when(babyAccessRepository.findMemberId(
+                userId,
+                targetBabyId,
+                BabyPermission.VACCINATION_READ,
+                false
+        )).thenReturn(Optional.of(100L));
     }
 
     @Test
@@ -73,14 +80,14 @@ class VaccinationHistoryServiceImplTest {
         BabyVaccination vaccination = mock(BabyVaccination.class);
 
         when(vaccine.getName()).thenReturn("DTaP");
-
         when(vaccination.getId()).thenReturn(10L);
         when(vaccination.getVaccine()).thenReturn(vaccine);
         when(vaccination.getCompletedDate()).thenReturn(completedDate);
 
-        mockViewerAccess();
+        mockReadAccess(babyId);
 
-        when(babyVaccinationRepository.findAllByBabyIdAndCompletedTrueOrderByCompletedDateDescIdDesc(babyId))
+        when(babyVaccinationRepository
+                .findAllByBabyIdAndCompletedTrueOrderByCompletedDateDescIdDesc(babyId))
                 .thenReturn(List.of(vaccination));
 
         // when
@@ -94,44 +101,55 @@ class VaccinationHistoryServiceImplTest {
         assertEquals("DTaP", response.items().get(0).vaccineName());
         assertEquals(completedDate, response.items().get(0).completedDate());
 
-        // verify
         verify(babyRepository).existsById(babyId);
+        verify(babyAccessRepository).findMemberId(
+                userId,
+                babyId,
+                BabyPermission.VACCINATION_READ,
+                false
+        );
         verify(babyVaccinationRepository)
                 .findAllByBabyIdAndCompletedTrueOrderByCompletedDateDescIdDesc(babyId);
-}
+    }
 
-@Test
-void VACCINATION_HISTORY_EMPTY() {
-    mockViewerAccess();
-    // given
-    when(babyVaccinationRepository.findAllByBabyIdAndCompletedTrueOrderByCompletedDateDescIdDesc(babyId))
-            .thenReturn(List.of());
+    @Test
+    void VACCINATION_HISTORY_EMPTY() {
+        // given
+        mockReadAccess(babyId);
 
-    // when
-    VaccinationHistoryResponse response = service.getVaccinationHistory(babyId, userId);
+        when(babyVaccinationRepository
+                .findAllByBabyIdAndCompletedTrueOrderByCompletedDateDescIdDesc(babyId))
+                .thenReturn(List.of());
 
-    // then
-    assertEquals(babyId, response.babyId());
-    assertNotNull(response.items());
-    assertTrue(response.items().isEmpty());
+        // when
+        VaccinationHistoryResponse response =
+                service.getVaccinationHistory(babyId, userId);
 
-    verify(babyVaccinationRepository).findAllByBabyIdAndCompletedTrueOrderByCompletedDateDescIdDesc(babyId);
-}
+        // then
+        assertEquals(babyId, response.babyId());
+        assertNotNull(response.items());
+        assertTrue(response.items().isEmpty());
 
-@Test
-void VACCINATION_HISTORY_BABY_NOT_FOUND() {
-    // given
-    Long babyId = 999L;
+        verify(babyVaccinationRepository)
+                .findAllByBabyIdAndCompletedTrueOrderByCompletedDateDescIdDesc(babyId);
+    }
 
-    mockViewerAccess();
+    @Test
+    void VACCINATION_HISTORY_BABY_NOT_FOUND() {
+        // given
+        Long notFoundBabyId = 999L;
 
-    // when / then
-    assertThrows(
-            BusinessException.class,
-            () -> service.getVaccinationHistory(babyId, userId)
-    );
+        when(babyRepository.existsById(notFoundBabyId))
+                .thenReturn(false);
 
-    verify(babyRepository).existsById(babyId);
-    verifyNoInteractions(babyVaccinationRepository);
-}
+        // when / then
+        assertThrows(
+                BusinessException.class,
+                () -> service.getVaccinationHistory(notFoundBabyId, userId)
+        );
+
+        verify(babyRepository).existsById(notFoundBabyId);
+        verifyNoInteractions(babyVaccinationRepository);
+        verifyNoInteractions(babyAccessRepository);
+    }
 }
