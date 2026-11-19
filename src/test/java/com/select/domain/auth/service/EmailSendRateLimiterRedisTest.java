@@ -77,7 +77,6 @@ class EmailSendRateLimiterRedisTest {
         httpSend(mvc, "127.0.0.1", "three@example.invalid", 429);
         verify(service).sendVerificationCode("one@example.invalid");
         verify(service).sendVerificationCode("two@example.invalid");
-        verify(service, times(3)).validateRecipient(anyString());
         verifyNoMoreInteractions(service);
     }
     @Test void sourceLimitBlocksHttpSendWithoutBlockingOtherSources() throws Exception {

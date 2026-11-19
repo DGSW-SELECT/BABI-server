@@ -60,7 +60,6 @@ class EmailVerificationControllerTest {
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.error.code").value("EMAIL_SEND_RATE_LIMITED"));
         verify(rateLimiter).check(any());
-        verify(service).validateRecipient("user@example.invalid");
         verifyNoMoreInteractions(service);
     }
 
@@ -71,7 +70,6 @@ class EmailVerificationControllerTest {
                         .content("{\"email\":\"user@example.invalid\"}"))
                 .andExpect(status().isServiceUnavailable())
                 .andExpect(jsonPath("$.error.code").value("EMAIL_VERIFICATION_UNAVAILABLE"));
-        verify(service).validateRecipient("user@example.invalid");
         verifyNoMoreInteractions(service);
     }
 
@@ -81,7 +79,6 @@ class EmailVerificationControllerTest {
                         .content("{\"email\":\"real@example.com\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true));
-        verify(service).validateRecipient("real@example.com");
         verify(rateLimiter).check(any());
         verify(service).sendVerificationCode("real@example.com");
     }
