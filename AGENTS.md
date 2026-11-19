@@ -31,7 +31,7 @@
 - School AWS ownership tags are applied asynchronously. After creating a security group, verify its automatic `username=select-1` and `group=select` tags before authorizing rules. Do not forge ownership tags or change school IAM policies.
 - H2 is test-only and in-memory; test data disappears when the server stops. Exclude H2 from deployment JARs.
 - Deployment requires MySQL credentials and `JWT_SECRET`; external DB connections use `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, `SPRING_DATASOURCE_PASSWORD`.
-- Discord 인증은 `discord-demo` 프로필에서만 사용하는 시연 전용이며 실제 이메일 소유권을 증명하지 않는다. `aws,discord-demo`에는 전용 시연 MySQL·인증 Redis와 Discord 환경변수가 필요하다. 실제 사용자 데이터 또는 비밀값을 저장소에 넣지 않는다.
+- Discord 인증은 `discord-demo` 프로필에서만 사용하는 시연 전용이며 실제 이메일 소유권을 증명하지 않는다. 일반 이메일 주소도 입력할 수 있지만 Discord로 주소를 전송하지 않으며 인증번호는 채널에서 확인한다. `aws,discord-demo`에는 전용 시연 MySQL·인증 Redis와 Discord 환경변수가 필요하다. 실제 사용자 데이터 또는 비밀값을 저장소에 넣지 않는다.
 - Keep deployment artifact directories `0755` and non-secret files `0644` so container users can read mounted schema/config files. Keep `/etc/babi` `0700` and secret environment files `0600`.
 - The `aws` profile retains its existing MySQL and SMTP defaults. When `discord-demo` is additionally active, explicitly configure a dedicated `babi_discord_demo` datasource and isolated authenticated Redis. The application only validates the schema and never resets it on restart.
 - `babi_DB_Real.sql` and the approved invitation extension (2026-11-03) are the schema sources. Keep the `baby_members` / `active_baby_members` model and account status checks. Never run their DROP statements against existing data; the checked-in `schema.sql` excludes active DROP statements.

@@ -155,12 +155,7 @@ public class EmailVerificationService {
         return EMAIL_VERIFICATION_PREFIX + email;
     }
 
-    public void validateRecipient(String email) {
-        emailSender.validateRecipient(email);
-    }
-
     public void sendVerificationCode(String email) {
-        validateRecipient(email);
         email = EmailNormalizer.normalize(email);
         String resendKey = RESEND_PREFIX + email;
         String requestId = UUID.randomUUID().toString();

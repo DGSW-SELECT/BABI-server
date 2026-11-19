@@ -31,7 +31,6 @@ public enum ErrorCode {
     GROWTH_DUPLICATE_DATE(HttpStatus.CONFLICT, "동일 날짜의 기록이 존재합니다. 다른 날짜의 기록을 생성해주세요"),
 
     EMAIL_CODE_MISMATCH(HttpStatus.BAD_REQUEST, "인증번호가 일치하지 않습니다."),
-    EMAIL_DEMO_ADDRESS_REQUIRED(HttpStatus.BAD_REQUEST, "시연 환경에서는 example.invalid 이메일만 사용할 수 있습니다."),
     EMAIL_CODE_EXPIRED(HttpStatus.BAD_REQUEST, "인증번호가 없거나 만료되었습니다."),
     EMAIL_ATTEMPTS_EXCEEDED(HttpStatus.TOO_MANY_REQUESTS, "인증번호 입력 횟수를 초과했습니다."),
     EMAIL_SEND_RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "인증번호 발송 요청 횟수를 초과했습니다."),
