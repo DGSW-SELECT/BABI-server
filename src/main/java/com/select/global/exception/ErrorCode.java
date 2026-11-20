@@ -18,7 +18,7 @@ public enum ErrorCode {
     ACCESS_DENIED(HttpStatus.FORBIDDEN, "해당 리소스에 접근할 권한이 없습니다."),
 
     BABY_PHOTO_NOT_FOUND(HttpStatus.NOT_FOUND, "아기 사진을 찾을 수 없습니다."),
-    PROFILE_PHOTO_INVALID(HttpStatus.BAD_REQUEST, "프로필 사진은 5MB 이하의 JPEG 또는 PNG여야 합니다."),
+    PROFILE_PHOTO_INVALID(HttpStatus.BAD_REQUEST, "사진은 5MiB 이하의 JPEG 또는 PNG여야 하며, 최대 1,600만 픽셀까지 허용됩니다."),
     PROFILE_PHOTO_NOT_FOUND(HttpStatus.NOT_FOUND, "프로필 사진을 찾을 수 없습니다."),
     PROFILE_PHOTO_BUSY(HttpStatus.SERVICE_UNAVAILABLE, "사진 요청이 많습니다. 잠시 후 다시 시도해 주세요."),
 

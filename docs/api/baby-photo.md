@@ -12,6 +12,10 @@ JWT 인증 필수. `/babies/{babyId}/photo`:
 검증/변환 후 아기 행 잠금과 OWNER 재확인을 거쳐 저장한다.
 사용자 탈퇴 시 공유 아기 사진은 다른 보호자를 위해 유지한다.
 
+사진 검증 오류는 기존 사용자 사진 API와 호환되도록 `PROFILE_PHOTO_INVALID`(400),
+변환 처리량 초과는 `PROFILE_PHOTO_BUSY`(503)를 공유한다. 메시지는 아기·사용자
+사진에 공통으로 적용되는 "사진" 문구를 사용한다.
+
 배포 전 `docs/schema/baby-photos-migration.mysql.sql` 별도 검토/적용 필요.
 원본 schema.sql은 변경하지 않으며 자동 DDL/마이그레이션 실행 없음.
 추가 테이블이 없으면 Hibernate validate가 실패하므로 먼저 마이그레이션 필요.
