@@ -22,7 +22,7 @@ import static org.mockito.Mockito.when;
 class ProfilePhotoConcurrencyTest {
     @Test
     void rejectsAnOverlappingUploadAndReleasesPermitAfterFailure() throws Exception {
-        var service = new ProfilePhotoService(mock(ProfilePhotoRepository.class), mock(UserRepository.class));
+        var service = new ProfilePhotoService(mock(ProfilePhotoRepository.class), mock(UserRepository.class), new com.select.global.image.PhotoEncoder());
         var entered = new CountDownLatch(2);
         var release = new CountDownLatch(1);
         MultipartFile blockingFile = mock(MultipartFile.class);
