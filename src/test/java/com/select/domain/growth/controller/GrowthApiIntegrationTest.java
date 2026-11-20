@@ -35,6 +35,26 @@ class GrowthApiIntegrationTest {
     @LocalServerPort int port;
     final HttpClient http = HttpClient.newHttpClient();
 
+    @Test void chartReturnsDateOrderedMeasurementsAndReferenceWithAccessControl() throws Exception {
+        var user = users.saveAndFlush(User.builder().email(UUID.randomUUID() + "@example.invalid").nickname("parent").passwordHash("hash").build());
+        var baby = babies.saveAndFlush(Baby.builder().name("baby").birthDate(LocalDate.now().minusMonths(12)).sex(com.select.domain.baby.entity.BabySex.MALE).createdByUserId(user.getId()).build());
+        var member = members.saveAndFlush(BabyMember.builder().babyId(baby.getId()).userId(user.getId()).role(BabyRole.OWNER).build());
+        String token = jwt.createAccessToken(user.getId().toString());
+        String path = "/babies/" + baby.getId();
+        assertEquals(201, send("POST", path + "/growth-records", token, "{\"measuredDate\":\"" + LocalDate.now() + "\",\"heightCm\":75}").statusCode());
+        assertEquals(201, send("POST", path + "/growth-records", token, "{\"measuredDate\":\"" + LocalDate.now().minusDays(2) + "\",\"weightKg\":9}").statusCode());
+        var result = send("GET", path + "/growth-chart", token, null);
+        assertEquals(200, result.statusCode(), result.body());
+        var data = json.readTree(result.body()).path("data");
+        assertEquals(2, data.path("measurements").size());
+        assertTrue(data.path("measurements").get(0).path("ageDays").asLong() < data.path("measurements").get(1).path("ageDays").asLong());
+        assertEquals(25, data.path("reference").size());
+        assertEquals("49.88", data.path("reference").get(0).path("heightCm").path("p50").asText());
+        assertEquals(401, send("GET", path + "/growth-chart", null, null).statusCode());
+        member.deactivate(); members.saveAndFlush(member);
+        assertEquals(404, send("GET", path + "/growth-chart", token, null).statusCode());
+    }
+
     @Test void jwtCreateListCompareAndAccessControl() throws Exception {
         var user = users.saveAndFlush(User.builder().email(UUID.randomUUID() + "@example.invalid").nickname("parent").passwordHash("hash").build());
         var other = users.saveAndFlush(User.builder().email(UUID.randomUUID() + "@example.invalid").nickname("other").passwordHash("hash").build());
