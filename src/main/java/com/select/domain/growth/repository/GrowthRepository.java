@@ -22,6 +22,8 @@ public interface GrowthRepository extends JpaRepository<GrowthRecord, Long> {
     List<GrowthRecord> findPage(@Param("babyId") Long babyId, @Param("fromDate") LocalDate from,
             @Param("toDate") LocalDate to, @Param("cursor") Long cursor, Pageable pageable);
 
+    List<GrowthRecord> findByBaby_IdAndMeasuredDateBetweenOrderByMeasuredDateAscIdAsc(Long babyId, LocalDate from, LocalDate to);
+
     Optional<GrowthRecord> findByIdAndBaby_Id(Long id, Long babyId);
     Optional<GrowthRecord> findFirstByBaby_IdAndMeasuredDateLessThanOrderByMeasuredDateDescIdDesc(Long babyId, LocalDate date);
 
