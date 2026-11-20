@@ -15,6 +15,9 @@ JWT 인증 필수. `/babies/{babyId}/photo`:
 사진 검증 오류는 기존 사용자 사진 API와 호환되도록 `PROFILE_PHOTO_INVALID`(400),
 변환 처리량 초과는 `PROFILE_PHOTO_BUSY`(503)를 공유한다. 메시지는 아기·사용자
 사진에 공통으로 적용되는 "사진" 문구를 사용한다.
+클라이언트는 HTTP 상태와 `error.code`를 기준으로 분기하며, 안내용 `message` 문자열은
+비교하지 않는다. `PROFILE_PHOTO_INVALID`는 파일 크기·형식·픽셀 수 등 이미지 검증 실패,
+`PROFILE_PHOTO_BUSY`는 변환 처리량 초과를 뜻한다.
 
 배포 전 `docs/schema/baby-photos-migration.mysql.sql` 별도 검토/적용 필요.
 원본 schema.sql은 변경하지 않으며 자동 DDL/마이그레이션 실행 없음.
