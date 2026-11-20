@@ -3,6 +3,7 @@ package com.select.domain.growth.standard;
 import com.select.domain.baby.entity.Baby;
 import com.select.domain.baby.entity.BabySex;
 import com.select.domain.growth.dto.response.GrowthStandardResponse;
+import com.select.domain.growth.dto.response.GrowthChartResponse;
 import com.select.domain.growth.entity.GrowthRecord;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
@@ -15,7 +16,9 @@ import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
 import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.IntStream;
 
 @Service
 public class GrowthStandardService {
@@ -51,6 +54,29 @@ public class GrowthStandardService {
                 percentile(record.getHeight(), data.get(new Key(Metric.HEIGHT, sex, (int) months))),
                 percentile(record.getWeight(), data.get(new Key(Metric.WEIGHT, sex, (int) months))));
     }
+
+    public List<GrowthChartResponse.ReferencePoint> reference(Baby baby) {
+        if (baby.getSex() == null) return List.of();
+        return IntStream.rangeClosed(0, 24).mapToObj(month ->
+                new GrowthChartResponse.ReferencePoint(month,
+                        baby.getBirthDate().plusMonths(month),
+                        band(data.get(new Key(Metric.HEIGHT, baby.getSex(), month))),
+                        band(data.get(new Key(Metric.WEIGHT, baby.getSex(), month))))).toList();
+    }
+
+    private static GrowthChartResponse.Band band(Lms lms) {
+        return new GrowthChartResponse.Band(
+                quantile(lms, -1.8807936081512509), quantile(lms, 0), quantile(lms, 1.8807936081512509));
+    }
+
+    private static BigDecimal quantile(Lms lms, double z) {
+        double value = lms.l == 0 ? lms.m * Math.exp(lms.s * z)
+                : lms.m * Math.pow(1 + lms.l * lms.s * z, 1 / lms.l);
+        return BigDecimal.valueOf(value).setScale(2, RoundingMode.HALF_UP);
+    }
+
+    public String source() { return SOURCE; }
+    public String sourceUrl() { return URL; }
 
     private static GrowthStandardResponse response(String status, BabySex sex, Long months, BigDecimal height, BigDecimal weight) {
         return new GrowthStandardResponse(status, SOURCE, URL, sex, months, height, weight);

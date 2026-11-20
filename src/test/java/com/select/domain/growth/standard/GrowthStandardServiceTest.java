@@ -29,6 +29,20 @@ class GrowthStandardServiceTest {
         assertEquals(new BigDecimal("64.9"), f.heightPercentile());
         assertEquals(new BigDecimal("51.9"), f.weightPercentile());
     }
+    @Test void infantReferenceHasSexSpecificOrderedBandsAndHandlesMissingSex() {
+        var male = service.reference(baby(BabySex.MALE));
+        var female = service.reference(baby(BabySex.FEMALE));
+        assertEquals(25, male.size());
+        assertEquals(24, male.get(24).ageMonths());
+        assertNotEquals(male.get(0).heightCm().p50(), female.get(0).heightCm().p50());
+        for (var point : male) {
+            assertTrue(point.heightCm().p3().compareTo(point.heightCm().p50()) < 0);
+            assertTrue(point.heightCm().p50().compareTo(point.heightCm().p97()) < 0);
+            assertTrue(point.weightKg().p3().compareTo(point.weightKg().p50()) < 0);
+            assertTrue(point.weightKg().p50().compareTo(point.weightKg().p97()) < 0);
+        }
+        assertTrue(service.reference(baby(null)).isEmpty());
+    }
     @Test void handlesMissingSexMissingMeasurementAndBounds() {
         var unspecified = baby(null);
         assertEquals("SEX_REQUIRED", service.assess(unspecified, record(unspecified, LocalDate.of(2026,1,1), "75", null)).status());
