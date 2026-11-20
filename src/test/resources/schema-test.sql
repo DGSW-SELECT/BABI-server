@@ -364,3 +364,8 @@ CREATE TABLE IF NOT EXISTS `cry_records` (
         REFERENCES `baby_members` (`baby_id`, `id`)
         ON UPDATE NO ACTION ON DELETE NO ACTION
 );
+
+CREATE TABLE IF NOT EXISTS baby_photos (
+ baby_id BIGINT PRIMARY KEY, image_data LONGBLOB NOT NULL,
+ CONSTRAINT fk_baby_photos_baby FOREIGN KEY (baby_id) REFERENCES babies(id)
+);
