@@ -158,14 +158,14 @@ public class CareRecordIntegrationTest {
                 {"occurredAt":"2026-11-08T09:00:00","temperatureCelsius":36.5,
                  "note":"기상 후 측정","authorMemberId":%d}
                 """.formatted(ownerMemberId));
-        assertStatus(201, saved);
-        var savedRecord = mapper.readTree(saved.body()).path("data");
+        var savedRecord = assertSuccessResponse(201, saved, "체온 기록을 등록했습니다.");
+        assertTrue(savedRecord.isObject());
         assertEquals("TEMPERATURE", savedRecord.path("recordType").asString());
         assertEquals(writerMemberId.longValue(), savedRecord.path("authorMemberId").asLong());
 
         var firstResponse = request("GET", url + "?date=2026-11-08&size=1", readerId, null);
-        assertStatus(200, firstResponse);
-        var firstPage = mapper.readTree(firstResponse.body()).path("data");
+        var firstPage = assertSuccessResponse(200, firstResponse, "체온 기록을 조회했습니다.");
+        assertTrue(firstPage.path("records").isArray());
         assertTrue(firstPage.path("hasNext").asBoolean());
         assertEquals(1, firstPage.path("records").size());
         var listedRecord = firstPage.path("records").get(0);
@@ -222,8 +222,8 @@ public class CareRecordIntegrationTest {
         var updated = request("PATCH", url, ownerId, """
                 {"temperatureCelsius":36.8}
                 """);
-        assertStatus(200, updated);
-        var updatedRecord = mapper.readTree(updated.body()).path("data");
+        var updatedRecord = assertSuccessResponse(200, updated, "체온 기록을 수정했습니다.");
+        assertTrue(updatedRecord.isObject());
         assertEquals(36.8, updatedRecord.path("temperatureCelsius").asDouble());
         assertEquals("기상 후 측정", updatedRecord.path("note").asString());
         assertEquals(record.path("occurredAt").asString(), updatedRecord.path("occurredAt").asString());
@@ -243,7 +243,8 @@ public class CareRecordIntegrationTest {
                 .get(0).path("temperatureCelsius").asDouble());
 
         create(ownerId, "TEMPERATURE", "2026-11-09T08:00:00", Map.of("temperatureCelsius", 37.0));
-        assertStatus(200, request("DELETE", url, writerId, null));
+        var deleted = request("DELETE", url, writerId, null);
+        assertTrue(assertSuccessResponse(200, deleted, "체온 기록을 삭제했습니다.").isNull());
         var afterDeletion = request("GET", temperaturesUrl() + "?date=2026-11-09", readerId, null);
         assertStatus(200, afterDeletion);
         var remaining = mapper.readTree(afterDeletion.body()).path("data").path("records");
@@ -251,7 +252,11 @@ public class CareRecordIntegrationTest {
         assertEquals(37.0, remaining.get(0).path("temperatureCelsius").asDouble());
         var missing = request("DELETE", url, writerId, null);
         assertStatus(404, missing);
-        assertEquals("TEMPERATURE_RECORD_NOT_FOUND", mapper.readTree(missing.body()).path("error").path("code").asString());
+        var failure = mapper.readTree(missing.body());
+        assertEquals(mapper.readTree("false"), failure.path("success"));
+        assertEquals("체온 기록을 찾을 수 없습니다.", failure.path("message").asString());
+        assertTrue(failure.path("data").isNull());
+        assertEquals("TEMPERATURE_RECORD_NOT_FOUND", failure.path("error").path("code").asString());
         assertStatus(404, request("PATCH", url, writerId, "{\"temperatureCelsius\":36.9}"));
     }
 
@@ -377,5 +382,15 @@ public class CareRecordIntegrationTest {
 
     private void assertStatus(int expected, HttpResponse<String> response) {
         assertEquals(expected, response.statusCode(), response.body());
+    }
+
+    private JsonNode assertSuccessResponse(int status, HttpResponse<String> response, String message) {
+        assertStatus(status, response);
+        var body = mapper.readTree(response.body());
+        assertEquals(mapper.readTree("true"), body.path("success"));
+        assertEquals(message, body.path("message").asString());
+        assertTrue(body.path("error").isMissingNode());
+        assertTrue(body.has("data"));
+        return body.path("data");
     }
 }

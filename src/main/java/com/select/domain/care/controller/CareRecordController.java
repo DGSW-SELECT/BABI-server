@@ -48,7 +48,7 @@ public class CareRecordController {
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<CareRecordResponse> createTemperature(@PathVariable Long babyId,
             @AuthenticationPrincipal String userId, @Valid @RequestBody CreateTemperatureRequest request) {
-        return new ApiResponse<>(true, "체온 기록을 등록했습니다.", service.create(babyId, Long.valueOf(userId),
+        return ApiResponse.success("체온 기록을 등록했습니다.", service.create(babyId, Long.valueOf(userId),
                 new CreateCareRecordRequest(CareRecordType.TEMPERATURE, request.occurredAt(), null,
                         null, null, null, request.temperatureCelsius(), null, null, null, request.note())));
     }
@@ -60,7 +60,7 @@ public class CareRecordController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
             @RequestParam(required = false) Long authorMemberId,
             @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "50") int size) {
-        return new ApiResponse<>(true, "체온 기록을 조회했습니다.",
+        return ApiResponse.success("체온 기록을 조회했습니다.",
                 service.list(babyId, Long.valueOf(userId), date, CareRecordType.TEMPERATURE, authorMemberId, page, size));
     }
 
@@ -68,7 +68,7 @@ public class CareRecordController {
     @PatchMapping("/temperatures/{recordId}")
     public ApiResponse<CareRecordResponse> updateTemperature(@PathVariable Long babyId, @PathVariable Long recordId,
             @AuthenticationPrincipal String userId, @Valid @RequestBody UpdateTemperatureRequest request) {
-        return new ApiResponse<>(true, "체온 기록을 수정했습니다.",
+        return ApiResponse.success("체온 기록을 수정했습니다.",
                 service.updateTemperature(babyId, Long.valueOf(userId), recordId, request));
     }
 
@@ -77,7 +77,7 @@ public class CareRecordController {
     public ApiResponse<Void> deleteTemperature(@PathVariable Long babyId, @PathVariable Long recordId,
             @AuthenticationPrincipal String userId) {
         service.deleteTemperature(babyId, Long.valueOf(userId), recordId);
-        return new ApiResponse<>(true, "체온 기록을 삭제했습니다.", null);
+        return ApiResponse.success("체온 기록을 삭제했습니다.");
     }
 
     @GetMapping("/records")
