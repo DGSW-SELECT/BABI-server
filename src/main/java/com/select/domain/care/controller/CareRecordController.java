@@ -2,11 +2,13 @@ package com.select.domain.care.controller;
 
 import com.select.domain.care.dto.request.CreateCareRecordRequest;
 import com.select.domain.care.dto.request.CreateFeedingRequest;
+import com.select.domain.care.dto.request.CreateTemperatureRequest;
 import com.select.domain.care.dto.response.CareRecordPage;
 import com.select.domain.care.dto.response.CareRecordResponse;
 import com.select.domain.care.entity.CareRecordType;
 import com.select.domain.care.service.CareRecordService;
 import com.select.global.response.ApiResponse;
+import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
@@ -38,6 +40,27 @@ public class CareRecordController {
         return new ApiResponse<>(true, "수유 기록을 등록했습니다.", service.create(babyId, Long.valueOf(userId),
                 new CreateCareRecordRequest(CareRecordType.FEEDING, request.occurredAt(), null,
                         request.feedingType(), request.amountMl(), null, null, null, null, null, request.note())));
+    }
+
+    @Operation(summary = "체온 기록 저장")
+    @PostMapping("/temperatures")
+    @ResponseStatus(HttpStatus.CREATED)
+    public ApiResponse<CareRecordResponse> createTemperature(@PathVariable Long babyId,
+            @AuthenticationPrincipal String userId, @Valid @RequestBody CreateTemperatureRequest request) {
+        return new ApiResponse<>(true, "체온 기록을 등록했습니다.", service.create(babyId, Long.valueOf(userId),
+                new CreateCareRecordRequest(CareRecordType.TEMPERATURE, request.occurredAt(), null,
+                        null, null, null, request.temperatureCelsius(), null, null, null, request.note())));
+    }
+
+    @Operation(summary = "날짜별 체온 기록 조회")
+    @GetMapping("/temperatures")
+    public ApiResponse<CareRecordPage> listTemperatures(@PathVariable Long babyId,
+            @AuthenticationPrincipal String userId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            @RequestParam(required = false) Long authorMemberId,
+            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "50") int size) {
+        return new ApiResponse<>(true, "체온 기록을 조회했습니다.",
+                service.list(babyId, Long.valueOf(userId), date, CareRecordType.TEMPERATURE, authorMemberId, page, size));
     }
 
     @GetMapping("/records")

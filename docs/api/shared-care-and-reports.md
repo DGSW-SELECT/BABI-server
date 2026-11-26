@@ -29,6 +29,8 @@
 |---|---|---|
 | POST | `/api/v1/babies/{babyId}/records` | 검토한 육아 기록 한 건 등록 (`201`) |
 | POST | `/api/v1/babies/{babyId}/feedings` | 수유 기록 한 건 등록 (`201`) |
+| POST | `/api/v1/babies/{babyId}/temperatures` | 체온 기록 한 건 등록 (`201`) |
+| GET | `/api/v1/babies/{babyId}/temperatures` | 날짜별 체온 기록 조회 (`200`) |
 | GET | `/api/v1/babies/{babyId}/records` | 날짜별 기록 통합 조회 (`200`) |
 
 기록 등록 예시:
@@ -56,6 +58,24 @@
 분석한 음성 기록과 연결할 때 `voiceInputId`를 추가할 수 있다. 같은 아기와 현재 작성자의 `voice_inputs` 행이어야 하며 다른 보호자나 다른 아기의 음성 ID는 `400 INVALID_CARE_RECORD`다. 울음 테이블은 음성 파싱 ID를 사용하지 않으므로 CRY의 `voiceInputId`는 허용하지 않는다. 이 API는 검토된 값을 저장하며 STT나 울음 분류 모델을 호출하지 않는다.
 
 `/feedings` 본문은 `occurredAt`, `feedingType`, 선택 `amountMl`·`note`다. 동일한 권한 검사와 `feeding_records` 저장 경로를 사용한다. 실제 저장 테이블은 기존 `feeding_records`, `sleep_records`, `temperature_records`, `diaper_records`, `cry_records`이며 새 운영 테이블이나 migration은 없다.
+
+### 체온 전용 API
+
+`POST /api/v1/babies/{babyId}/temperatures`는 아래 본문을 받는다. 한 요청에 측정값 한 건을 저장한다.
+
+```json
+{
+  "occurredAt": "2026-11-08T09:00:00",
+  "temperatureCelsius": 36.5,
+  "note": "기상 후 측정"
+}
+```
+
+`occurredAt`과 `temperatureCelsius`는 필수이며 `note`는 선택이다. 성공 응답의 `data`는 `recordType: "TEMPERATURE"`인 공동 기록 항목이다.
+
+`GET /api/v1/babies/{babyId}/temperatures?date=2026-11-08`은 해당 날짜의 체온 기록만 반환한다. 날짜는 필수이며 `authorMemberId`, `page`, `size`는 선택이다. `data`에는 `records`, `page`, `size`, `hasNext`가 들어간다. 기록이 없으면 `records`는 빈 배열이다. 두 경로 모두 기존 JWT·공동 기록 권한 검사와 `temperature_records` 테이블을 사용한다.
+
+### 공동 기록 조회
 
 조회 예시:
 
