@@ -31,6 +31,8 @@
 | POST | `/api/v1/babies/{babyId}/feedings` | 수유 기록 한 건 등록 (`201`) |
 | POST | `/api/v1/babies/{babyId}/temperatures` | 체온 기록 한 건 등록 (`201`) |
 | GET | `/api/v1/babies/{babyId}/temperatures` | 날짜별 체온 기록 조회 (`200`) |
+| PATCH | `/api/v1/babies/{babyId}/temperatures/{recordId}` | 체온 기록 수정 (`200`) |
+| DELETE | `/api/v1/babies/{babyId}/temperatures/{recordId}` | 체온 기록 삭제 (`200`) |
 | GET | `/api/v1/babies/{babyId}/records` | 날짜별 기록 통합 조회 (`200`) |
 
 기록 등록 예시:
@@ -74,6 +76,10 @@
 `occurredAt`과 `temperatureCelsius`는 필수이며 `note`는 선택이다. 성공 응답의 `data`는 `recordType: "TEMPERATURE"`인 공동 기록 항목이다.
 
 `GET /api/v1/babies/{babyId}/temperatures?date=2026-11-08`은 해당 날짜의 체온 기록만 반환한다. 날짜는 필수이며 `authorMemberId`, `page`, `size`는 선택이다. `data`에는 `records`, `page`, `size`, `hasNext`가 들어간다. 기록이 없으면 `records`는 빈 배열이다. 두 경로 모두 기존 JWT·공동 기록 권한 검사와 `temperature_records` 테이블을 사용한다.
+
+`PATCH /api/v1/babies/{babyId}/temperatures/{recordId}`에는 바꿀 값만 보낸다. 수정할 수 있는 필드는 `occurredAt`, `temperatureCelsius`, `note`다. 예를 들어 `{"temperatureCelsius":36.7}`은 체온만 바꾼다. 생략하거나 `null`로 보낸 필드는 원래 값을 유지한다. 메모를 비우려면 `{"note":""}`을 보낸다. 수정할 값이 없거나 입력이 유효하지 않으면 `400`이다. 응답 `data`에 수정된 기록이 들어간다.
+
+`DELETE /api/v1/babies/{babyId}/temperatures/{recordId}`는 본문 없이 해당 기록 한 건을 삭제한다. 성공 응답의 `data`는 `null`이다. 수정과 삭제에는 등록과 같은 쓰기 권한이 필요하다. 권한이 없으면 `403`이며, 쓰기 권한이 있는 아기에서 해당 기록을 찾을 수 없으면 `404 TEMPERATURE_RECORD_NOT_FOUND`다.
 
 ### 공동 기록 조회
 

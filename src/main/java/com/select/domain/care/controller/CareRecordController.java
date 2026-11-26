@@ -3,6 +3,7 @@ package com.select.domain.care.controller;
 import com.select.domain.care.dto.request.CreateCareRecordRequest;
 import com.select.domain.care.dto.request.CreateFeedingRequest;
 import com.select.domain.care.dto.request.CreateTemperatureRequest;
+import com.select.domain.care.dto.request.UpdateTemperatureRequest;
 import com.select.domain.care.dto.response.CareRecordPage;
 import com.select.domain.care.dto.response.CareRecordResponse;
 import com.select.domain.care.entity.CareRecordType;
@@ -61,6 +62,22 @@ public class CareRecordController {
             @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "50") int size) {
         return new ApiResponse<>(true, "체온 기록을 조회했습니다.",
                 service.list(babyId, Long.valueOf(userId), date, CareRecordType.TEMPERATURE, authorMemberId, page, size));
+    }
+
+    @Operation(summary = "체온 기록 수정")
+    @PatchMapping("/temperatures/{recordId}")
+    public ApiResponse<CareRecordResponse> updateTemperature(@PathVariable Long babyId, @PathVariable Long recordId,
+            @AuthenticationPrincipal String userId, @Valid @RequestBody UpdateTemperatureRequest request) {
+        return new ApiResponse<>(true, "체온 기록을 수정했습니다.",
+                service.updateTemperature(babyId, Long.valueOf(userId), recordId, request));
+    }
+
+    @Operation(summary = "체온 기록 삭제")
+    @DeleteMapping("/temperatures/{recordId}")
+    public ApiResponse<Void> deleteTemperature(@PathVariable Long babyId, @PathVariable Long recordId,
+            @AuthenticationPrincipal String userId) {
+        service.deleteTemperature(babyId, Long.valueOf(userId), recordId);
+        return new ApiResponse<>(true, "체온 기록을 삭제했습니다.", null);
     }
 
     @GetMapping("/records")

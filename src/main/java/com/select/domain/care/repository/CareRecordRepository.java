@@ -1,6 +1,7 @@
 package com.select.domain.care.repository;
 
 import com.select.domain.care.dto.request.CreateCareRecordRequest;
+import com.select.domain.care.dto.request.UpdateTemperatureRequest;
 import com.select.domain.care.dto.response.CareRecordResponse;
 import com.select.domain.care.entity.CareRecordType;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -13,6 +14,7 @@ import java.time.LocalDate;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @Repository
 public class CareRecordRepository {
@@ -72,6 +74,22 @@ public class CareRecordRepository {
         return Boolean.TRUE.equals(jdbc.queryForObject("""
                 SELECT EXISTS(SELECT 1 FROM voice_inputs WHERE id = ? AND baby_id = ? AND baby_member_id = ?)
                 """, Boolean.class, voiceInputId, babyId, memberId));
+    }
+
+    public Optional<CareRecordResponse> updateTemperature(Long babyId, Long recordId, UpdateTemperatureRequest request) {
+        jdbc.update("""
+                UPDATE temperature_records
+                   SET measured_at = COALESCE(?, measured_at),
+                       temperature_celsius = COALESCE(?, temperature_celsius),
+                       note = CASE WHEN ? IS NULL THEN note ELSE NULLIF(?, '') END
+                 WHERE baby_id = ? AND id = ?
+                """, request.occurredAt(), request.temperatureCelsius(), request.note(), request.note(), babyId, recordId);
+        return jdbc.query(RECORDS + " WHERE r.baby_id = ? AND r.record_type = 'TEMPERATURE' AND r.id = ?",
+                MAPPER, babyId, recordId).stream().findFirst();
+    }
+
+    public boolean deleteTemperature(Long babyId, Long recordId) {
+        return jdbc.update("DELETE FROM temperature_records WHERE baby_id = ? AND id = ?", babyId, recordId) == 1;
     }
 
     public CareRecordResponse save(Long babyId, Long memberId, CreateCareRecordRequest request) {
