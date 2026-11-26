@@ -148,6 +148,155 @@ public class CareRecordIntegrationTest {
     }
 
     @Test
+    void temperaturesAreSavedWithTheAuthenticatedAuthorAndListedByMeasurementDate() throws Exception {
+        String url = temperaturesUrl();
+        create(ownerId, "FEEDING", "2026-11-08T08:00:00", Map.of("feedingType", "FORMULA"));
+        create(ownerId, "TEMPERATURE", "2026-11-09T00:00:00", Map.of("temperatureCelsius", 37.0));
+        create(ownerId, "TEMPERATURE", "2026-11-08T12:00:00", Map.of("temperatureCelsius", 36.8));
+
+        var saved = request("POST", url, writerId, """
+                {"occurredAt":"2026-11-08T09:00:00","temperatureCelsius":36.5,
+                 "note":"기상 후 측정","authorMemberId":%d}
+                """.formatted(ownerMemberId));
+        var savedRecord = assertSuccessResponse(201, saved, "체온 기록을 등록했습니다.");
+        assertTrue(savedRecord.isObject());
+        assertEquals("TEMPERATURE", savedRecord.path("recordType").asString());
+        assertEquals(writerMemberId.longValue(), savedRecord.path("authorMemberId").asLong());
+
+        var firstResponse = request("GET", url + "?date=2026-11-08&size=1", readerId, null);
+        var firstPage = assertSuccessResponse(200, firstResponse, "체온 기록을 조회했습니다.");
+        assertTrue(firstPage.path("records").isArray());
+        assertTrue(firstPage.path("hasNext").asBoolean());
+        assertEquals(1, firstPage.path("records").size());
+        var listedRecord = firstPage.path("records").get(0);
+        assertEquals(savedRecord.path("recordId").asLong(), listedRecord.path("recordId").asLong());
+        assertEquals(36.5, listedRecord.path("temperatureCelsius").asDouble());
+        assertEquals("기상 후 측정", listedRecord.path("note").asString());
+
+        var nextResponse = request("GET", url + "?date=2026-11-08&size=1&page=1", readerId, null);
+        assertStatus(200, nextResponse);
+        var nextPage = mapper.readTree(nextResponse.body()).path("data");
+        assertFalse(nextPage.path("hasNext").asBoolean());
+        assertEquals(1, nextPage.path("records").size());
+        assertEquals(36.8, nextPage.path("records").get(0).path("temperatureCelsius").asDouble());
+
+        var emptyResponse = request("GET", url + "?date=2026-11-10", readerId, null);
+        assertStatus(200, emptyResponse);
+        assertEquals(0, mapper.readTree(emptyResponse.body()).path("data").path("records").size());
+    }
+
+    @Test
+    void temperatureEndpointsEnforceReadAndWritePermissions() throws Exception {
+        String url = temperaturesUrl();
+        String listUrl = url + "?date=2026-11-08";
+        String body = """
+                {"occurredAt":"2026-11-08T09:00:00","temperatureCelsius":36.5}
+                """;
+        assertStatus(401, request("POST", url, null, body));
+        assertStatus(401, request("GET", listUrl, null, null));
+        assertStatus(403, request("POST", url, readerId, body));
+        assertStatus(403, request("POST", url, outsiderId, body));
+        assertStatus(403, request("GET", listUrl, outsiderId, null));
+        assertEquals(0L, jdbc.queryForObject(
+                "SELECT COUNT(*) FROM temperature_records WHERE baby_id=?", Long.class, babyId));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "{\"temperatureCelsius\":36.5}",
+            "{\"occurredAt\":\"2026-11-08T09:00:00\"}",
+            "{\"occurredAt\":\"2026-11-08T09:00:00\",\"temperatureCelsius\":45.1}",
+            "{\"occurredAt\":\"2026-11-08T09:00:00\",\"temperatureCelsius\":36.55}"
+    })
+    void temperatureEndpointRejectsInvalidMeasurements(String body) throws Exception {
+        assertStatus(400, request("POST", temperaturesUrl(), ownerId, body));
+        assertEquals(0L, jdbc.queryForObject(
+                "SELECT COUNT(*) FROM temperature_records WHERE baby_id=?", Long.class, babyId));
+    }
+
+    @Test
+    void temperatureCanBePartiallyUpdatedMovedToAnotherDayAndDeleted() throws Exception {
+        var record = create(writerId, "TEMPERATURE", "2026-11-08T09:00:00",
+                Map.of("temperatureCelsius", 36.5, "note", "기상 후 측정"));
+        String url = temperaturesUrl() + "/" + record.path("recordId").asLong();
+        var updated = request("PATCH", url, ownerId, """
+                {"temperatureCelsius":36.8}
+                """);
+        var updatedRecord = assertSuccessResponse(200, updated, "체온 기록을 수정했습니다.");
+        assertTrue(updatedRecord.isObject());
+        assertEquals(36.8, updatedRecord.path("temperatureCelsius").asDouble());
+        assertEquals("기상 후 측정", updatedRecord.path("note").asString());
+        assertEquals(record.path("occurredAt").asString(), updatedRecord.path("occurredAt").asString());
+        assertEquals(writerMemberId.longValue(), updatedRecord.path("authorMemberId").asLong());
+        assertEquals(record.path("createdAt").asString(), updatedRecord.path("createdAt").asString());
+        assertStatus(200, request("PATCH", url, ownerId, "{\"temperatureCelsius\":36.8}"));
+
+        var moved = request("PATCH", url, writerId, """
+                {"occurredAt":"2026-11-09T00:00:00","note":""}
+                """);
+        assertStatus(200, moved);
+        assertTrue(mapper.readTree(moved.body()).path("data").path("note").isNull());
+        assertEquals(0, list(readerId, "&recordType=TEMPERATURE").path("records").size());
+        var nextDay = request("GET", temperaturesUrl() + "?date=2026-11-09", readerId, null);
+        assertStatus(200, nextDay);
+        assertEquals(36.8, mapper.readTree(nextDay.body()).path("data").path("records")
+                .get(0).path("temperatureCelsius").asDouble());
+
+        create(ownerId, "TEMPERATURE", "2026-11-09T08:00:00", Map.of("temperatureCelsius", 37.0));
+        var deleted = request("DELETE", url, writerId, null);
+        assertTrue(assertSuccessResponse(200, deleted, "체온 기록을 삭제했습니다.").isNull());
+        var afterDeletion = request("GET", temperaturesUrl() + "?date=2026-11-09", readerId, null);
+        assertStatus(200, afterDeletion);
+        var remaining = mapper.readTree(afterDeletion.body()).path("data").path("records");
+        assertEquals(1, remaining.size());
+        assertEquals(37.0, remaining.get(0).path("temperatureCelsius").asDouble());
+        var missing = request("DELETE", url, writerId, null);
+        assertStatus(404, missing);
+        var failure = mapper.readTree(missing.body());
+        assertEquals(mapper.readTree("false"), failure.path("success"));
+        assertEquals("체온 기록을 찾을 수 없습니다.", failure.path("message").asString());
+        assertTrue(failure.path("data").isNull());
+        assertEquals("TEMPERATURE_RECORD_NOT_FOUND", failure.path("error").path("code").asString());
+        assertStatus(404, request("PATCH", url, writerId, "{\"temperatureCelsius\":36.9}"));
+    }
+
+    @Test
+    void temperatureMutationsCheckWritePermissionAndScopeByBaby() throws Exception {
+        var record = create(ownerId, "TEMPERATURE", "2026-11-08T09:00:00", Map.of("temperatureCelsius", 36.5));
+        long recordId = record.path("recordId").asLong();
+        String url = temperaturesUrl() + "/" + recordId;
+        Long otherBaby = babies.createBaby(new BabyCreateRequest("다른 아기", LocalDate.of(2026, 1, 1)), outsiderId).babyId();
+        String anotherBabyUrl = "/api/v1/babies/" + otherBaby + "/temperatures/" + recordId;
+        String body = "{\"temperatureCelsius\":36.9}";
+
+        assertStatus(401, request("PATCH", url, null, body));
+        assertStatus(401, request("DELETE", url, null, null));
+        assertStatus(403, request("PATCH", url, readerId, body));
+        assertStatus(403, request("DELETE", url, readerId, null));
+        assertStatus(403, request("PATCH", url, outsiderId, body));
+        assertStatus(403, request("DELETE", url, outsiderId, null));
+        assertStatus(404, request("PATCH", anotherBabyUrl, outsiderId, body));
+        assertStatus(404, request("DELETE", anotherBabyUrl, outsiderId, null));
+        assertEquals(36.5, list(readerId, "&recordType=TEMPERATURE").path("records").get(0)
+                .path("temperatureCelsius").asDouble());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "{}",
+            "{\"occurredAt\":null,\"temperatureCelsius\":null,\"note\":null}",
+            "{\"occurredAt\":\"0000-11-08T09:00:00\"}",
+            "{\"temperatureCelsius\":29.9}",
+            "{\"temperatureCelsius\":36.55}"
+    })
+    void temperaturePatchRejectsInvalidChanges(String body) throws Exception {
+        var record = create(ownerId, "TEMPERATURE", "2026-11-08T09:00:00", Map.of("temperatureCelsius", 36.5));
+        assertStatus(400, request("PATCH", temperaturesUrl() + "/" + record.path("recordId").asLong(), ownerId, body));
+        assertEquals(36.5, list(readerId, "&recordType=TEMPERATURE").path("records").get(0)
+                .path("temperatureCelsius").asDouble());
+    }
+
+    @Test
     void voiceLinkMustBelongToSameBabyAndAuthenticatedAuthor() throws Exception {
         jdbc.update("INSERT INTO voice_inputs(baby_id,baby_member_id,transcript,parse_status) VALUES (?,?,'test','PARSED')",babyId,ownerMemberId);
         Long voiceId=jdbc.queryForObject("SELECT id FROM voice_inputs WHERE baby_id=?",Long.class,babyId);
@@ -201,6 +350,8 @@ public class CareRecordIntegrationTest {
 
     private String recordsUrl() { return "/api/v1/babies/" + babyId + "/records"; }
 
+    private String temperaturesUrl() { return "/api/v1/babies/" + babyId + "/temperatures"; }
+
     private JsonNode create(Long userId, String type, String time, Map<String, Object> values) throws Exception {
         var body = new java.util.HashMap<>(values);
         body.put("recordType", type);
@@ -231,5 +382,15 @@ public class CareRecordIntegrationTest {
 
     private void assertStatus(int expected, HttpResponse<String> response) {
         assertEquals(expected, response.statusCode(), response.body());
+    }
+
+    private JsonNode assertSuccessResponse(int status, HttpResponse<String> response, String message) {
+        assertStatus(status, response);
+        var body = mapper.readTree(response.body());
+        assertEquals(mapper.readTree("true"), body.path("success"));
+        assertEquals(message, body.path("message").asString());
+        assertTrue(body.path("error").isMissingNode());
+        assertTrue(body.has("data"));
+        return body.path("data");
     }
 }

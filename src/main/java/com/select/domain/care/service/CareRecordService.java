@@ -3,6 +3,7 @@ package com.select.domain.care.service;
 import com.select.domain.baby.repository.BabyAccessRepository;
 import com.select.domain.baby.repository.BabyRepository;
 import com.select.domain.care.dto.request.CreateCareRecordRequest;
+import com.select.domain.care.dto.request.UpdateTemperatureRequest;
 import com.select.domain.care.dto.response.CareRecordPage;
 import com.select.domain.care.dto.response.CareRecordResponse;
 import com.select.domain.care.entity.CareRecordType;
@@ -17,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDate;
+import java.util.function.Function;
 
 @Service
 public class CareRecordService {
@@ -36,14 +38,33 @@ public class CareRecordService {
     @Transactional(propagation = Propagation.NEVER)
     public CareRecordResponse create(Long babyId, Long userId, CreateCareRecordRequest request) {
         if (!request.isValidForType()) throw new CareRecordException(ErrorCode.INVALID_CARE_RECORD);
-        requireMember(userId, babyId, "CARE_WRITE", true);
-        return transactions.execute(status -> {
-            babies.findByIdForUpdate(babyId);
-            Long memberId = requireMember(userId, babyId, "CARE_WRITE", true);
+        return withWriteAccess(babyId, userId, memberId -> {
             if (request.voiceInputId() != null && !records.ownsVoiceInput(babyId, memberId, request.voiceInputId())) {
                 throw new CareRecordException(ErrorCode.INVALID_CARE_RECORD);
             }
             return records.save(babyId, memberId, request);
+        });
+    }
+
+    @Transactional(propagation = Propagation.NEVER)
+    public CareRecordResponse updateTemperature(Long babyId, Long userId, Long recordId, UpdateTemperatureRequest request) {
+        var occurredAt = request.occurredAt();
+        if (recordId <= 0 || (occurredAt == null && request.temperatureCelsius() == null && request.note() == null)
+                || (occurredAt != null && (occurredAt.getYear() < 1000 || occurredAt.getYear() > 9999))) {
+            throw new CareRecordException(ErrorCode.INVALID_CARE_RECORD);
+        }
+        return withWriteAccess(babyId, userId, memberId -> records.updateTemperature(babyId, recordId, request)
+                .orElseThrow(() -> new CareRecordException(ErrorCode.TEMPERATURE_RECORD_NOT_FOUND)));
+    }
+
+    @Transactional(propagation = Propagation.NEVER)
+    public void deleteTemperature(Long babyId, Long userId, Long recordId) {
+        if (recordId <= 0) throw new CareRecordException(ErrorCode.INVALID_CARE_RECORD);
+        withWriteAccess(babyId, userId, memberId -> {
+            if (!records.deleteTemperature(babyId, recordId)) {
+                throw new CareRecordException(ErrorCode.TEMPERATURE_RECORD_NOT_FOUND);
+            }
+            return null;
         });
     }
 
@@ -57,6 +78,15 @@ public class CareRecordService {
         requireMember(userId, babyId, "CARE_READ", false);
         var found = records.findDay(babyId, date, type, authorMemberId, size + 1, page * size);
         return new CareRecordPage(found.stream().limit(size).toList(), page, size, found.size() > size);
+    }
+
+    private <T> T withWriteAccess(Long babyId, Long userId, Function<Long, T> action) {
+        requireMember(userId, babyId, "CARE_WRITE", true);
+        return transactions.execute(status -> {
+            babies.findByIdForUpdate(babyId);
+            Long memberId = requireMember(userId, babyId, "CARE_WRITE", true);
+            return action.apply(memberId);
+        });
     }
 
     private Long requireMember(Long userId, Long babyId, String permission, boolean writing) {
