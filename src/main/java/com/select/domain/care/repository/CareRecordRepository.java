@@ -1,6 +1,7 @@
 package com.select.domain.care.repository;
 
 import com.select.domain.care.dto.request.CreateCareRecordRequest;
+import com.select.domain.care.dto.request.UpdateFeedingRequest;
 import com.select.domain.care.dto.request.UpdateTemperatureRequest;
 import com.select.domain.care.dto.response.CareRecordResponse;
 import com.select.domain.care.entity.CareRecordType;
@@ -11,6 +12,7 @@ import org.springframework.stereotype.Repository;
 
 import java.sql.Timestamp;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -74,6 +76,43 @@ public class CareRecordRepository {
         return Boolean.TRUE.equals(jdbc.queryForObject("""
                 SELECT EXISTS(SELECT 1 FROM voice_inputs WHERE id = ? AND baby_id = ? AND baby_member_id = ?)
                 """, Boolean.class, voiceInputId, babyId, memberId));
+    }
+
+    public Optional<CareRecordResponse> findById(Long babyId, CareRecordType type, Long recordId) {
+        return jdbc.query(RECORDS + " WHERE r.baby_id = ? AND r.record_type = ? AND r.id = ?",
+                MAPPER, babyId, type.name(), recordId).stream().findFirst();
+    }
+
+    public Optional<CareRecordResponse> updateFeeding(Long babyId, Long recordId, UpdateFeedingRequest request) {
+        jdbc.update("""
+                UPDATE feeding_records
+                   SET occurred_at = COALESCE(?, occurred_at),
+                       feeding_type = COALESCE(?, feeding_type),
+                       amount_ml = COALESCE(?, amount_ml),
+                       note = CASE WHEN ? IS NULL THEN note ELSE NULLIF(?, '') END
+                 WHERE baby_id = ? AND id = ?
+                """, request.occurredAt(), request.feedingType() == null ? null : request.feedingType().name(),
+                request.amountMl(), request.note(), request.note(), babyId, recordId);
+        return findById(babyId, CareRecordType.FEEDING, recordId);
+    }
+
+    public Optional<CareRecordResponse> updateSleep(Long babyId, Long recordId, LocalDateTime startAt,
+                                                    LocalDateTime endAt, String note) {
+        jdbc.update("""
+                UPDATE sleep_records
+                   SET sleep_start_at = ?, sleep_end_at = ?,
+                       note = CASE WHEN ? IS NULL THEN note ELSE NULLIF(?, '') END
+                 WHERE baby_id = ? AND id = ?
+                """, startAt, endAt, note, note, babyId, recordId);
+        return findById(babyId, CareRecordType.SLEEP, recordId);
+    }
+
+    public boolean deleteFeeding(Long babyId, Long recordId) {
+        return jdbc.update("DELETE FROM feeding_records WHERE baby_id = ? AND id = ?", babyId, recordId) == 1;
+    }
+
+    public boolean deleteSleep(Long babyId, Long recordId) {
+        return jdbc.update("DELETE FROM sleep_records WHERE baby_id = ? AND id = ?", babyId, recordId) == 1;
     }
 
     public Optional<CareRecordResponse> updateTemperature(Long babyId, Long recordId, UpdateTemperatureRequest request) {

@@ -29,6 +29,13 @@
 |---|---|---|
 | POST | `/api/v1/babies/{babyId}/records` | 검토한 육아 기록 한 건 등록 (`201`) |
 | POST | `/api/v1/babies/{babyId}/feedings` | 수유 기록 한 건 등록 (`201`) |
+| GET | `/api/v1/babies/{babyId}/feedings` | 날짜별 수유 기록 조회 (`200`) |
+| PATCH | `/api/v1/babies/{babyId}/feedings/{recordId}` | 수유 기록 부분 수정 (`200`) |
+| DELETE | `/api/v1/babies/{babyId}/feedings/{recordId}` | 수유 기록 삭제 (`200`) |
+| POST | `/api/v1/babies/{babyId}/sleeps` | 수면 기록 한 건 등록 (`201`) |
+| GET | `/api/v1/babies/{babyId}/sleeps` | 날짜별 수면 기록 조회 (`200`) |
+| PATCH | `/api/v1/babies/{babyId}/sleeps/{recordId}` | 수면 기록 부분 수정 (`200`) |
+| DELETE | `/api/v1/babies/{babyId}/sleeps/{recordId}` | 수면 기록 삭제 (`200`) |
 | POST | `/api/v1/babies/{babyId}/temperatures` | 체온 기록 한 건 등록 (`201`) |
 | GET | `/api/v1/babies/{babyId}/temperatures` | 날짜별 체온 기록 조회 (`200`) |
 | PATCH | `/api/v1/babies/{babyId}/temperatures/{recordId}` | 체온 기록 수정 (`200`) |
@@ -60,6 +67,26 @@
 분석한 음성 기록과 연결할 때 `voiceInputId`를 추가할 수 있다. 같은 아기와 현재 작성자의 `voice_inputs` 행이어야 하며 다른 보호자나 다른 아기의 음성 ID는 `400 INVALID_CARE_RECORD`다. 울음 테이블은 음성 파싱 ID를 사용하지 않으므로 CRY의 `voiceInputId`는 허용하지 않는다. 이 API는 검토된 값을 저장하며 STT나 울음 분류 모델을 호출하지 않는다.
 
 `/feedings` 본문은 `occurredAt`, `feedingType`, 선택 `amountMl`·`note`다. 동일한 권한 검사와 `feeding_records` 저장 경로를 사용한다. 실제 저장 테이블은 기존 `feeding_records`, `sleep_records`, `temperature_records`, `diaper_records`, `cry_records`이며 새 운영 테이블이나 migration은 없다.
+
+### 수유와 수면 전용 API
+
+수유 수정은 `occurredAt`, `feedingType`, `amountMl`, `note`를 받는다. 예를 들어 `{"amountMl":150}`은 수유량만 변경한다. 수유량은 0 이상이다.
+
+수면 등록은 시작 시각인 `occurredAt`이 필수다. `sleepEndAt`과 `note`는 선택이다. 종료 시각을 생략하면 진행 중인 수면으로 저장한다.
+
+```json
+{
+  "occurredAt": "2026-11-08T23:00:00",
+  "sleepEndAt": "2026-11-09T06:00:00",
+  "note": "밤잠"
+}
+```
+
+수면 수정은 `occurredAt`, `sleepEndAt`, `note`를 받는다. 예를 들어 진행 중인 수면에 `{"sleepEndAt":"2026-11-09T06:00:00"}`을 보내 종료 시각을 기록한다. 수정된 시작과 종료 시각을 기존 값과 합쳐 검사하며, 종료가 시작보다 빠르면 `400`이다.
+
+두 수정 API에서 생략하거나 `null`을 보낸 필드는 유지한다. 빈 수정 요청은 `400`이며, 메모를 지우려면 `{"note":""}`를 보낸다. 수정 응답의 `data`에는 수정된 기록, 삭제 응답에는 `null`이 들어간다. 해당 아기에 대상 기록이 없으면 유형에 따라 `404 FEEDING_RECORD_NOT_FOUND` 또는 `404 SLEEP_RECORD_NOT_FOUND`를 반환한다.
+
+목록 조회 예시는 `GET /api/v1/babies/1/sleeps?date=2026-11-09`이다. 두 목록 모두 `date`가 필수이고 `authorMemberId`, `page`, `size`는 선택이다. `data`는 공동 기록과 같은 페이지 형식이다. 수면 목록에는 선택한 날짜와 겹치는 이전 날의 수면도 포함한다.
 
 ### 체온 전용 API
 
