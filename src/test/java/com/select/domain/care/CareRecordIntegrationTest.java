@@ -8,6 +8,7 @@ import com.select.domain.baby.service.BabyService;
 import com.select.domain.user.entity.User;
 import com.select.domain.user.repository.UserRepository;
 import com.select.global.security.jwt.JwtProvider;
+import com.select.global.security.jwt.TokenRevocationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -16,6 +17,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
@@ -35,6 +37,7 @@ import static org.junit.jupiter.api.Assertions.*;
         "spring.jpa.hibernate.ddl-auto=validate"
 })
 public class CareRecordIntegrationTest {
+    @MockitoBean private TokenRevocationService tokenRevocationService;
     @LocalServerPort private int port;
     @Autowired private JdbcTemplate jdbc;
     @Autowired private UserRepository users;
