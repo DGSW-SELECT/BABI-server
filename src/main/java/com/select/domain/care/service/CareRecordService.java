@@ -3,6 +3,8 @@ package com.select.domain.care.service;
 import com.select.domain.baby.repository.BabyAccessRepository;
 import com.select.domain.baby.repository.BabyRepository;
 import com.select.domain.care.dto.request.CreateCareRecordRequest;
+import com.select.domain.care.dto.request.UpdateFeedingRequest;
+import com.select.domain.care.dto.request.UpdateSleepRequest;
 import com.select.domain.care.dto.request.UpdateTemperatureRequest;
 import com.select.domain.care.dto.response.CareRecordPage;
 import com.select.domain.care.dto.response.CareRecordResponse;
@@ -18,6 +20,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.function.BiPredicate;
 import java.util.function.Function;
 
 @Service
@@ -47,6 +51,51 @@ public class CareRecordService {
     }
 
     @Transactional(propagation = Propagation.NEVER)
+    public CareRecordResponse updateFeeding(Long babyId, Long userId, Long recordId, UpdateFeedingRequest request) {
+        if (recordId <= 0 || isOutsideDatabaseYearRange(request.occurredAt())
+                || (request.occurredAt() == null && request.feedingType() == null
+                    && request.amountMl() == null && request.note() == null)) {
+            throw new CareRecordException(ErrorCode.INVALID_CARE_RECORD);
+        }
+        return withWriteAccess(babyId, userId, memberId -> records.updateFeeding(babyId, recordId, request)
+                .orElseThrow(() -> new CareRecordException(ErrorCode.FEEDING_RECORD_NOT_FOUND)));
+    }
+
+    @Transactional(propagation = Propagation.NEVER)
+    public CareRecordResponse updateSleep(Long babyId, Long userId, Long recordId, UpdateSleepRequest request) {
+        if (recordId <= 0 || isOutsideDatabaseYearRange(request.occurredAt())
+                || isOutsideDatabaseYearRange(request.sleepEndAt())
+                || (request.occurredAt() == null && request.sleepEndAt() == null && request.note() == null)) {
+            throw new CareRecordException(ErrorCode.INVALID_CARE_RECORD);
+        }
+        return withWriteAccess(babyId, userId, memberId -> {
+            var stored = records.findById(babyId, CareRecordType.SLEEP, recordId)
+                    .orElseThrow(() -> new CareRecordException(ErrorCode.SLEEP_RECORD_NOT_FOUND));
+            LocalDateTime startAt = request.occurredAt() == null ? stored.occurredAt() : request.occurredAt();
+            LocalDateTime endAt = request.sleepEndAt() == null ? stored.sleepEndAt() : request.sleepEndAt();
+            if (endAt != null && endAt.isBefore(startAt)) {
+                throw new CareRecordException(ErrorCode.INVALID_CARE_RECORD);
+            }
+            return records.updateSleep(babyId, recordId, startAt, endAt, request.note())
+                    .orElseThrow(() -> new CareRecordException(ErrorCode.SLEEP_RECORD_NOT_FOUND));
+        });
+    }
+
+    @Transactional(propagation = Propagation.NEVER)
+    public void deleteFeeding(Long babyId, Long userId, Long recordId) {
+        deleteRecord(babyId, userId, recordId, records::deleteFeeding, ErrorCode.FEEDING_RECORD_NOT_FOUND);
+    }
+
+    @Transactional(propagation = Propagation.NEVER)
+    public void deleteSleep(Long babyId, Long userId, Long recordId) {
+        deleteRecord(babyId, userId, recordId, records::deleteSleep, ErrorCode.SLEEP_RECORD_NOT_FOUND);
+    }
+
+    private boolean isOutsideDatabaseYearRange(LocalDateTime dateTime) {
+        return dateTime != null && (dateTime.getYear() < 1000 || dateTime.getYear() > 9999);
+    }
+
+    @Transactional(propagation = Propagation.NEVER)
     public CareRecordResponse updateTemperature(Long babyId, Long userId, Long recordId, UpdateTemperatureRequest request) {
         var occurredAt = request.occurredAt();
         if (recordId <= 0 || (occurredAt == null && request.temperatureCelsius() == null && request.note() == null)
@@ -59,10 +108,15 @@ public class CareRecordService {
 
     @Transactional(propagation = Propagation.NEVER)
     public void deleteTemperature(Long babyId, Long userId, Long recordId) {
+        deleteRecord(babyId, userId, recordId, records::deleteTemperature, ErrorCode.TEMPERATURE_RECORD_NOT_FOUND);
+    }
+
+    private void deleteRecord(Long babyId, Long userId, Long recordId,
+                              BiPredicate<Long, Long> delete, ErrorCode notFound) {
         if (recordId <= 0) throw new CareRecordException(ErrorCode.INVALID_CARE_RECORD);
         withWriteAccess(babyId, userId, memberId -> {
-            if (!records.deleteTemperature(babyId, recordId)) {
-                throw new CareRecordException(ErrorCode.TEMPERATURE_RECORD_NOT_FOUND);
+            if (!delete.test(babyId, recordId)) {
+                throw new CareRecordException(notFound);
             }
             return null;
         });

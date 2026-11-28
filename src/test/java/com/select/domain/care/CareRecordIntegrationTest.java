@@ -8,6 +8,7 @@ import com.select.domain.baby.service.BabyService;
 import com.select.domain.user.entity.User;
 import com.select.domain.user.repository.UserRepository;
 import com.select.global.security.jwt.JwtProvider;
+import com.select.global.security.jwt.TokenRevocationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -16,6 +17,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
@@ -35,6 +37,7 @@ import static org.junit.jupiter.api.Assertions.*;
         "spring.jpa.hibernate.ddl-auto=validate"
 })
 public class CareRecordIntegrationTest {
+    @MockitoBean private TokenRevocationService tokenRevocationService;
     @LocalServerPort private int port;
     @Autowired private JdbcTemplate jdbc;
     @Autowired private UserRepository users;
@@ -145,6 +148,88 @@ public class CareRecordIntegrationTest {
         assertStatus(400, request("POST", "/api/v1/babies/" + babyId + "/feedings", ownerId,
                 "{\"occurredAt\":\"0000-11-08T08:00:00\",\"feedingType\":\"FORMULA\",\"amountMl\":90}"));
         assertEquals(0L, jdbc.queryForObject("SELECT COUNT(*) FROM feeding_records WHERE baby_id=?", Long.class, babyId));
+    }
+
+    @Test
+    void feedingCanBeListedPartiallyUpdatedAndDeleted() throws Exception {
+        String url = "/api/v1/babies/" + babyId + "/feedings";
+        var created = request("POST", url, writerId, """
+                {"occurredAt":"2026-11-08T08:00:00","feedingType":"FORMULA","amountMl":90,"note":"아침"}
+                """);
+        var saved = assertSuccessResponse(201, created, "수유 기록을 등록했습니다.");
+        String recordUrl = url + "/" + saved.path("recordId").asLong();
+        create(ownerId, "TEMPERATURE", "2026-11-08T08:00:00", Map.of("temperatureCelsius", 36.5));
+
+        var updated = request("PATCH", recordUrl, ownerId, """
+                {"amountMl":120,"note":""}
+                """);
+        var record = assertSuccessResponse(200, updated, "수유 기록을 수정했습니다.");
+        assertEquals(120, record.path("amountMl").asInt());
+        assertEquals("FORMULA", record.path("feedingType").asString());
+        assertEquals(writerMemberId.longValue(), record.path("authorMemberId").asLong());
+        assertTrue(record.path("note").isNull());
+
+        var listed = request("GET", url + "?date=2026-11-08&authorMemberId=" + writerMemberId, readerId, null);
+        var page = assertSuccessResponse(200, listed, "수유 기록을 조회했습니다.");
+        assertEquals(1, page.path("records").size());
+        assertEquals(120, page.path("records").get(0).path("amountMl").asInt());
+        assertTrue(assertSuccessResponse(200, request("DELETE", recordUrl, writerId, null),
+                "수유 기록을 삭제했습니다.").isNull());
+        assertStatus(404, request("PATCH", recordUrl, ownerId, "{\"amountMl\":120}"));
+        assertEquals(0, list(readerId, "&recordType=FEEDING").path("records").size());
+        assertEquals(1, list(readerId, "&recordType=TEMPERATURE").path("records").size());
+    }
+
+    @Test
+    void overnightSleepCanBeCompletedAndDeleted() throws Exception {
+        String url = "/api/v1/babies/" + babyId + "/sleeps";
+        assertStatus(400, request("POST", url, writerId, """
+                {"occurredAt":"2026-11-07T23:00:00","sleepEndAt":"2026-11-07T22:00:00"}
+                """));
+        var created = request("POST", url, writerId, """
+                {"occurredAt":"2026-11-07T23:00:00","note":"밤잠"}
+                """);
+        var saved = assertSuccessResponse(201, created, "수면 기록을 등록했습니다.");
+        assertTrue(saved.path("sleepEndAt").isNull());
+        String recordUrl = url + "/" + saved.path("recordId").asLong();
+        String nextDay = url + "?date=2026-11-08";
+        var ongoing = assertSuccessResponse(200, request("GET", nextDay, readerId, null), "수면 기록을 조회했습니다.");
+        assertEquals(1, ongoing.path("records").size());
+        assertStatus(400, request("PATCH", recordUrl, writerId, "{\"sleepEndAt\":\"2026-11-07T22:30:00\"}"));
+        var completed = request("PATCH", recordUrl, writerId, "{\"sleepEndAt\":\"2026-11-08T06:30:00\"}");
+        var completedRecord = assertSuccessResponse(200, completed, "수면 기록을 수정했습니다.");
+        assertEquals("2026-11-08T06:30:00", completedRecord.path("sleepEndAt").asString());
+        assertEquals("밤잠", completedRecord.path("note").asString());
+        assertStatus(400, request("PATCH", recordUrl, writerId, "{\"occurredAt\":\"2026-11-08T07:00:00\"}"));
+        var listed = assertSuccessResponse(200, request("GET", nextDay, readerId, null), "수면 기록을 조회했습니다.");
+        assertEquals(completedRecord, listed.path("records").get(0));
+        assertTrue(assertSuccessResponse(200, request("DELETE", recordUrl, writerId, null),
+                "수면 기록을 삭제했습니다.").isNull());
+        assertEquals(0, assertSuccessResponse(200, request("GET", nextDay, readerId, null),
+                "수면 기록을 조회했습니다.").path("records").size());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"feedings", "sleeps"})
+    void feedingAndSleepWritesAreRestrictedToTheAuthorizedBaby(String collection) throws Exception {
+        boolean feeding = collection.equals("feedings");
+        var record = create(ownerId, feeding ? "FEEDING" : "SLEEP", "2026-11-08T08:00:00",
+                feeding ? Map.of("feedingType", "FORMULA") : Map.of());
+        long recordId = record.path("recordId").asLong();
+        String url = "/api/v1/babies/" + babyId + "/" + collection;
+        String recordUrl = url + "/" + recordId;
+        Long otherBaby = babies.createBaby(new BabyCreateRequest("다른 아기", LocalDate.of(2026, 1, 1)), outsiderId).babyId();
+        String anotherBabyUrl = "/api/v1/babies/" + otherBaby + "/" + collection + "/" + recordId;
+        String patch = "{\"note\":\"수정\"}";
+        assertStatus(401, request("GET", url + "?date=2026-11-08", null, null));
+        assertStatus(403, request("GET", url + "?date=2026-11-08", outsiderId, null));
+        assertStatus(403, request("PATCH", recordUrl, readerId, patch));
+        assertStatus(403, request("DELETE", recordUrl, readerId, null));
+        assertStatus(404, request("PATCH", anotherBabyUrl, outsiderId, patch));
+        assertStatus(404, request("DELETE", anotherBabyUrl, outsiderId, null));
+        assertStatus(400, request("PATCH", recordUrl, ownerId, "{}"));
+        if (feeding) assertStatus(400, request("PATCH", recordUrl, ownerId, "{\"amountMl\":-1}"));
+        assertEquals(record, list(readerId, "&recordType=" + (feeding ? "FEEDING" : "SLEEP")).path("records").get(0));
     }
 
     @Test
