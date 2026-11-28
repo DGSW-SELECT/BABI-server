@@ -2,11 +2,17 @@ package com.select.domain.care.controller;
 
 import com.select.domain.care.dto.request.CreateCareRecordRequest;
 import com.select.domain.care.dto.request.CreateFeedingRequest;
+import com.select.domain.care.dto.request.CreateSleepRequest;
+import com.select.domain.care.dto.request.CreateTemperatureRequest;
+import com.select.domain.care.dto.request.UpdateFeedingRequest;
+import com.select.domain.care.dto.request.UpdateSleepRequest;
+import com.select.domain.care.dto.request.UpdateTemperatureRequest;
 import com.select.domain.care.dto.response.CareRecordPage;
 import com.select.domain.care.dto.response.CareRecordResponse;
 import com.select.domain.care.entity.CareRecordType;
 import com.select.domain.care.service.CareRecordService;
 import com.select.global.response.ApiResponse;
+import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
@@ -31,6 +37,7 @@ public class CareRecordController {
         return new ApiResponse<>(true, "육아 기록을 등록했습니다.", service.create(babyId, Long.valueOf(userId), request));
     }
 
+    @Operation(summary = "수유 기록 저장")
     @PostMapping("/feedings")
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<CareRecordResponse> createFeeding(@PathVariable Long babyId,
@@ -38,6 +45,107 @@ public class CareRecordController {
         return new ApiResponse<>(true, "수유 기록을 등록했습니다.", service.create(babyId, Long.valueOf(userId),
                 new CreateCareRecordRequest(CareRecordType.FEEDING, request.occurredAt(), null,
                         request.feedingType(), request.amountMl(), null, null, null, null, null, request.note())));
+    }
+
+    @Operation(summary = "날짜별 수유 기록 조회")
+    @GetMapping("/feedings")
+    public ApiResponse<CareRecordPage> listFeedings(@PathVariable Long babyId,
+            @AuthenticationPrincipal String userId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            @RequestParam(required = false) Long authorMemberId,
+            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "50") int size) {
+        return ApiResponse.success("수유 기록을 조회했습니다.",
+                service.list(babyId, Long.valueOf(userId), date, CareRecordType.FEEDING, authorMemberId, page, size));
+    }
+
+    @Operation(summary = "수유 기록 수정")
+    @PatchMapping("/feedings/{recordId}")
+    public ApiResponse<CareRecordResponse> updateFeeding(@PathVariable Long babyId, @PathVariable Long recordId,
+            @AuthenticationPrincipal String userId, @Valid @RequestBody UpdateFeedingRequest request) {
+        return ApiResponse.success("수유 기록을 수정했습니다.",
+                service.updateFeeding(babyId, Long.valueOf(userId), recordId, request));
+    }
+
+    @Operation(summary = "수유 기록 삭제")
+    @DeleteMapping("/feedings/{recordId}")
+    public ApiResponse<Void> deleteFeeding(@PathVariable Long babyId, @PathVariable Long recordId,
+            @AuthenticationPrincipal String userId) {
+        service.deleteFeeding(babyId, Long.valueOf(userId), recordId);
+        return ApiResponse.success("수유 기록을 삭제했습니다.");
+    }
+
+    @Operation(summary = "수면 기록 저장")
+    @PostMapping("/sleeps")
+    @ResponseStatus(HttpStatus.CREATED)
+    public ApiResponse<CareRecordResponse> createSleep(@PathVariable Long babyId,
+            @AuthenticationPrincipal String userId, @Valid @RequestBody CreateSleepRequest request) {
+        return ApiResponse.success("수면 기록을 등록했습니다.", service.create(babyId, Long.valueOf(userId),
+                new CreateCareRecordRequest(CareRecordType.SLEEP, request.occurredAt(), null,
+                        null, null, request.sleepEndAt(), null, null, null, null, request.note())));
+    }
+
+    @Operation(summary = "날짜별 수면 기록 조회")
+    @GetMapping("/sleeps")
+    public ApiResponse<CareRecordPage> listSleeps(@PathVariable Long babyId,
+            @AuthenticationPrincipal String userId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            @RequestParam(required = false) Long authorMemberId,
+            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "50") int size) {
+        return ApiResponse.success("수면 기록을 조회했습니다.",
+                service.list(babyId, Long.valueOf(userId), date, CareRecordType.SLEEP, authorMemberId, page, size));
+    }
+
+    @Operation(summary = "수면 기록 수정")
+    @PatchMapping("/sleeps/{recordId}")
+    public ApiResponse<CareRecordResponse> updateSleep(@PathVariable Long babyId, @PathVariable Long recordId,
+            @AuthenticationPrincipal String userId, @Valid @RequestBody UpdateSleepRequest request) {
+        return ApiResponse.success("수면 기록을 수정했습니다.",
+                service.updateSleep(babyId, Long.valueOf(userId), recordId, request));
+    }
+
+    @Operation(summary = "수면 기록 삭제")
+    @DeleteMapping("/sleeps/{recordId}")
+    public ApiResponse<Void> deleteSleep(@PathVariable Long babyId, @PathVariable Long recordId,
+            @AuthenticationPrincipal String userId) {
+        service.deleteSleep(babyId, Long.valueOf(userId), recordId);
+        return ApiResponse.success("수면 기록을 삭제했습니다.");
+    }
+
+    @Operation(summary = "체온 기록 저장")
+    @PostMapping("/temperatures")
+    @ResponseStatus(HttpStatus.CREATED)
+    public ApiResponse<CareRecordResponse> createTemperature(@PathVariable Long babyId,
+            @AuthenticationPrincipal String userId, @Valid @RequestBody CreateTemperatureRequest request) {
+        return ApiResponse.success("체온 기록을 등록했습니다.", service.create(babyId, Long.valueOf(userId),
+                new CreateCareRecordRequest(CareRecordType.TEMPERATURE, request.occurredAt(), null,
+                        null, null, null, request.temperatureCelsius(), null, null, null, request.note())));
+    }
+
+    @Operation(summary = "날짜별 체온 기록 조회")
+    @GetMapping("/temperatures")
+    public ApiResponse<CareRecordPage> listTemperatures(@PathVariable Long babyId,
+            @AuthenticationPrincipal String userId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            @RequestParam(required = false) Long authorMemberId,
+            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "50") int size) {
+        return ApiResponse.success("체온 기록을 조회했습니다.",
+                service.list(babyId, Long.valueOf(userId), date, CareRecordType.TEMPERATURE, authorMemberId, page, size));
+    }
+
+    @Operation(summary = "체온 기록 수정")
+    @PatchMapping("/temperatures/{recordId}")
+    public ApiResponse<CareRecordResponse> updateTemperature(@PathVariable Long babyId, @PathVariable Long recordId,
+            @AuthenticationPrincipal String userId, @Valid @RequestBody UpdateTemperatureRequest request) {
+        return ApiResponse.success("체온 기록을 수정했습니다.",
+                service.updateTemperature(babyId, Long.valueOf(userId), recordId, request));
+    }
+
+    @Operation(summary = "체온 기록 삭제")
+    @DeleteMapping("/temperatures/{recordId}")
+    public ApiResponse<Void> deleteTemperature(@PathVariable Long babyId, @PathVariable Long recordId,
+            @AuthenticationPrincipal String userId) {
+        service.deleteTemperature(babyId, Long.valueOf(userId), recordId);
+        return ApiResponse.success("체온 기록을 삭제했습니다.");
     }
 
     @GetMapping("/records")

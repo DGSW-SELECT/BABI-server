@@ -23,6 +23,9 @@ public enum ErrorCode {
     PROFILE_PHOTO_BUSY(HttpStatus.SERVICE_UNAVAILABLE, "사진 요청이 많습니다. 잠시 후 다시 시도해 주세요."),
 
     INVALID_CARE_RECORD(HttpStatus.BAD_REQUEST, "기록 내용 또는 연결된 음성 기록을 확인해 주세요."),
+    FEEDING_RECORD_NOT_FOUND(HttpStatus.NOT_FOUND, "수유 기록을 찾을 수 없습니다."),
+    SLEEP_RECORD_NOT_FOUND(HttpStatus.NOT_FOUND, "수면 기록을 찾을 수 없습니다."),
+    TEMPERATURE_RECORD_NOT_FOUND(HttpStatus.NOT_FOUND, "체온 기록을 찾을 수 없습니다."),
     DAILY_REPORT_NO_RECORDS(HttpStatus.BAD_REQUEST, "해당 날짜에 요약할 육아 기록이 없습니다."),
     DAILY_REPORT_GENERATION_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "AI 리포트 생성을 일시적으로 사용할 수 없습니다."),
 
